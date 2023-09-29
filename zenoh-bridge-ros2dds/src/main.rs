@@ -220,7 +220,10 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
 #[async_std::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
-    log::info!("zenoh-bridge-ros2dds {}", *zenoh_plugin_ros2dds::LONG_VERSION);
+    log::info!(
+        "zenoh-bridge-ros2dds {}",
+        *zenoh_plugin_ros2dds::LONG_VERSION
+    );
 
     let (config, watchdog_period) = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
