@@ -223,7 +223,7 @@ impl DDSRawSample {
     pub fn len(&self) -> usize {
         #[cfg(feature = "dds_shm")]
         {
-            self.data.iov_len + self.iox_chunk.as_ref().map(IoxChunk::len).unwrap_or(0)
+            self.data.iov_len + self.iox_chunk.as_ref().map(IoxChunk::len).unwrap_or(0usize)
         }
 
         #[cfg(not(feature = "dds_shm"))]
