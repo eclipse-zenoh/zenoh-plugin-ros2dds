@@ -188,7 +188,7 @@ impl DDSRawSample {
 
     fn data_as_slice(&self) -> &[u8] {
         unsafe {
-            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
+            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len.try_into().unwrap())
         }
     }
 
@@ -200,7 +200,7 @@ impl DDSRawSample {
                     return iox_chunk.as_slice();
                 }
             }
-            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len.try_into().unwrap())[4..]
         }
     }
 
@@ -223,7 +223,7 @@ impl DDSRawSample {
     pub fn len(&self) -> usize {
         #[cfg(feature = "dds_shm")]
         {
-            self.data.iov_len + self.iox_chunk.as_ref().map(IoxChunk::len).unwrap_or(0usize)
+            TryInto::<usize>::try_into(self.data.iov_len).unwrap() + self.iox_chunk.as_ref().map(IoxChunk::len).unwrap_or(0)
         }
 
         #[cfg(not(feature = "dds_shm"))]
