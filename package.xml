@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<!--
+Copyright (c) 2022 ZettaScale Technology
+
+This program and the accompanying materials are made available under the
+terms of the Eclipse Public License 2.0 which is available at
+http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+which is available at https://www.apache.org/licenses/LICENSE-2.0.
+
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+
+Contributors:
+    ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+-->
+
+<!-- ROS2 package declaration -->
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>zenoh_bridge_ros2dds</name>
+  <version>0.5.0</version>
+  <description>
+    Bridge between ROS2/DDS and Eclipse zenoh (https://zenoh.io). It allows the integration of zenoh applications with ROS2,
+    or the tunneling of ROS2 communications between nodes via the zenoh protocol at Internet scale.
+  </description>
+  <url>https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds</url>
+  <maintainer email="zenoh@zettascale.tech">ZettaScale Zenoh team</maintainer>
+  <license>EPL-2.0</license>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>cargo</build_depend>
+  <build_depend>clang</build_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
