@@ -1,0 +1,147 @@
+////
+//// This file presents the default configuration used by both the `zenoh-plugin-ros2dds` plugin and the `zenoh-bridge-ros2dds` standalone executable.
+//// The "ros2" JSON5 object below can be used as such in the "plugins" part of a config file for the zenoh router (zenohd).
+////
+{
+  plugins: {
+    ////
+    //// ROS2 related configuration
+    //// All settings are optional and are unset by default - uncomment the ones you want to set
+    ////
+    ros2: {
+      ////
+      //// id: An identifier for this bridge, which must be unique in the system.
+      ///      The bridge will use this identifier in it's administration space: `@ros2/<id>/**`.
+      ///      This identifier will also appears in the logs of all other bridges on discovery events.
+      ///      By default a random UUID
+      ////
+      // id: "robot-1",
+
+      ////
+      //// namespace: A ROS namespace to be used by this bridge.
+      ////            Default: "/"
+      ////
+      // namespace: "/",
+
+      ////
+      //// nodename: A ROS node name to be used by this bridge.
+      ////            Default: "zenoh_bridge_ros2dds"
+      ////
+      // namespace: "zenoh_bridge_ros2dds",
+
+      ////
+      //// domain: The DDS Domain ID. By default set to 0, or to "$ROS_DOMAIN_ID" is this environment variable is defined.
+      ////
+      // domain: 0,
+
+      ////
+      //// localhost_only: If set to true, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
+      ////                 By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
+      ////
+      // localhost_only: true,
+
+      ////
+      //// shm_enabled: If set to true, the DDS implementation will use Iceoryx shared memory.
+      ////              Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
+      ////              By default set to false.
+      ////
+      // shm_enabled: false,
+
+      ////
+      //// allow: Sets of 1 or more regular expression per ROS interface kind matching the interface names that must be routed via zenoh.
+      ////        By default, all interfaces are allowed.
+      ////        If both 'allow' and 'deny' are set an interface will be allowed if it matches only the expression in 'allow' set.
+      ////
+      // allow: {
+      //   publishers: [".*/laser_scan", "/tf", ".*/pose"],
+      //   subscribers: [".*/cmd_vel"],
+      //   service_servers: [".*/.*_parameters"],
+      //   service_clients: [],
+      //   action_servers: [".*/rotate_absolute"],
+      //   action_clients: [],
+      // },
+
+      ////
+      //// deny: Sets of 1 or more regular expression per ROS interface kind matching the interface names that must NOT be routed via zenoh.
+      ////       By default, no interface are denied.
+      ////       If both 'allow' and 'deny' are set an interface will be allowed if it matches only the expression in 'allow' set.
+      ////
+      // deny: {
+      //   publishers: ["/rosout", "/parameter_events"],
+      //   subscribers: ["/rosout"],
+      //   service_servers: [".*/set_parameters"],
+      //   service_clients: [".*/set_parameters"],
+      //   action_servers: [],
+      //   action_clients: [],
+      // },
+
+      ////
+      //// pub_max_frequencies: Specifies a list of maximum frequency of messages routing over zenoh for a set of topics.
+      ////                      The strings must have the format "<regex>=<float>":
+      ////                      - "regex" is a regular expression matching a Publisher interface name
+      ////                      - "float" is the maximum frequency in Hertz;
+      ////                        if publication rate is higher, downsampling will occur when routing.
+      // pub_max_frequencies: [".*/laser_scan=5", "/tf=10"],
+
+
+      ////
+      //// reliable_routes_blocking: When true, the publications from a RELIABLE DDS Writer will be
+      ////                           routed to zenoh using the CongestionControl::Block option.
+      ////                           Meaning the routing will be blocked in case of network congestion,
+      ////                           blocking the DDS Reader and the RELIABLE DDS Writer in return.
+      ////                           When false (or for BERST_EFFORT DDS Writers), CongestionControl::Drop
+      ////                           is used, meaning the route might drop some data in case of congestion.
+      ////
+      // reliable_routes_blocking: true,
+
+      ////
+      //// queries_timeout: A duration in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+      ////                  queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
+      ////                  (i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers,
+      ////                  but the route will not be blocked forever).
+      ////
+      // queries_timeout: 5.0,
+    },
+
+    ////
+    //// REST API configuration (active only if this part is defined)
+    ////
+    // rest: {
+    //   ////
+    //   //// The HTTP port number (for all network interfaces).
+    //   //// You can bind on a specific interface setting a "<local_ip>:<port>" string.
+    //   ////
+    //   http_port: 8000,
+    // },
+  },
+
+  ////
+  //// zenoh related configuration (see zenoh documentation for more details)
+  ////
+
+  ////
+  //// mode: The bridge's mode (peer or client)
+  ////
+  //mode: "client",
+
+  ////
+  //// Which endpoints to connect to. E.g. tcp/localhost:7447.
+  //// By configuring the endpoints, it is possible to tell zenoh which router/peer to connect to at startup.
+  ////
+  connect: {
+    endpoints: [
+      // "<proto>/<ip>:<port>"
+    ]
+  },
+
+  ////
+  //// Which endpoints to listen on. E.g. tcp/localhost:7447.
+  //// By configuring the endpoints, it is possible to tell zenoh which are the endpoints that other routers,
+  //// peers, or client can use to establish a zenoh session.
+  ////
+  listen: {
+    endpoints: [
+      // "<proto>/<ip>:<port>"
+    ]
+  },
+}

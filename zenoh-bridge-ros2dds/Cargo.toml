@@ -1,0 +1,72 @@
+#
+# Copyright (c) 2022 ZettaScale Technology
+#
+# This program and the accompanying materials are made available under the
+# terms of the Eclipse Public License 2.0 which is available at
+# http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+# which is available at https://www.apache.org/licenses/LICENSE-2.0.
+#
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+#
+# Contributors:
+#   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+#
+[package]
+name = "zenoh-bridge-ros2dds"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+categories = ["network-programming"]
+description = "Zenoh bridge for ROS 2 and DDS in general"
+
+[features]
+dds_shm = ["zenoh-plugin-ros2dds/dds_shm"]
+
+[dependencies]
+async-std = { workspace = true, features = ["unstable", "attributes"] }
+async-liveliness-monitor = { workspace = true }
+clap = { workspace = true }
+env_logger = { workspace = true }
+lazy_static = { workspace = true }
+log = { workspace = true }
+serde_json = { workspace = true }
+zenoh  = { workspace = true }
+zenoh-plugin-rest = { workspace = true }
+zenoh-plugin-trait = { workspace = true }
+zenoh-plugin-ros2dds = { path = "../zenoh-plugin-ros2dds/", default-features = false }
+
+[[bin]]
+name = "zenoh-bridge-ros2dds"
+path = "src/main.rs"
+
+[package.metadata.deb]
+name = "zenoh-bridge-ros2dds"
+maintainer = "zenoh-dev@eclipse.org"
+copyright = "2017, 2022 ZettaScale Technology Inc."
+section = "net"
+license-file = ["../LICENSE", "0"]
+depends = "$auto"
+maintainer-scripts = ".deb"
+assets = [
+    # binary
+    [
+        "target/release/zenoh-bridge-ros2dds",
+        "/usr/bin/",
+        "755",
+    ],
+    # config file
+    [
+        "../DEFAULT_CONFIG.json5",
+        "/etc/zenoh-bridge-ros2dds/conf.json5",
+        "644",
+    ],
+    # service
+    [
+        ".service/zenoh-bridge-ros2dds.service",
+        "/lib/systemd/system/zenoh-bridge-ros2dds.service",
+        "644",
+    ],
+]

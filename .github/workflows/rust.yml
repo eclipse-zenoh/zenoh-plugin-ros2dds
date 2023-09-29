@@ -1,0 +1,86 @@
+#
+# Copyright (c) 2022 ZettaScale Technology
+#
+# This program and the accompanying materials are made available under the
+# terms of the Eclipse Public License 2.0 which is available at
+# http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+# which is available at https://www.apache.org/licenses/LICENSE-2.0.
+#
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+#
+# Contributors:
+#   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+#
+name: Rust
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install ACL
+        if: startsWith(matrix.os,'ubuntu')
+        run: sudo apt-get -y install libacl1-dev
+
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustup component add rustfmt clippy
+
+      - name: Code format check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+
+      # - name: Clippy
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: clippy
+      #     args: --all --examples -- -D warnings
+
+      - name: Build zenoh-plugin-ros2dds
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-plugin-ros2dds --verbose --all-targets
+
+      - name: Build zenoh-plugin-ros2dds (with dds_shm)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
+
+      - name: Build zenoh-bridge-ros2dds
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-bridge-ros2dds  --verbose --all-targets
+
+      - name: Build zenoh-bridge-ros2dds (with dds_shm)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
+
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --verbose
