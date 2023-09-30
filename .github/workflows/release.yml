@@ -286,7 +286,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: jenoch/zenoh-bridge-ros2dds
+          images: eclipse/zenoh-bridge-ros2dds
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
