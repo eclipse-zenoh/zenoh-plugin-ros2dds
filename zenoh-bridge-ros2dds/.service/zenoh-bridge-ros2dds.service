@@ -1,5 +1,5 @@
 [Unit]
-Description = Eclipse Zenoh Bridge for DDS
+Description = Eclipse Zenoh Bridge for ROS2 with a DDS RMW
 Documentation=https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds
 After=network-online.target
 Wants=network-online.target
