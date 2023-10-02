@@ -133,7 +133,7 @@ impl DDSRawSample {
         unsafe {
             slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap()
+                self.data.iov_len.try_into().unwrap(),
             )
         }
     }
@@ -148,7 +148,7 @@ impl DDSRawSample {
             }
             &slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap()
+                self.data.iov_len.try_into().unwrap(),
             )[4..]
         }
     }
