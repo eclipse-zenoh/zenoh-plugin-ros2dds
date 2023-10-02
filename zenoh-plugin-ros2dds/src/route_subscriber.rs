@@ -124,7 +124,7 @@ impl RouteSubscriber<'_> {
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
 
         let dds_writer =
-            create_forwarding_dds_writer(participant, topic_name, type_name, keyless, writer_qos)?;
+            create_dds_writer(participant, topic_name, type_name, keyless, writer_qos)?;
 
         Ok(RouteSubscriber {
             ros2_name,
@@ -389,16 +389,17 @@ impl RouteSubscriber<'_> {
 fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::trace!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:?}",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:02x?}",
             s.key_expr,
             &ros2_name,
             s.value.payload
         );
     } else {
         log::trace!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - {} bytes",
             s.key_expr,
-            &ros2_name
+            &ros2_name,
+            s.value.payload.len()
         );
     }
 

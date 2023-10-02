@@ -12,7 +12,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use cyclors::dds_entity_t;
 use zenoh::prelude::KeyExpr;
+
+use crate::dds_discovery::get_guid;
 
 /// Convert DDS Topic type to ROS2 Message type
 pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
@@ -25,8 +30,6 @@ pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
 }
 
 /// Convert ROS2 Message type to DDS Topic type
-///
-/// # Examples
 pub fn ros2_message_type_to_dds_type(ros_topic: &str) -> String {
     let mut result = ros_topic.replace("/", "::");
     result
@@ -46,6 +49,16 @@ pub fn dds_type_to_ros2_service_type(dds_topic: &str) -> String {
     )
 }
 
+/// Convert ROS2 Service type to DDS Topic type for Request
+pub fn ros2_service_type_to_request_dds_type(ros_service: &str) -> String {
+    format!("{}Request_", ros2_message_type_to_dds_type(ros_service))
+}
+
+/// Convert ROS2 Service type to DDS Topic type for Reply
+pub fn ros2_service_type_to_reply_dds_type(ros_service: &str) -> String {
+    format!("{}Response_", ros2_message_type_to_dds_type(ros_service))
+}
+
 /// Convert DDS Topic type for ROS2 Action to ROS2 Action type
 /// Warning: can't work for "rt/.../_action/status", "rq/.../_action/cancel_goalRequest"
 /// or "rr../_action/cancel_goalReply" topic, since their types are generic
@@ -61,7 +74,7 @@ pub fn dds_type_to_ros2_action_type(dds_topic: &str) -> String {
     )
 }
 
-// check if name is a ROS name: starting with '/' and useable as a key expression (removing 1st '/')
+/// Check if name is a ROS name: starting with '/' and useable as a key expression (removing 1st '/')
 #[inline]
 pub fn check_ros_name(name: &str) -> Result<(), String> {
     if !name.starts_with('/') || KeyExpr::try_from("&(name[1..])").is_err() {
@@ -71,6 +84,28 @@ pub fn check_ros_name(name: &str) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+lazy_static::lazy_static!(
+    pub static ref CLIENT_ID_COUNTER: AtomicU32 = AtomicU32::default();
+);
+
+/// Create a new id for a Service Client or Server, in the same way than rmw_cyclone_dds
+/// The id is returned as a [u8; 16] + as a hexadecimal String with '.' separators between each 2 bytes)
+pub fn new_service_id(participant: &dds_entity_t) -> Result<([u8; 16], String), String> {
+    // Service client or server id (16 bytes) generated in the same way than rmw_cyclone_dds here:
+    // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4908
+    let mut id: [u8; 16] = *get_guid(&participant)?;
+    let counter_be = CLIENT_ID_COUNTER
+        .fetch_add(1, Ordering::Relaxed)
+        .to_be_bytes();
+    id[12..].copy_from_slice(&counter_be);
+    let id_str = id
+        .iter()
+        .map(|b| format!("{b:x}"))
+        .collect::<Vec<String>>()
+        .join(".");
+    Ok((id, id_str))
 }
 
 mod tests {

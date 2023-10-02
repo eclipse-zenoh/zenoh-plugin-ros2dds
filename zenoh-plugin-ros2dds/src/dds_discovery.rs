@@ -525,14 +525,14 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing payload: {:02x?}",
+                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - payload: {:02x?}",
                     &(*pa).0,
                     &(*pa).1,
                     raw_sample
                 );
             } else {
                 log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing {} bytes",
+                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - {} bytes",
                     &(*pa).0,
                     &(*pa).1,
                     raw_sample.len()
@@ -684,7 +684,7 @@ unsafe fn create_topic(
     }
 }
 
-pub fn create_forwarding_dds_writer(
+pub fn create_dds_writer(
     dp: dds_entity_t,
     topic_name: String,
     type_name: String,
@@ -708,6 +708,124 @@ pub fn create_forwarding_dds_writer(
                     .to_str()
                     .unwrap_or("unrecoverable DDS retcode")
             ))
+        }
+    }
+}
+
+unsafe extern "C" fn listener_to_callback<F>(dr: dds_entity_t, arg: *mut std::os::raw::c_void)
+where
+    F: Fn(&DDSRawSample) -> (),
+{
+    let callback = arg as *mut F;
+    let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
+    #[allow(clippy::uninit_assumed_init)]
+    let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
+    while dds_takecdr(
+        dr,
+        &mut zp,
+        1,
+        si.as_mut_ptr() as *mut dds_sample_info_t,
+        DDS_ANY_STATE,
+    ) > 0
+    {
+        let si = si.assume_init();
+        if si[0].valid_data {
+            let raw_sample = DDSRawSample::create(zp);
+
+            (*callback)(&raw_sample);
+        }
+        ddsi_serdata_unref(zp);
+    }
+}
+
+pub fn create_dds_reader<F>(
+    dp: dds_entity_t,
+    topic_name: String,
+    type_name: String,
+    type_info: &Option<Arc<TypeInfo>>,
+    keyless: bool,
+    mut qos: Qos,
+    read_period: Option<Duration>,
+    callback: F,
+) -> Result<dds_entity_t, String>
+where
+    F: Fn(&DDSRawSample) -> () + std::marker::Send + 'static,
+{
+    unsafe {
+        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
+        match read_period {
+            None => {
+                // Use a Listener to route data as soon as it arrives
+                let arg = Box::new(callback);
+                let sub_listener =
+                    dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
+                dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
+                let qos_native = qos.to_qos_native();
+                let reader = dds_create_reader(dp, t, qos_native, sub_listener);
+                Qos::delete_qos_native(qos_native);
+                if reader >= 0 {
+                    let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
+                    if res < 0 {
+                        log::error!(
+                            "Error calling dds_reader_wait_for_historical_data(): {}",
+                            CStr::from_ptr(dds_strretcode(-res))
+                                .to_str()
+                                .unwrap_or("unrecoverable DDS retcode")
+                        );
+                    }
+                    Ok(reader)
+                } else {
+                    Err(format!(
+                        "Error creating DDS Reader: {}",
+                        CStr::from_ptr(dds_strretcode(-reader))
+                            .to_str()
+                            .unwrap_or("unrecoverable DDS retcode")
+                    ))
+                }
+            }
+            Some(period) => {
+                // Use a periodic task that takes data to route from a Reader with KEEP_LAST 1
+                qos.history = Some(History {
+                    kind: HistoryKind::KEEP_LAST,
+                    depth: 1,
+                });
+                let qos_native = qos.to_qos_native();
+                let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
+                task::spawn(async move {
+                    // loop while reader's instance handle remain the same
+                    // (if reader was deleted, its dds_entity_t value might have been
+                    // reused by a new entity... don't trust it! Only trust instance handle)
+                    let mut original_handle: dds_instance_handle_t = 0;
+                    dds_get_instance_handle(reader, &mut original_handle);
+                    let mut handle: dds_instance_handle_t = 0;
+                    while dds_get_instance_handle(reader, &mut handle) == DDS_RETCODE_OK as i32 {
+                        if handle != original_handle {
+                            break;
+                        }
+
+                        async_std::task::sleep(period).await;
+                        let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
+                        #[allow(clippy::uninit_assumed_init)]
+                        let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
+                        while dds_takecdr(
+                            reader,
+                            &mut zp,
+                            1,
+                            si.as_mut_ptr() as *mut dds_sample_info_t,
+                            DDS_ANY_STATE,
+                        ) > 0
+                        {
+                            let si = si.assume_init();
+                            if si[0].valid_data {
+                                let raw_sample = DDSRawSample::create(zp);
+                                callback(&raw_sample);
+                            }
+                            ddsi_serdata_unref(zp);
+                        }
+                    }
+                });
+                Ok(reader)
+            }
         }
     }
 }
