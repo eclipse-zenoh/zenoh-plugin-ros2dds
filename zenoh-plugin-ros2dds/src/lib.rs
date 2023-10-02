@@ -36,6 +36,8 @@ use zenoh_util::Timed;
 
 pub mod config;
 mod dds_discovery;
+mod dds_types;
+mod dds_utils;
 mod discovered_entities;
 mod discovery_mgr;
 mod events;
@@ -46,15 +48,18 @@ mod qos_helpers;
 mod ros2_utils;
 mod ros_discovery;
 mod route_publisher;
+mod route_service_cli;
+mod route_service_srv;
 mod route_subscriber;
 mod routes_mgr;
 use config::Config;
-use dds_discovery::*;
 
+use crate::dds_utils::get_guid;
 use crate::discovery_mgr::DiscoveryMgr;
 use crate::events::ROS2DiscoveryEvent;
 use crate::liveliness_mgt::{
-    ke_liveliness_all, ke_liveliness_plugin, parse_ke_liveliness_pub, parse_ke_liveliness_sub,
+    ke_liveliness_all, ke_liveliness_plugin, parse_ke_liveliness_pub,
+    parse_ke_liveliness_service_cli, parse_ke_liveliness_service_srv, parse_ke_liveliness_sub,
 };
 use crate::ros_discovery::RosDiscoveryInfoMgr;
 use crate::routes_mgr::RoutesMgr;
@@ -486,6 +491,36 @@ impl<'a> ROS2PluginRuntime<'a> {
             ("MS/", SampleKind::Delete) => parse_ke_liveliness_sub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
                 .map(|(plugin_id, zenoh_key_expr, ..)| RetiredMsgSub {
+                    plugin_id,
+                    zenoh_key_expr,
+                }),
+            ("SS/", SampleKind::Put) => parse_ke_liveliness_service_srv(liveliness_ke)
+                .map_err(|e| format!("Received invalid liveliness token: {e}"))
+                .map(
+                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedServiceSrv {
+                        plugin_id,
+                        zenoh_key_expr,
+                        ros2_type,
+                    },
+                ),
+            ("SS/", SampleKind::Delete) => parse_ke_liveliness_service_srv(liveliness_ke)
+                .map_err(|e| format!("Received invalid liveliness token: {e}"))
+                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredServiceSrv {
+                    plugin_id,
+                    zenoh_key_expr,
+                }),
+            ("SC/", SampleKind::Put) => parse_ke_liveliness_service_cli(liveliness_ke)
+                .map_err(|e| format!("Received invalid liveliness token: {e}"))
+                .map(
+                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedServiceCli {
+                        plugin_id,
+                        zenoh_key_expr,
+                        ros2_type,
+                    },
+                ),
+            ("SC/", SampleKind::Delete) => parse_ke_liveliness_service_cli(liveliness_ke)
+                .map_err(|e| format!("Received invalid liveliness token: {e}"))
+                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredServiceCli {
                     plugin_id,
                     zenoh_key_expr,
                 }),

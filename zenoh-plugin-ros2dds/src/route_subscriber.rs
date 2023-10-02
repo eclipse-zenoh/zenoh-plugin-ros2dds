@@ -27,27 +27,20 @@ use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
+use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
 use crate::ros2_utils::ros2_message_type_to_dds_type;
 use crate::{
-    dds_discovery::*, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT, LOG_PAYLOAD,
+    dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT,
+    LOG_PAYLOAD,
 };
 use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 
 enum ZSubscriber<'a> {
     Subscriber(Subscriber<'a, ()>),
     FetchingSubscriber(FetchingSubscriber<'a, ()>),
-}
-
-impl ZSubscriber<'_> {
-    fn key_expr(&self) -> &KeyExpr<'static> {
-        match self {
-            ZSubscriber::Subscriber(s) => s.key_expr(),
-            ZSubscriber::FetchingSubscriber(s) => s.key_expr(),
-        }
-    }
 }
 
 // a route from Zenoh to DDS
@@ -65,7 +58,7 @@ pub struct RouteSubscriber<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    config: Arc<Config>,
+    _config: Arc<Config>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -124,14 +117,14 @@ impl RouteSubscriber<'_> {
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
 
         let dds_writer =
-            create_forwarding_dds_writer(participant, topic_name, type_name, keyless, writer_qos)?;
+            create_dds_writer(participant, topic_name, type_name, keyless, writer_qos)?;
 
         Ok(RouteSubscriber {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
             zsession,
-            config,
+            _config: config,
             zenoh_subscriber: None,
             dds_writer,
             transient_local,
@@ -389,16 +382,17 @@ impl RouteSubscriber<'_> {
 fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::trace!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:?}",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:02x?}",
             s.key_expr,
             &ros2_name,
             s.value.payload
         );
     } else {
         log::trace!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - {} bytes",
             s.key_expr,
-            &ros2_name
+            &ros2_name,
+            s.value.payload.len()
         );
     }
 

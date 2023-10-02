@@ -15,48 +15,23 @@ use async_std::task;
 use cyclors::qos::{History, HistoryKind, Qos};
 use cyclors::*;
 use flume::Sender;
-use serde::{Deserialize, Serialize, Serializer};
-use std::ffi::{CStr, CString};
+use serde::{Deserialize, Serialize};
+use std::ffi::CStr;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::os::raw;
-use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buffers::ZBuf;
-#[cfg(feature = "dds_shm")]
-use zenoh::buffers::ZSlice;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
 use zenoh_core::SyncResolve;
 
+use crate::dds_types::{DDSRawSample, TypeInfo};
+use crate::dds_utils::create_topic;
 use crate::gid::Gid;
 
 const MAX_SAMPLES: usize = 32;
-
-#[derive(Debug)]
-pub struct TypeInfo {
-    ptr: *mut dds_typeinfo_t,
-}
-
-impl TypeInfo {
-    pub unsafe fn new(ptr: *const dds_typeinfo_t) -> TypeInfo {
-        let ptr = ddsi_typeinfo_dup(ptr);
-        TypeInfo { ptr }
-    }
-}
-
-impl Drop for TypeInfo {
-    fn drop(&mut self) {
-        unsafe {
-            ddsi_typeinfo_free(self.ptr);
-        }
-    }
-}
-
-unsafe impl Send for TypeInfo {}
-unsafe impl Sync for TypeInfo {}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DdsEntity {
@@ -100,191 +75,6 @@ impl fmt::Display for DiscoveryType {
             DiscoveryType::Publication => write!(f, "publication"),
             DiscoveryType::Subscription => write!(f, "subscription"),
         }
-    }
-}
-
-#[cfg(feature = "dds_shm")]
-#[derive(Clone, Copy)]
-struct IoxChunk {
-    ptr: *mut std::ffi::c_void,
-    header: *mut iceoryx_header_t,
-}
-
-#[cfg(feature = "dds_shm")]
-impl IoxChunk {
-    fn as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.ptr as *const u8, (*self.header).data_size as usize) }
-    }
-
-    fn len(&self) -> usize {
-        unsafe { (*self.header).data_size as usize }
-    }
-}
-
-pub struct DDSRawSample {
-    sdref: *mut ddsi_serdata,
-    data: ddsrt_iovec_t,
-    #[cfg(feature = "dds_shm")]
-    iox_chunk: Option<IoxChunk>,
-}
-
-impl DDSRawSample {
-    pub unsafe fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
-        let mut sdref: *mut ddsi_serdata = std::ptr::null_mut();
-        let mut data = ddsrt_iovec_t {
-            iov_base: std::ptr::null_mut(),
-            iov_len: 0,
-        };
-
-        #[cfg(feature = "dds_shm")]
-        let iox_chunk: Option<IoxChunk> = match ((*serdata).iox_chunk).is_null() {
-            false => {
-                let iox_chunk_ptr = (*serdata).iox_chunk;
-                let header = iceoryx_header_from_chunk(iox_chunk_ptr);
-
-                // If the Iceoryx chunk contains raw sample data this needs to be serialized before forwading to Zenoh
-                if (*header).shm_data_state == iox_shm_data_state_t_IOX_CHUNK_CONTAINS_RAW_DATA {
-                    let serialized_serdata = ddsi_serdata_from_sample(
-                        (*serdata).type_,
-                        (*serdata).kind,
-                        (*serdata).iox_chunk,
-                    );
-
-                    let size = ddsi_serdata_size(serialized_serdata);
-                    sdref =
-                        ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
-                    ddsi_serdata_unref(serialized_serdata);
-
-                    // IoxChunk not needed where raw data has been serialized
-                    None
-                } else {
-                    Some(IoxChunk {
-                        ptr: iox_chunk_ptr,
-                        header,
-                    })
-                }
-            }
-            true => None,
-        };
-
-        // At this point sdref will be null if:
-        //
-        // * Iceoryx was not enabled/used - in this case data will contain the CDR header and payload
-        // * Iceoryx chunk contained serialized data - in this case data will contain the CDR header
-        if sdref.is_null() {
-            let size = ddsi_serdata_size(serdata);
-            sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
-        }
-
-        #[cfg(feature = "dds_shm")]
-        return DDSRawSample {
-            sdref,
-            data,
-            iox_chunk,
-        };
-        #[cfg(not(feature = "dds_shm"))]
-        return DDSRawSample { sdref, data };
-    }
-
-    fn data_as_slice(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(
-                self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap(),
-            )
-        }
-    }
-
-    pub fn payload_as_slice(&self) -> &[u8] {
-        unsafe {
-            #[cfg(feature = "dds_shm")]
-            {
-                if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                    return iox_chunk.as_slice();
-                }
-            }
-            &slice::from_raw_parts(
-                self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap(),
-            )[4..]
-        }
-    }
-
-    pub fn hex_encode(&self) -> String {
-        let mut encoded = String::new();
-        let data_encoded = hex::encode(self.data_as_slice());
-        encoded.push_str(data_encoded.as_str());
-
-        #[cfg(feature = "dds_shm")]
-        {
-            if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                let iox_encoded = hex::encode(iox_chunk.as_slice());
-                encoded.push_str(iox_encoded.as_str());
-            }
-        }
-
-        encoded
-    }
-
-    pub fn len(&self) -> usize {
-        #[cfg(feature = "dds_shm")]
-        {
-            TryInto::<usize>::try_into(self.data.iov_len).unwrap()
-                + self.iox_chunk.as_ref().map(IoxChunk::len).unwrap_or(0)
-        }
-
-        #[cfg(not(feature = "dds_shm"))]
-        self.data.iov_len.try_into().unwrap()
-    }
-}
-
-impl Drop for DDSRawSample {
-    fn drop(&mut self) {
-        unsafe {
-            ddsi_serdata_to_ser_unref(self.sdref, &self.data);
-        }
-    }
-}
-
-impl fmt::Debug for DDSRawSample {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[cfg(feature = "dds_shm")]
-        {
-            // Where data was received via Iceoryx write both the header (contained in buf.data) and
-            // payload (contained in buf.iox_chunk) to the formatter.
-            if let Some(iox_chunk) = self.iox_chunk {
-                return write!(
-                    f,
-                    "[{:02x?}, {:02x?}]",
-                    self.data_as_slice(),
-                    iox_chunk.as_slice()
-                );
-            }
-        }
-        write!(f, "{:02x?}", self.data_as_slice())
-    }
-}
-
-impl From<&DDSRawSample> for ZBuf {
-    fn from(buf: &DDSRawSample) -> Self {
-        #[cfg(feature = "dds_shm")]
-        {
-            // Where data was received via Iceoryx return both the header (contained in buf.data) and
-            // payload (contained in buf.iox_chunk) in a buffer.
-            if let Some(iox_chunk) = buf.iox_chunk {
-                let mut zbuf = ZBuf::default();
-                zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
-                zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
-                return zbuf;
-            }
-        }
-        buf.data_as_slice().to_vec().into()
-    }
-}
-
-impl From<&DDSRawSample> for Value {
-    fn from(buf: &DDSRawSample) -> Self {
-        ZBuf::from(buf).into()
     }
 }
 
@@ -525,14 +315,14 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing payload: {:02x?}",
+                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - payload: {:02x?}",
                     &(*pa).0,
                     &(*pa).1,
                     raw_sample
                 );
             } else {
                 log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing {} bytes",
+                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - {} bytes",
                     &(*pa).0,
                     &(*pa).1,
                     raw_sample.len()
@@ -648,98 +438,5 @@ pub fn create_forwarding_dds_reader(
                 Ok(reader)
             }
         }
-    }
-}
-
-unsafe fn create_topic(
-    dp: dds_entity_t,
-    topic_name: &str,
-    type_name: &str,
-    type_info: &Option<Arc<TypeInfo>>,
-    keyless: bool,
-) -> dds_entity_t {
-    let cton = CString::new(topic_name.to_owned()).unwrap().into_raw();
-    let ctyn = CString::new(type_name.to_owned()).unwrap().into_raw();
-
-    match type_info {
-        None => cdds_create_blob_topic(dp, cton, ctyn, keyless),
-        Some(type_info) => {
-            let mut descriptor: *mut dds_topic_descriptor_t = std::ptr::null_mut();
-
-            let ret = dds_create_topic_descriptor(
-                dds_find_scope_DDS_FIND_SCOPE_GLOBAL,
-                dp,
-                type_info.ptr,
-                500000000,
-                &mut descriptor,
-            );
-            let mut topic: dds_entity_t = 0;
-            if ret == (DDS_RETCODE_OK as i32) {
-                topic = dds_create_topic(dp, descriptor, cton, std::ptr::null(), std::ptr::null());
-                assert!(topic >= 0);
-                dds_delete_topic_descriptor(descriptor);
-            }
-            topic
-        }
-    }
-}
-
-pub fn create_forwarding_dds_writer(
-    dp: dds_entity_t,
-    topic_name: String,
-    type_name: String,
-    keyless: bool,
-    qos: Qos,
-) -> Result<dds_entity_t, String> {
-    let cton = CString::new(topic_name).unwrap().into_raw();
-    let ctyn = CString::new(type_name).unwrap().into_raw();
-
-    unsafe {
-        let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let qos_native = qos.to_qos_native();
-        let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
-        Qos::delete_qos_native(qos_native);
-        if writer >= 0 {
-            Ok(writer)
-        } else {
-            Err(format!(
-                "Error creating DDS Writer: {}",
-                CStr::from_ptr(dds_strretcode(-writer))
-                    .to_str()
-                    .unwrap_or("unrecoverable DDS retcode")
-            ))
-        }
-    }
-}
-
-pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
-    unsafe {
-        let r = dds_delete(entity);
-        match r {
-            0 | DDS_RETCODE_ALREADY_DELETED => Ok(()),
-            e => Err(format!("Error deleting DDS entity - retcode={e}")),
-        }
-    }
-}
-
-pub fn get_guid(entity: &dds_entity_t) -> Result<Gid, String> {
-    unsafe {
-        let mut guid = dds_guid_t { v: [0; 16] };
-        let r = dds_get_guid(*entity, &mut guid);
-        if r == 0 {
-            Ok(Gid::from(guid.v))
-        } else {
-            Err(format!("Error getting GUID of DDS entity - retcode={r}"))
-        }
-    }
-}
-
-pub fn serialize_entity_guid<S>(entity: &dds_entity_t, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match get_guid(entity) {
-        Ok(guid) => s.serialize_str(&guid.to_string()),
-        Err(_) => s.serialize_str("UNKOWN_GUID"),
     }
 }
