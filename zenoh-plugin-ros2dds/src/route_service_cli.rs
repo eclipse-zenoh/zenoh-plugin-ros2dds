@@ -24,13 +24,17 @@ use zenoh::prelude::*;
 use zenoh::query::Reply;
 use zenoh_core::SyncResolve;
 
-use crate::dds_utils::dds_write;
+use crate::dds_types::{DDSRawSample, TypeInfo};
+use crate::dds_utils::serialize_entity_guid;
+use crate::dds_utils::{
+    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
     new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
 };
-use crate::{dds_discovery::*, Config, LOG_PAYLOAD};
+use crate::{Config, LOG_PAYLOAD};
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]

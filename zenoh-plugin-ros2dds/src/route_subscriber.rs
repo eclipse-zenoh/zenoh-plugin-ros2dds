@@ -27,12 +27,14 @@ use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
+use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
 use crate::ros2_utils::ros2_message_type_to_dds_type;
 use crate::{
-    dds_discovery::*, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT, LOG_PAYLOAD,
+    dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT,
+    LOG_PAYLOAD,
 };
 use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 

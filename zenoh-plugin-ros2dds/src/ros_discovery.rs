@@ -1,3 +1,4 @@
+use crate::dds_types::DDSRawSample;
 use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 //
 // Copyright (c) 2022 ZettaScale Technology
@@ -12,7 +13,7 @@ use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_discovery::{delete_dds_entity, get_guid, DDSRawSample};
+use crate::dds_utils::{delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use async_std::task;
 use cdr::{CdrLe, Infinite};

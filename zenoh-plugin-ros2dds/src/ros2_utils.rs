@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use cyclors::dds_entity_t;
 use zenoh::prelude::KeyExpr;
 
-use crate::dds_discovery::get_guid;
+use crate::dds_utils::get_guid;
 
 /// Convert DDS Topic type to ROS2 Message type
 pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {

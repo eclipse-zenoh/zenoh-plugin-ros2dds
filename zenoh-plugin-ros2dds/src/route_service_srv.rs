@@ -27,13 +27,18 @@ use zenoh::prelude::*;
 use zenoh::queryable::{Query, Queryable};
 use zenoh_core::zwrite;
 
-use crate::dds_utils::{dds_write, get_instance_handle};
+use crate::dds_types::{DDSRawSample, TypeInfo};
+use crate::dds_utils::serialize_entity_guid;
+use crate::dds_utils::{
+    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+    get_instance_handle,
+};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
 };
-use crate::{dds_discovery::*, Config};
+use crate::Config;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable

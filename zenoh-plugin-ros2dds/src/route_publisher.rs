@@ -23,10 +23,13 @@ use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh_ext::{PublicationCache, SessionExt};
 
+use crate::dds_discovery::create_forwarding_dds_reader;
+use crate::dds_types::TypeInfo;
+use crate::dds_utils::{delete_dds_entity, get_guid, serialize_entity_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_pub;
 use crate::ros2_utils::ros2_message_type_to_dds_type;
-use crate::{dds_discovery::*, qos_helpers::*, Config};
+use crate::{qos_helpers::*, Config};
 use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 
 enum ZPublisher<'a> {

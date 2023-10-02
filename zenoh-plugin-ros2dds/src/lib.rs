@@ -36,6 +36,7 @@ use zenoh_util::Timed;
 
 pub mod config;
 mod dds_discovery;
+mod dds_types;
 mod dds_utils;
 mod discovered_entities;
 mod discovery_mgr;
@@ -52,8 +53,8 @@ mod route_service_srv;
 mod route_subscriber;
 mod routes_mgr;
 use config::Config;
-use dds_discovery::*;
 
+use crate::dds_utils::get_guid;
 use crate::discovery_mgr::DiscoveryMgr;
 use crate::events::ROS2DiscoveryEvent;
 use crate::liveliness_mgt::{
