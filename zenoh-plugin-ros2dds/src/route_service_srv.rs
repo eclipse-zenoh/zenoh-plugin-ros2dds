@@ -33,8 +33,8 @@ use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
 };
-use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 use crate::{dds_discovery::*, Config};
+use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
 #[allow(clippy::upper_case_acronyms)]
@@ -381,7 +381,10 @@ fn do_route_request(
     if *LOG_PAYLOAD {
         log::trace!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
     } else {
-        log::trace!("{route_id}: routing request #{n} to Service - {} bytes", dds_req_buf.len());
+        log::trace!(
+            "{route_id}: routing request #{n} to Service - {} bytes",
+            dds_req_buf.len()
+        );
     }
 
     queries_in_progress.insert(n, query);
@@ -437,7 +440,10 @@ fn do_route_reply(
             if *LOG_PAYLOAD {
                 log::trace!("{route_id}: routing reply #{seq_num} to Client - payload: {zenoh_rep_buf:02x?}");
             } else {
-                log::trace!("{route_id}: routing reply #{seq_num} to Client - {} bytes", zenoh_rep_buf.len());
+                log::trace!(
+                    "{route_id}: routing reply #{seq_num} to Client - {} bytes",
+                    zenoh_rep_buf.len()
+                );
             }
 
             if let Err(e) = query

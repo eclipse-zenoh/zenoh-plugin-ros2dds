@@ -25,17 +25,15 @@ pub fn get_instance_handle(entity: dds_entity_t) -> Result<dds_instance_handle_t
         if ret == 0 {
             Ok(handle)
         } else {
-            Err(format!("falied to get instance handle: {}",
+            Err(format!(
+                "falied to get instance handle: {}",
                 CStr::from_ptr(dds_strretcode(-ret))
-                .to_str()
-                .unwrap_or("unrecoverable DDS retcode")
+                    .to_str()
+                    .unwrap_or("unrecoverable DDS retcode")
             ))
         }
     }
 }
-
-
-
 
 pub fn dds_write(data_writer: dds_entity_t, data: Vec<u8>) -> Result<(), String> {
     unsafe {

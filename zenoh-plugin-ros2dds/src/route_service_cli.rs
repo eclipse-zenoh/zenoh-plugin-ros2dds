@@ -297,10 +297,13 @@ fn do_route_request<'a>(
     if *LOG_PAYLOAD {
         log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh - payload: {zenoh_req_buf:02x?}");
     } else {
-        log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh - {} bytes", zenoh_req_buf.len());
+        log::trace!(
+            "{route_id}: routing request {request_id:02x?} to Zenoh - {} bytes",
+            zenoh_req_buf.len()
+        );
     }
 
-let route_id2 = route_id.to_string();
+    let route_id2 = route_id.to_string();
     if let Err(e) = zsession
         .get(zenoh_key_expr)
         .with_value(zenoh_req_buf)
@@ -333,7 +336,10 @@ fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writ
             if *LOG_PAYLOAD {
                 log::trace!("{route_id}: routing reply for {request_id:02x?} to Client - payload: {dds_rep_buf:02x?}");
             } else {
-                log::trace!("{route_id}: routing reply for {request_id:02x?} to Client - {} bytes", dds_rep_buf.len());
+                log::trace!(
+                    "{route_id}: routing reply for {request_id:02x?} to Client - {} bytes",
+                    dds_rep_buf.len()
+                );
             }
 
             if let Err(e) = dds_write(rep_writer, dds_rep_buf) {
