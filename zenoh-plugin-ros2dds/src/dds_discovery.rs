@@ -759,7 +759,7 @@ where
                 let arg = Box::new(callback);
                 let sub_listener =
                     dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
-                dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
+                dds_lset_data_available(sub_listener, Some(listener_to_callback::<F>));
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, sub_listener);
                 Qos::delete_qos_native(qos_native);

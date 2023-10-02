@@ -91,8 +91,8 @@ lazy_static::lazy_static!(
 );
 
 /// Create a new id for a Service Client or Server, in the same way than rmw_cyclone_dds
-/// The id is returned as a [u8; 16] + as a hexadecimal String with '.' separators between each 2 bytes)
-pub fn new_service_id(participant: &dds_entity_t) -> Result<([u8; 16], String), String> {
+/// The id as a hexadecimal String with '.' separators between each 2 bytes
+pub fn new_service_id(participant: &dds_entity_t) -> Result<String, String> {
     // Service client or server id (16 bytes) generated in the same way than rmw_cyclone_dds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4908
     let mut id: [u8; 16] = *get_guid(&participant)?;
@@ -105,7 +105,7 @@ pub fn new_service_id(participant: &dds_entity_t) -> Result<([u8; 16], String), 
         .map(|b| format!("{b:x}"))
         .collect::<Vec<String>>()
         .join(".");
-    Ok((id, id_str))
+    Ok(id_str)
 }
 
 mod tests {

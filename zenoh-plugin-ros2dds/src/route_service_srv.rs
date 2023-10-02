@@ -27,13 +27,13 @@ use zenoh::prelude::*;
 use zenoh::queryable::{Query, Queryable};
 use zenoh_core::zwrite;
 
-use crate::dds_utils::dds_write;
+use crate::dds_utils::{dds_write, get_instance_handle};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
 };
-use crate::serialize_option_as_bool;
+use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 use crate::{dds_discovery::*, Config};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
@@ -51,7 +51,7 @@ pub struct RouteServiceSrv<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    config: Arc<Config>,
+    _config: Arc<Config>,
     // the zenoh queryable used to expose the service server in zenoh.
     // `None` when route is created on a remote announcement and no local ROS2 Service Server discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -62,9 +62,9 @@ pub struct RouteServiceSrv<'a> {
     // the local DDS Reader receiving replies from the service server
     #[serde(serialize_with = "serialize_entity_guid")]
     rep_reader: dds_entity_t,
-    // the ROS unique id for the service client (this route acting as a client)
+    // the client GUID used in eacch request
     #[serde(skip)]
-    client_id: [u8; 16],
+    client_guid: u64,
     // the ROS sequence number for requests
     #[serde(skip)]
     sequence_number: Arc<AtomicU64>,
@@ -130,7 +130,7 @@ impl RouteServiceSrv<'_> {
 
         // Add DATA_USER QoS similarly to rmw_cyclone_dds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L5028C17-L5028C17
-        let (client_id, client_id_str) = new_service_id(&participant)?;
+        let client_id_str = new_service_id(&participant)?;
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
@@ -147,6 +147,10 @@ impl RouteServiceSrv<'_> {
             true,
             qos.clone(),
         )?;
+
+        // client_guid used in requests; use dds_instance_handle of writer as rmw_cyclonedds here:
+        // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4848
+        let client_guid = get_instance_handle(req_writer)?;
 
         // map of queries in progress
         let queries_in_progress: Arc<RwLock<HashMap<u64, Query>>> =
@@ -171,7 +175,7 @@ impl RouteServiceSrv<'_> {
                     zenoh_key_expr2.clone(),
                     &mut *zwrite!(queries_in_progress2),
                     "",
-                    &client_id,
+                    client_guid,
                 );
             },
         )?;
@@ -181,11 +185,11 @@ impl RouteServiceSrv<'_> {
             ros2_type,
             zenoh_key_expr,
             zsession,
-            config,
+            _config: config,
             zenoh_queryable: None,
             req_writer,
             rep_reader,
-            client_id,
+            client_guid,
             sequence_number: Arc::new(AtomicU64::default()),
             queries_in_progress,
             liveliness_token: None,
@@ -214,7 +218,7 @@ impl RouteServiceSrv<'_> {
             self.queries_in_progress.clone();
         let sequence_number: Arc<AtomicU64> = self.sequence_number.clone();
         let route_id: String = self.to_string();
-        let client_id: [u8; 16] = self.client_id;
+        let client_guid = self.client_guid;
         let req_writer: i32 = self.req_writer;
         self.zenoh_queryable = Some(
             self.zsession
@@ -225,7 +229,7 @@ impl RouteServiceSrv<'_> {
                         &mut *zwrite!(queries_in_progress),
                         &sequence_number,
                         &route_id,
-                        &client_id,
+                        client_guid,
                         req_writer,
                     )
                 })
@@ -326,21 +330,19 @@ impl RouteServiceSrv<'_> {
 }
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
-const EMPTY_BUF: [u8; 0] = [];
 
 fn do_route_request(
     query: Query,
     queries_in_progress: &mut HashMap<u64, Query>,
     sequence_number: &AtomicU64,
     route_id: &str,
-    client_id: &[u8; 16],
+    client_guid: u64,
     req_writer: i32,
 ) {
     let n = sequence_number.fetch_add(1, Ordering::Relaxed);
-    log::trace!("{route_id}: routing request #{n} to Service");
 
-    // prepend request payload with a (client_gid, sequence_number) header as per rmw_cyclonedds here:
-    // https://github.com/ros2/rcl_interfaces/blob/master/service_msgs/msg/ServiceEventInfo.msg
+    // prepend request payload with a (client_guid, sequence_number) header as per rmw_cyclonedds here:
+    // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     let dds_req_buf = if let Some(value) = query.value() {
         // query payload is expected to be the Request type encoded as CDR (including 4 bytes header)
         let zenoh_req_buf = &*(value.payload.contiguous());
@@ -348,11 +350,17 @@ fn do_route_request(
             log::warn!("{route_id}: received invalid request: {zenoh_req_buf:0x?}");
             return;
         }
+        let client_guid_bytes = if zenoh_req_buf[1] == 0 {
+            client_guid.to_be_bytes()
+        } else {
+            client_guid.to_le_bytes()
+        };
+
         let mut dds_req_buf: Vec<u8> = Vec::new();
         // copy CDR header
         dds_req_buf.extend_from_slice(&zenoh_req_buf[..4]);
         // add client_id
-        dds_req_buf.extend_from_slice(client_id);
+        dds_req_buf.extend_from_slice(&client_guid_bytes);
         // add sequence_number (endianness depending on header)
         if zenoh_req_buf[1] == 0 {
             dds_req_buf.extend_from_slice(&n.to_be_bytes());
@@ -363,12 +371,18 @@ fn do_route_request(
         dds_req_buf.extend_from_slice(&zenoh_req_buf[4..]);
         dds_req_buf
     } else {
-        // No query payload - send a request containing just client_gid + sequence_number
+        // No query payload - send a request containing just client_guid + sequence_number
         let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.clone().into();
-        dds_req_buf.extend_from_slice(client_id);
+        dds_req_buf.extend_from_slice(&client_guid.to_le_bytes());
         dds_req_buf.extend_from_slice(&n.to_le_bytes());
         dds_req_buf
     };
+
+    if *LOG_PAYLOAD {
+        log::trace!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
+    } else {
+        log::trace!("{route_id}: routing request #{n} to Service - {} bytes", dds_req_buf.len());
+    }
 
     queries_in_progress.insert(n, query);
     if let Err(e) = dds_write(req_writer, dds_req_buf) {
@@ -382,11 +396,12 @@ fn do_route_reply(
     zenoh_key_expr: OwnedKeyExpr,
     queries_in_progress: &mut HashMap<u64, Query>,
     route_id: &str,
-    client_id: &[u8; 16],
+    client_guid: u64,
 ) {
-    // reply payload is expected to be the Response type encoded as CDR,
-    // including a 4 bytes header, the client_id (16 bytes) and a sequence_number (8 bytes)
-    if sample.len() < 28 {
+    // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
+    // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
+    // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
+    if sample.len() < 20 {
         log::warn!("{route_id}: received invalid response: {sample:0x?}");
         return;
     }
@@ -394,17 +409,22 @@ fn do_route_reply(
     let zbuf: ZBuf = sample.into();
     let dds_rep_buf = zbuf.contiguous();
     let cdr_header = &dds_rep_buf[..4];
-    let id = &dds_rep_buf[5..20];
-    if id != client_id {
+    let guid = if dds_rep_buf[1] == 0 {
+        u64::from_be_bytes(dds_rep_buf[4..12].try_into().unwrap())
+    } else {
+        u64::from_le_bytes(dds_rep_buf[4..12].try_into().unwrap())
+    };
+
+    if guid != client_guid {
         log::warn!(
-            "{route_id}: received response for another client: {id:0x?} (me: {client_id:0x?}"
+            "{route_id}: received response for another client: {guid:0x?} (me: {client_guid:0x?}"
         );
         return;
     }
     let seq_num = if cdr_header[1] == 0 {
-        u64::from_be_bytes(dds_rep_buf[20..28].try_into().unwrap())
+        u64::from_be_bytes(dds_rep_buf[12..20].try_into().unwrap())
     } else {
-        u64::from_le_bytes(dds_rep_buf[20..28].try_into().unwrap())
+        u64::from_le_bytes(dds_rep_buf[12..20].try_into().unwrap())
     };
     match queries_in_progress.remove(&seq_num) {
         Some(query) => {
@@ -412,7 +432,14 @@ fn do_route_reply(
             let slice: ZSlice = dds_rep_buf.into_owned().into();
             let mut zenoh_rep_buf = ZBuf::empty();
             zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
-            zenoh_rep_buf.push_zslice(slice.subslice(28, slice.len()).unwrap());
+            zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+
+            if *LOG_PAYLOAD {
+                log::trace!("{route_id}: routing reply #{seq_num} to Client - payload: {zenoh_rep_buf:02x?}");
+            } else {
+                log::trace!("{route_id}: routing reply #{seq_num} to Client - {} bytes", zenoh_rep_buf.len());
+            }
+
             if let Err(e) = query
                 .reply(Ok(Sample::new(zenoh_key_expr, zenoh_rep_buf)))
                 .res_sync()

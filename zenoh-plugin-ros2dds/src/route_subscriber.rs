@@ -41,15 +41,6 @@ enum ZSubscriber<'a> {
     FetchingSubscriber(FetchingSubscriber<'a, ()>),
 }
 
-impl ZSubscriber<'_> {
-    fn key_expr(&self) -> &KeyExpr<'static> {
-        match self {
-            ZSubscriber::Subscriber(s) => s.key_expr(),
-            ZSubscriber::FetchingSubscriber(s) => s.key_expr(),
-        }
-    }
-}
-
 // a route from Zenoh to DDS
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
@@ -65,7 +56,7 @@ pub struct RouteSubscriber<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    config: Arc<Config>,
+    _config: Arc<Config>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -131,7 +122,7 @@ impl RouteSubscriber<'_> {
             ros2_type,
             zenoh_key_expr,
             zsession,
-            config,
+            _config: config,
             zenoh_subscriber: None,
             dds_writer,
             transient_local,

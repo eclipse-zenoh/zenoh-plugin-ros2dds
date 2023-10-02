@@ -11,27 +11,31 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::task;
-use cyclors::qos::{History, HistoryKind, Qos};
 use cyclors::*;
-use flume::Sender;
-use serde::{Deserialize, Serialize, Serializer};
-use std::ffi::{CStr, CString};
-use std::fmt;
-use std::mem::MaybeUninit;
-use std::os::raw;
-use std::slice;
-use std::sync::Arc;
-use std::time::Duration;
-use zenoh::buffers::ZBuf;
+use std::ffi::CStr;
 #[cfg(feature = "dds_shm")]
 use zenoh::buffers::ZSlice;
-use zenoh::prelude::*;
-use zenoh::publication::CongestionControl;
-use zenoh::Session;
-use zenoh_core::SyncResolve;
 
 use crate::vec_into_raw_parts;
+
+pub fn get_instance_handle(entity: dds_entity_t) -> Result<dds_instance_handle_t, String> {
+    unsafe {
+        let mut handle: dds_instance_handle_t = 0;
+        let ret = dds_get_instance_handle(entity, &mut handle);
+        if ret == 0 {
+            Ok(handle)
+        } else {
+            Err(format!("falied to get instance handle: {}",
+                CStr::from_ptr(dds_strretcode(-ret))
+                .to_str()
+                .unwrap_or("unrecoverable DDS retcode")
+            ))
+        }
+    }
+}
+
+
+
 
 pub fn dds_write(data_writer: dds_entity_t, data: Vec<u8>) -> Result<(), String> {
     unsafe {

@@ -30,7 +30,7 @@ use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
     new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
 };
-use crate::{dds_discovery::*, Config};
+use crate::{dds_discovery::*, Config, LOG_PAYLOAD};
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]
@@ -47,7 +47,7 @@ pub struct RouteServiceCli<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    config: Arc<Config>,
+    _config: Arc<Config>,
     is_active: bool,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
     #[serde(serialize_with = "serialize_entity_guid")]
@@ -55,9 +55,6 @@ pub struct RouteServiceCli<'a> {
     // the local DDS Writer sending replies to the client
     #[serde(serialize_with = "serialize_entity_guid")]
     rep_writer: dds_entity_t,
-    // the ROS unique id for the Service Client (this routeacting as a server)
-    #[serde(skip)]
-    server_id: [u8; 16],
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
@@ -117,7 +114,7 @@ impl RouteServiceCli<'_> {
 
         // Add DATA_USER QoS similarly to rmw_cyclone_dds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L5028C17-L5028C17
-        let (server_id, server_id_str) = new_service_id(&participant)?;
+        let server_id_str = new_service_id(&participant)?;
         let user_data = format!("serviceid= {server_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
@@ -126,7 +123,7 @@ impl RouteServiceCli<'_> {
 
         // create DDS Writer to send replies coming from Zenoh to the Client
         let rep_topic_name = format!("rr{ros2_name}Reply");
-        let rep_type_name = ros2_service_type_to_request_dds_type(&ros2_type);
+        let rep_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
         let rep_writer = create_dds_writer(
             participant,
             rep_topic_name,
@@ -140,7 +137,7 @@ impl RouteServiceCli<'_> {
 
         // create DDS Reader to receive requests and route them to Zenoh
         let req_topic_name = format!("rq{ros2_name}Request");
-        let req_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
+        let req_type_name = ros2_service_type_to_request_dds_type(&ros2_type);
         let zenoh_key_expr2 = zenoh_key_expr.clone();
         let zsession2 = zsession.clone();
         let req_reader = create_dds_reader(
@@ -167,11 +164,10 @@ impl RouteServiceCli<'_> {
             ros2_type,
             zenoh_key_expr,
             zsession,
-            config,
+            _config: config,
             is_active: false,
             rep_writer,
             req_reader,
-            server_id,
             liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
@@ -274,17 +270,21 @@ fn do_route_request<'a>(
     zsession: &'a Arc<Session>,
     rep_writer: dds_entity_t,
 ) {
+    println!("-- {route_id} Routing request...");
     // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
-    // the client_id (16 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
-    // https://github.com/ros2/rcl_interfaces/blob/master/service_msgs/msg/ServiceEventInfo.msg
-    if sample.len() < 28 {
+    // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
+    // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
+    if sample.len() < 20 {
         log::warn!("{route_id}: received invalid request: {sample:0x?}");
         return;
     }
 
     let zbuf: ZBuf = sample.into();
+    println!("--- {zbuf:?}");
     let dds_req_buf = zbuf.contiguous();
-    let request_id: [u8; 24] = dds_req_buf[4..28].try_into().unwrap();
+    println!("--- {dds_req_buf:02x?}");
+    let request_id: [u8; 16] = dds_req_buf[4..20].try_into().unwrap();
+    println!("--- {request_id:02x?}");
 
     // route request buffer stripped from request_id (client_id + sequence_number)
     let mut zenoh_req_buf = ZBuf::empty();
@@ -292,10 +292,15 @@ fn do_route_request<'a>(
     // copy CDR Header
     zenoh_req_buf.push_zslice(slice.subslice(0, 4).unwrap());
     // copy Request payload, skiping client_id + sequence_number
-    zenoh_req_buf.push_zslice(slice.subslice(28, slice.len()).unwrap());
+    zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
-    log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh");
-    let route_id2 = route_id.to_string();
+    if *LOG_PAYLOAD {
+        log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh - payload: {zenoh_req_buf:02x?}");
+    } else {
+        log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh - {} bytes", zenoh_req_buf.len());
+    }
+
+let route_id2 = route_id.to_string();
     if let Err(e) = zsession
         .get(zenoh_key_expr)
         .with_value(zenoh_req_buf)
@@ -306,7 +311,7 @@ fn do_route_request<'a>(
     }
 }
 
-fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 24], rep_writer: dds_entity_t) {
+fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writer: dds_entity_t) {
     match reply.sample {
         Ok(sample) => {
             let zenoh_rep_buf = sample.payload.contiguous();
@@ -325,7 +330,12 @@ fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 24], rep_writ
             // add query payoad
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[4..]);
 
-            log::trace!("{route_id}: routing reply for {request_id:02x?} to Client");
+            if *LOG_PAYLOAD {
+                log::trace!("{route_id}: routing reply for {request_id:02x?} to Client - payload: {dds_rep_buf:02x?}");
+            } else {
+                log::trace!("{route_id}: routing reply for {request_id:02x?} to Client - {} bytes", dds_rep_buf.len());
+            }
+
             if let Err(e) = dds_write(rep_writer, dds_rep_buf) {
                 log::warn!("{route_id}: routing reply for {request_id:02x?}  failed: {e}");
             }
