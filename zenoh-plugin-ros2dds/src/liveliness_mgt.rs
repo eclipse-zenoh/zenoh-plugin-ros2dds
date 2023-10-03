@@ -28,6 +28,8 @@ zenoh::kedefine!(
     pub(crate) ke_liveliness_sub: "@ros2_lv/${plugin_id:*}/MS/${ke:*}/${typ:*}/${qos_ke:*}",
     pub(crate) ke_liveliness_service_srv: "@ros2_lv/${plugin_id:*}/SS/${ke:*}/${typ:*}",
     pub(crate) ke_liveliness_service_cli: "@ros2_lv/${plugin_id:*}/SC/${ke:*}/${typ:*}",
+    pub(crate) ke_liveliness_action_srv: "@ros2_lv/${plugin_id:*}/AS/${ke:*}/${typ:*}",
+    pub(crate) ke_liveliness_action_cli: "@ros2_lv/${plugin_id:*}/AC/${ke:*}/${typ:*}",
 );
 
 pub(crate) fn new_ke_liveliness_pub(
@@ -181,6 +183,70 @@ pub(crate) fn parse_ke_liveliness_service_cli(
         .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
+
+/////////
+pub(crate) fn new_ke_liveliness_action_srv(
+    plugin_id: &keyexpr,
+    zenoh_key_expr: &keyexpr,
+    ros2_type: &str,
+) -> Result<OwnedKeyExpr, String> {
+    let ke = escape_slashes(zenoh_key_expr);
+    let typ = escape_slashes(ros2_type);
+    zenoh::keformat!(ke_liveliness_action_srv::formatter(), plugin_id, ke, typ)
+        .map_err(|e| e.to_string())
+}
+
+pub(crate) fn parse_ke_liveliness_action_srv(
+    ke: &keyexpr,
+) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
+    let parsed = ke_liveliness_action_srv::parse(ke)
+        .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
+    let plugin_id = parsed
+        .plugin_id()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
+    let zenoh_key_expr = parsed
+        .ke()
+        .map(|ke| unescape_slashes(ke))
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
+    let ros2_type = parsed
+        .typ()
+        .map(|ke| unescape_slashes(ke))
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
+}
+
+pub(crate) fn new_ke_liveliness_action_cli(
+    plugin_id: &keyexpr,
+    zenoh_key_expr: &keyexpr,
+    ros2_type: &str,
+) -> Result<OwnedKeyExpr, String> {
+    let ke = escape_slashes(zenoh_key_expr);
+    let typ = escape_slashes(ros2_type);
+    zenoh::keformat!(ke_liveliness_action_cli::formatter(), plugin_id, ke, typ)
+        .map_err(|e| e.to_string())
+}
+
+pub(crate) fn parse_ke_liveliness_action_cli(
+    ke: &keyexpr,
+) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
+    let parsed = ke_liveliness_action_cli::parse(ke)
+        .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
+    let plugin_id = parsed
+        .plugin_id()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
+    let zenoh_key_expr = parsed
+        .ke()
+        .map(|ke| unescape_slashes(ke))
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
+    let ros2_type = parsed
+        .typ()
+        .map(|ke| unescape_slashes(ke))
+        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
+}
+
 
 fn escape_slashes(s: &str) -> OwnedKeyExpr {
     OwnedKeyExpr::try_from(s.replace('/', SLASH_REPLACEMSNT_CHAR)).unwrap()

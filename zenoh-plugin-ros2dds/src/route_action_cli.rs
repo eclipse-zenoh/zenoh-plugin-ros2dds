@@ -13,12 +13,13 @@
 //
 use cyclors::dds_entity_t;
 use serde::Serialize;
+use zenoh_core::AsyncResolve;
 use std::{collections::HashSet, fmt, sync::Arc};
-use zenoh::prelude::*;
+use zenoh::{prelude::*, liveliness::LivelinessToken};
 
 use crate::{
     config::Config, gid::Gid, ros2_utils::*, route_action_srv::serialize_action_zenoh_key_expr,
-    route_service_cli::RouteServiceCli, route_subscriber::RouteSubscriber,
+    route_service_cli::RouteServiceCli, route_subscriber::RouteSubscriber, liveliness_mgt::new_ke_liveliness_action_cli,
 };
 
 #[derive(Serialize)]
@@ -33,6 +34,13 @@ pub struct RouteActionCli<'a> {
         serialize_with = "serialize_action_zenoh_key_expr"
     )]
     zenoh_key_expr_prefix: OwnedKeyExpr,
+    // the zenoh session
+    #[serde(skip)]
+    zsession: &'a Arc<Session>,
+    // the config
+    #[serde(skip)]
+    _config: Arc<Config>,
+    is_active: bool,
     #[serde(skip)]
     route_send_goal: RouteServiceCli<'a>,
     #[serde(skip)]
@@ -43,6 +51,9 @@ pub struct RouteActionCli<'a> {
     route_feedback: RouteSubscriber<'a>,
     #[serde(skip)]
     route_status: RouteSubscriber<'a>,
+    // a liveliness token associated to this route, for announcement to other plugins
+    #[serde(skip)]
+    liveliness_token: Option<LivelinessToken<'a>>,
     // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
@@ -130,14 +141,47 @@ impl RouteActionCli<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr_prefix,
+            zsession,
+            _config: config,
+            is_active: false,
             route_send_goal,
             route_cancel_goal,
             route_get_result,
             route_feedback,
             route_status,
+            liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
         })
+    }
+
+    async fn activate<'a>(&'a mut self, plugin_id: &keyexpr) -> Result<(), String> {
+        self.is_active = true;
+
+        // create associated LivelinessToken
+        let liveliness_ke =
+            new_ke_liveliness_action_cli(plugin_id, &self.zenoh_key_expr_prefix, &self.ros2_type)?;
+        let ros2_name = self.ros2_name.clone();
+        self.liveliness_token = Some(self.zsession
+            .liveliness()
+            .declare_token(liveliness_ke)
+            .res_async()
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed create LivelinessToken associated to route for Action Client {ros2_name}: {e}"
+                )
+            })?
+        );
+        Ok(())
+    }
+
+    fn deactivate(&mut self) {
+        log::debug!("{self} deactivate");
+        // Drop Zenoh Publisher and Liveliness token
+        // The DDS Writer remains to be discovered by local ROS nodes
+        self.is_active = false;
+        self.liveliness_token = None;
     }
 
     pub fn dds_writers_guids(&self) -> Result<Vec<Gid>, String> {
@@ -182,6 +226,8 @@ impl RouteActionCli<'_> {
             plugin_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS),
         );
+        self.remote_routes
+            .insert(format!("{plugin_id}:{zenoh_key_expr_prefix}"));
         log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
@@ -207,6 +253,8 @@ impl RouteActionCli<'_> {
             plugin_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS),
         );
+        self.remote_routes
+            .remove(&format!("{plugin_id}:{zenoh_key_expr_prefix}"));
         log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
@@ -223,6 +271,15 @@ impl RouteActionCli<'_> {
             self.route_status
                 .add_local_node(node.clone(), plugin_id, &*QOS_ACTION_STATUS),
         );
+
+        self.local_nodes.insert(node);
+        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        // if 1st local node added, activate the route
+        if self.local_nodes.len() == 1 {
+            if let Err(e) = self.activate(plugin_id).await {
+                log::error!("{self} activation failed: {e}");
+            }
+        }
     }
 
     #[inline]
@@ -232,6 +289,13 @@ impl RouteActionCli<'_> {
         self.route_get_result.remove_local_node(node);
         self.route_feedback.remove_local_node(node);
         self.route_status.remove_local_node(node);
+
+        self.local_nodes.remove(node);
+        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        // if last local node removed, deactivate the route
+        if self.local_nodes.is_empty() {
+            self.deactivate();
+        }
     }
 
     pub fn is_unused(&self) -> bool {

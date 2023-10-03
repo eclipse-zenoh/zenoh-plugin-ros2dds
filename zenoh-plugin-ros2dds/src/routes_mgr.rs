@@ -611,8 +611,6 @@ impl<'a> RoutesMgr<'a> {
                     }
                 }
             }
-
-            _ => log::info!("... TODO: manage {event:?}"),
         }
         Ok(())
     }

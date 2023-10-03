@@ -31,7 +31,7 @@ use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
-use crate::ros2_utils::ros2_message_type_to_dds_type;
+use crate::ros2_utils::{ros2_message_type_to_dds_type, is_message_for_action};
 use crate::{
     dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT,
     LOG_PAYLOAD,
@@ -182,27 +182,30 @@ impl RouteSubscriber<'_> {
             Some(ZSubscriber::Subscriber(sub))
         };
 
-        // create associated LivelinessToken
-        let liveliness_ke = new_ke_liveliness_sub(
-            plugin_id,
-            &self.zenoh_key_expr,
-            &self.ros2_type,
-            self.keyless,
-            &discovered_reader_qos,
-        )?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(
-            self.zsession
-                .liveliness()
-                .declare_token(liveliness_ke)
-                .res()
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Failed create LivelinessToken associated to route for Subscriber {ros2_name} : {e}"
-                    )
-                })?,
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_message_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke = new_ke_liveliness_sub(
+                plugin_id,
+                &self.zenoh_key_expr,
+                &self.ros2_type,
+                self.keyless,
+                &discovered_reader_qos,
+            )?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(
+                self.zsession
+                    .liveliness()
+                    .declare_token(liveliness_ke)
+                    .res()
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "Failed create LivelinessToken associated to route for Subscriber {ros2_name} : {e}"
+                        )
+                    })?,
+            );
+        }
         Ok(())
     }
 

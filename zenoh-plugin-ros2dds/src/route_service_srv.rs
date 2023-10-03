@@ -36,7 +36,7 @@ use crate::dds_utils::{
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
-    new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
+    new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type, is_service_for_action,
 };
 use crate::Config;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
@@ -247,21 +247,24 @@ impl RouteServiceSrv<'_> {
                 })?,
         );
 
-        // create associated LivelinessToken
-        let liveliness_ke =
-            new_ke_liveliness_service_srv(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(self.zsession
-            .liveliness()
-            .declare_token(liveliness_ke)
-            .res()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed create LivelinessToken associated to route for Service Server {ros2_name}: {e}"
-                )
-            })?
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_service_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke =
+                new_ke_liveliness_service_srv(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(self.zsession
+                .liveliness()
+                .declare_token(liveliness_ke)
+                .res()
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed create LivelinessToken associated to route for Service Server {ros2_name}: {e}"
+                    )
+                })?
+            );
+        }
         Ok(())
     }
 

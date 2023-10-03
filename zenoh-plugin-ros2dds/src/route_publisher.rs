@@ -28,7 +28,7 @@ use crate::dds_types::TypeInfo;
 use crate::dds_utils::{delete_dds_entity, get_guid, serialize_entity_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_pub;
-use crate::ros2_utils::ros2_message_type_to_dds_type;
+use crate::ros2_utils::{ros2_message_type_to_dds_type, is_message_for_action};
 use crate::{qos_helpers::*, Config};
 use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 
@@ -243,26 +243,29 @@ impl RoutePublisher<'_> {
             Some(ZPublisher::Publisher(declared_ke.clone()))
         };
 
-        // create associated LivelinessToken
-        let liveliness_ke = new_ke_liveliness_pub(
-            plugin_id,
-            &self.zenoh_key_expr,
-            &self.ros2_type,
-            self.keyless,
-            &discovered_writer_qos,
-        )?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(self.zsession
-            .liveliness()
-            .declare_token(liveliness_ke)
-            .res()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed create LivelinessToken associated to route for Publisher {ros2_name}: {e}"
-                )
-            })?
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_message_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke = new_ke_liveliness_pub(
+                plugin_id,
+                &self.zenoh_key_expr,
+                &self.ros2_type,
+                self.keyless,
+                &discovered_writer_qos,
+            )?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(self.zsession
+                .liveliness()
+                .declare_token(liveliness_ke)
+                .res()
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed create LivelinessToken associated to route for Publisher {ros2_name}: {e}"
+                    )
+                })?
+            );
+        }
         Ok(())
     }
 

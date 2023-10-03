@@ -120,6 +120,17 @@ fn ros2_action_status_default_qos() -> Qos {
     qos
 }
 
+pub fn is_service_for_action(ros2_service_name: &str) -> bool {
+    ros2_service_name.ends_with(KE_SUFFIX_ACTION_SEND_GOAL.as_str()) ||
+    ros2_service_name.ends_with(KE_SUFFIX_ACTION_CANCEL_GOAL.as_str()) ||
+    ros2_service_name.ends_with(KE_SUFFIX_ACTION_GET_RESULT.as_str())
+}
+
+pub fn is_message_for_action(ros2_message_name: &str) -> bool {
+    ros2_message_name.ends_with(KE_SUFFIX_ACTION_FEEDBACK.as_str()) ||
+    ros2_message_name.ends_with(KE_SUFFIX_ACTION_STATUS.as_str())
+}
+
 /// Check if name is a ROS name: starting with '/' and useable as a key expression (removing 1st '/')
 #[inline]
 pub fn check_ros_name(name: &str) -> Result<(), String> {
