@@ -323,7 +323,6 @@ impl RosDiscoveryInfoMgr {
             }
 
             map.values()
-                .into_iter()
                 .filter_map(|sample| {
                     log::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
                     match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(

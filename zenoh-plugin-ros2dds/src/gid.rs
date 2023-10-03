@@ -43,7 +43,7 @@ impl From<[u8; 16]> for Gid {
 
 impl From<&[u8; 16]> for Gid {
     fn from(key: &[u8; 16]) -> Self {
-        Self(key.clone())
+        Self(*key)
     }
 }
 
@@ -54,7 +54,7 @@ impl Serialize for Gid {
     {
         if serializer.is_human_readable() {
             // serialize as an hexadecimal String
-            Serialize::serialize(&hex::encode(&self.0), serializer)
+            Serialize::serialize(&hex::encode(self.0), serializer)
         } else {
             // serialize as a little-endian [u8; 16]
             Serialize::serialize(&self.0, serializer)

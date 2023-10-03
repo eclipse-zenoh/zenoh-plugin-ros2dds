@@ -52,10 +52,10 @@ pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
 
 /// Convert ROS2 Message type to DDS Topic type
 pub fn ros2_message_type_to_dds_type(ros_topic: &str) -> String {
-    let mut result = ros_topic.replace("/", "::");
-    result
-        .rfind(':')
-        .map(|pos| result.insert_str(pos + 1, "dds_::"));
+    let mut result = ros_topic.replace('/', "::");
+    if let Some(pos) = result.rfind(':') {
+        result.insert_str(pos + 1, "dds_::")
+    }
     result.push('_');
     result
 }
@@ -176,7 +176,7 @@ lazy_static::lazy_static!(
 pub fn new_service_id(participant: &dds_entity_t) -> Result<String, String> {
     // Service client or server id (16 bytes) generated in the same way than rmw_cyclone_dds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4908
-    let mut id: [u8; 16] = *get_guid(&participant)?;
+    let mut id: [u8; 16] = *get_guid(participant)?;
     let counter_be = CLIENT_ID_COUNTER
         .fetch_add(1, Ordering::Relaxed)
         .to_be_bytes();

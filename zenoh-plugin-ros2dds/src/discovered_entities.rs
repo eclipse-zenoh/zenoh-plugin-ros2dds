@@ -436,7 +436,7 @@ impl DiscoveredEntities {
     ) {
         match self.get_entity_json_value(entity_ref) {
             Ok(Some(v)) => {
-                let admin_keyexpr = admin_keyexpr_prefix / &key_expr;
+                let admin_keyexpr = admin_keyexpr_prefix / key_expr;
                 if let Err(e) = query
                     .reply(Ok(Sample::new(admin_keyexpr, v)))
                     .res_async()

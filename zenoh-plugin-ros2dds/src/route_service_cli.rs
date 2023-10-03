@@ -271,14 +271,13 @@ impl RouteServiceCli<'_> {
     }
 }
 
-fn do_route_request<'a>(
+fn do_route_request(
     route_id: &str,
     sample: &DDSRawSample,
     zenoh_key_expr: OwnedKeyExpr,
-    zsession: &'a Arc<Session>,
+    zsession: &Arc<Session>,
     rep_writer: dds_entity_t,
 ) {
-    println!("-- {route_id} Routing request...");
     // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
     // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
@@ -288,11 +287,8 @@ fn do_route_request<'a>(
     }
 
     let zbuf: ZBuf = sample.into();
-    println!("--- {zbuf:?}");
     let dds_req_buf = zbuf.contiguous();
-    println!("--- {dds_req_buf:02x?}");
     let request_id: [u8; 16] = dds_req_buf[4..20].try_into().unwrap();
-    println!("--- {request_id:02x?}");
 
     // route request buffer stripped from request_id (client_id + sequence_number)
     let mut zenoh_req_buf = ZBuf::empty();

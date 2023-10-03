@@ -145,9 +145,7 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route
-                    .add_local_node(node.into(), &plugin_id, &entity.qos)
-                    .await;
+                route.add_local_node(node, &plugin_id, &entity.qos).await;
             }
 
             UndiscoveredMsgPub(node, iface) => {
@@ -192,9 +190,7 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route
-                    .add_local_node(node.into(), &plugin_id, &entity.qos)
-                    .await;
+                route.add_local_node(node, &plugin_id, &entity.qos).await;
             }
 
             UndiscoveredMsgSub(node, iface) => {
@@ -222,7 +218,7 @@ impl<'a> RoutesMgr<'a> {
                 let route = self
                     .get_or_create_route_service_srv(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node.into(), &plugin_id).await;
+                route.add_local_node(node, &plugin_id).await;
             }
             UndiscoveredServiceSrv(node, iface) => {
                 if let Entry::Occupied(mut entry) =
@@ -255,7 +251,7 @@ impl<'a> RoutesMgr<'a> {
                 let route = self
                     .get_or_create_route_service_cli(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node.into(), &plugin_id).await;
+                route.add_local_node(node, &plugin_id).await;
             }
             UndiscoveredServiceCli(node, iface) => {
                 if let Entry::Occupied(mut entry) =
@@ -288,7 +284,7 @@ impl<'a> RoutesMgr<'a> {
                 let route = self
                     .get_or_create_route_action_srv(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node.into(), &plugin_id).await;
+                route.add_local_node(node, &plugin_id).await;
             }
             UndiscoveredActionSrv(node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_srv.entry(iface.name.clone())
@@ -320,7 +316,7 @@ impl<'a> RoutesMgr<'a> {
                 let route = self
                     .get_or_create_route_action_cli(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node.into(), &plugin_id).await;
+                route.add_local_node(node, &plugin_id).await;
             }
             UndiscoveredActionCli(node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_cli.entry(iface.name.clone())
@@ -618,7 +614,7 @@ impl<'a> RoutesMgr<'a> {
     pub async fn query_historical_all_publications(&mut self, plugin_id: &keyexpr) {
         for route in self.routes_subscribers.values_mut() {
             route
-                .query_historical_publications(&plugin_id, self.config.queries_timeout)
+                .query_historical_publications(plugin_id, self.config.queries_timeout)
                 .await;
         }
     }
@@ -638,7 +634,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RoutePublisher::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -685,7 +681,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RouteSubscriber::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -729,7 +725,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RouteServiceSrv::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -777,7 +773,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RouteServiceCli::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -824,7 +820,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RouteActionSrv::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -868,7 +864,7 @@ impl<'a> RoutesMgr<'a> {
                 // create route
                 let route = RouteActionCli::create(
                     self.config.clone(),
-                    &self.zsession,
+                    self.zsession,
                     self.participant,
                     ros2_name.clone(),
                     ros2_type,
@@ -932,7 +928,7 @@ impl<'a> RoutesMgr<'a> {
     async fn send_admin_reply(&self, query: &Query, key_expr: &keyexpr, route_ref: &RouteRef) {
         match self.get_entity_json_value(route_ref) {
             Ok(Some(v)) => {
-                let admin_keyexpr = &self.admin_prefix / &key_expr;
+                let admin_keyexpr = &self.admin_prefix / key_expr;
                 if let Err(e) = query
                     .reply(Ok(Sample::new(admin_keyexpr, v)))
                     .res_async()

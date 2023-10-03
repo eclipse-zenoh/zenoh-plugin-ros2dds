@@ -72,17 +72,17 @@ impl fmt::Display for RouteActionSrv<'_> {
 
 impl RouteActionSrv<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         config: Arc<Config>,
-        zsession: &'a Arc<Session>,
+        zsession: &Arc<Session>,
         participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,
-    ) -> Result<RouteActionSrv<'a>, String> {
+    ) -> Result<RouteActionSrv<'_>, String> {
         let route_send_goal = RouteServiceSrv::create(
             config.clone(),
-            &zsession,
+            zsession,
             participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),
@@ -93,7 +93,7 @@ impl RouteActionSrv<'_> {
 
         let route_cancel_goal = RouteServiceSrv::create(
             config.clone(),
-            &zsession,
+            zsession,
             participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_CANCEL_GOAL),
             ROS2_ACTION_CANCEL_GOAL_SRV_TYPE.to_string(),
@@ -104,7 +104,7 @@ impl RouteActionSrv<'_> {
 
         let route_get_result = RouteServiceSrv::create(
             config.clone(),
-            &zsession,
+            zsession,
             participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_GET_RESULT),
             format!("{ros2_type}_GetResult"),
@@ -115,7 +115,7 @@ impl RouteActionSrv<'_> {
 
         let route_feedback = RoutePublisher::create(
             config.clone(),
-            &zsession,
+            zsession,
             participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_FEEDBACK),
             format!("{ros2_type}_FeedbackMessage"),
@@ -128,7 +128,7 @@ impl RouteActionSrv<'_> {
 
         let route_status = RoutePublisher::create(
             config.clone(),
-            &zsession,
+            zsession,
             participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_STATUS),
             ROS2_ACTION_STATUS_MSG_TYPE.to_string(),
@@ -269,9 +269,9 @@ impl RouteActionSrv<'_> {
             self.route_get_result
                 .add_local_node(node.clone(), plugin_id),
             self.route_feedback
-                .add_local_node(node.clone(), plugin_id, &*QOS_ACTION_FEEDBACK),
+                .add_local_node(node.clone(), plugin_id, &QOS_ACTION_FEEDBACK),
             self.route_status
-                .add_local_node(node.clone(), plugin_id, &*QOS_ACTION_STATUS),
+                .add_local_node(node.clone(), plugin_id, &QOS_ACTION_STATUS),
         );
 
         self.local_nodes.insert(node);

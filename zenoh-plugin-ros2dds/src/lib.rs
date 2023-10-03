@@ -386,7 +386,7 @@ impl<'a> ROS2PluginRuntime<'a> {
                                     log::warn!("Error updating route: {e}");
                                 }
                             } else {
-                                log::info!("{evt} - Denied per config");
+                                log::debug!("{evt} - Denied per config");
                             }
                         }
                         Err(e) => log::error!("Internal Error: received from DiscoveryMgr: {e}")

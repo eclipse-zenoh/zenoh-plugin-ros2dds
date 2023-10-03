@@ -251,7 +251,7 @@ impl RoutePublisher<'_> {
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
-                &discovered_writer_qos,
+                discovered_writer_qos,
             )?;
             let ros2_name = self.ros2_name.clone();
             self.liveliness_token = Some(self.zsession

@@ -178,7 +178,7 @@ impl RouteServiceSrv<'_> {
                 do_route_reply(
                     sample,
                     zenoh_key_expr2.clone(),
-                    &mut *zwrite!(queries_in_progress2),
+                    &mut zwrite!(queries_in_progress2),
                     "",
                     client_guid,
                 );
@@ -231,7 +231,7 @@ impl RouteServiceSrv<'_> {
                 .callback(move |query| {
                     do_route_request(
                         query,
-                        &mut *zwrite!(queries_in_progress),
+                        &mut zwrite!(queries_in_progress),
                         &sequence_number,
                         &route_id,
                         client_guid,
@@ -380,7 +380,7 @@ fn do_route_request(
         dds_req_buf
     } else {
         // No query payload - send a request containing just client_guid + sequence_number
-        let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.clone().into();
+        let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.into();
         dds_req_buf.extend_from_slice(&client_guid.to_le_bytes());
         dds_req_buf.extend_from_slice(&n.to_le_bytes());
         dds_req_buf

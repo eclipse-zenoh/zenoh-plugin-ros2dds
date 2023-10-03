@@ -100,16 +100,16 @@ impl fmt::Display for RouteSubscriber<'_> {
 
 impl RouteSubscriber<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a, 'b>(
+    pub async fn create<'b>(
         config: Arc<Config>,
-        zsession: &'a Arc<Session>,
+        zsession: &Arc<Session>,
         participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         keyless: bool,
         writer_qos: Qos,
-    ) -> Result<RouteSubscriber<'a>, String> {
+    ) -> Result<RouteSubscriber<'_>, String> {
         let transient_local = is_transient_local(&writer_qos);
         log::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
 
@@ -190,7 +190,7 @@ impl RouteSubscriber<'_> {
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
-                &discovered_reader_qos,
+                discovered_reader_qos,
             )?;
             let ros2_name = self.ros2_name.clone();
             self.liveliness_token = Some(
