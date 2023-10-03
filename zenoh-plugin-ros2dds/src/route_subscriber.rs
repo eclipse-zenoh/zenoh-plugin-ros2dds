@@ -31,7 +31,7 @@ use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
-use crate::ros2_utils::ros2_message_type_to_dds_type;
+use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
 use crate::{
     dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT,
     LOG_PAYLOAD,
@@ -58,7 +58,7 @@ pub struct RouteSubscriber<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    _config: Arc<Config>,
+    config: Arc<Config>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -100,16 +100,16 @@ impl fmt::Display for RouteSubscriber<'_> {
 
 impl RouteSubscriber<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a, 'b>(
+    pub async fn create<'b>(
         config: Arc<Config>,
-        zsession: &'a Arc<Session>,
+        zsession: &Arc<Session>,
         participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         keyless: bool,
         writer_qos: Qos,
-    ) -> Result<RouteSubscriber<'a>, String> {
+    ) -> Result<RouteSubscriber<'_>, String> {
         let transient_local = is_transient_local(&writer_qos);
         log::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
 
@@ -124,7 +124,7 @@ impl RouteSubscriber<'_> {
             ros2_type,
             zenoh_key_expr,
             zsession,
-            _config: config,
+            config: config,
             zenoh_subscriber: None,
             dds_writer,
             transient_local,
@@ -137,7 +137,6 @@ impl RouteSubscriber<'_> {
 
     async fn activate(
         &mut self,
-        config: &Config,
         plugin_id: &keyexpr,
         discovered_reader_qos: &Qos,
     ) -> Result<(), String> {
@@ -155,34 +154,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr).into();
-            log::error!("{self}: query historical data from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
-            {
-                use zenoh_core::SyncResolve;
-                //
-                println!("********* QUERY FROM {query_selector}");
-                let rep = self
-                    .zsession
-                    .get(&query_selector)
-                    .target(QueryTarget::All)
-                    .consolidation(ConsolidationMode::None)
-                    .accept_replies(ReplyKeyExpr::Any)
-                    .res_sync()
-                    .unwrap();
-                while let Ok(reply) = rep.recv() {
-                    match reply.sample {
-                        Ok(sample) => println!(
-                            ">>>>>> Received ('{}': '{:02x?}')",
-                            sample.key_expr.as_str(),
-                            sample.value.payload.contiguous(),
-                        ),
-                        Err(err) => {
-                            println!(">> Received (ERROR: '{}')", String::try_from(&err).unwrap())
-                        }
-                    }
-                }
-                //
-            }
-
+            log::debug!("{self}: query historical data from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
@@ -190,7 +162,7 @@ impl RouteSubscriber<'_> {
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
                 .querying()
-                .query_timeout(config.queries_timeout)
+                .query_timeout(self.config.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
                 .res()
@@ -210,27 +182,30 @@ impl RouteSubscriber<'_> {
             Some(ZSubscriber::Subscriber(sub))
         };
 
-        // create associated LivelinessToken
-        let liveliness_ke = new_ke_liveliness_sub(
-            plugin_id,
-            &self.zenoh_key_expr,
-            &self.ros2_type,
-            self.keyless,
-            &discovered_reader_qos,
-        )?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(
-            self.zsession
-                .liveliness()
-                .declare_token(liveliness_ke)
-                .res()
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Failed create LivelinessToken associated to route for Subscriber {ros2_name} : {e}"
-                    )
-                })?,
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_message_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke = new_ke_liveliness_sub(
+                plugin_id,
+                &self.zenoh_key_expr,
+                &self.ros2_type,
+                self.keyless,
+                discovered_reader_qos,
+            )?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(
+                self.zsession
+                    .liveliness()
+                    .declare_token(liveliness_ke)
+                    .res()
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "Failed create LivelinessToken associated to route for Subscriber {ros2_name} : {e}"
+                        )
+                    })?,
+            );
+        }
         Ok(())
     }
 
@@ -261,33 +236,6 @@ impl RouteSubscriber<'_> {
                 .fetch({
                     let session = &self.zsession;
                     let query_selector = query_selector.clone();
-                    {
-                        use zenoh_core::SyncResolve;
-                        //
-                        println!("********* FETCH FROM {query_selector}");
-                        let rep = session
-                            .get(&query_selector)
-                            .target(QueryTarget::All)
-                            .consolidation(ConsolidationMode::None)
-                            .accept_replies(ReplyKeyExpr::Any)
-                            .res_sync()
-                            .unwrap();
-                        while let Ok(reply) = rep.recv() {
-                            match reply.sample {
-                                Ok(sample) => println!(
-                                    ">>>>>> Received ('{}': '{:02x?}')",
-                                    sample.key_expr.as_str(),
-                                    sample.value.payload.contiguous(),
-                                ),
-                                Err(err) => println!(
-                                    ">> Received (ERROR: '{}')",
-                                    String::try_from(&err).unwrap()
-                                ),
-                            }
-                        }
-                        //
-                    }
-
                     move |cb| {
                         use zenoh_core::SyncResolve;
                         session
@@ -341,7 +289,6 @@ impl RouteSubscriber<'_> {
     pub async fn add_local_node(
         &mut self,
         entity_key: String,
-        config: &Config,
         plugin_id: &keyexpr,
         discovered_reader_qos: &Qos,
     ) {
@@ -349,10 +296,7 @@ impl RouteSubscriber<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self
-                .activate(config, plugin_id, discovered_reader_qos)
-                .await
-            {
+            if let Err(e) = self.activate(plugin_id, discovered_reader_qos).await {
                 log::error!("{self} activation failed: {e}");
             }
         }

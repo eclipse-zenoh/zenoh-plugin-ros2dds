@@ -14,10 +14,31 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use cyclors::dds_entity_t;
-use zenoh::prelude::KeyExpr;
+use cyclors::{
+    dds_entity_t,
+    qos::{
+        Durability, DurabilityKind, History, HistoryKind, Qos, Reliability, ReliabilityKind,
+        TypeConsistency, TypeConsistencyKind, WriterDataLifecycle, DDS_INFINITE_TIME,
+    },
+};
+use zenoh::prelude::{keyexpr, KeyExpr};
 
-use crate::dds_utils::get_guid;
+use crate::{dds_utils::get_guid, ke_for_sure};
+
+pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
+pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
+
+lazy_static::lazy_static!(
+    pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr = ke_for_sure!("_action/send_goal");
+    pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr = ke_for_sure!("_action/cancel_goal");
+    pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr = ke_for_sure!("_action/get_result");
+    pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr = ke_for_sure!("_action/feedback");
+    pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr = ke_for_sure!("_action/status");
+
+    pub static ref QOS_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
+    pub static ref QOS_ACTION_STATUS: Qos = ros2_action_status_default_qos();
+
+);
 
 /// Convert DDS Topic type to ROS2 Message type
 pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
@@ -31,10 +52,10 @@ pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
 
 /// Convert ROS2 Message type to DDS Topic type
 pub fn ros2_message_type_to_dds_type(ros_topic: &str) -> String {
-    let mut result = ros_topic.replace("/", "::");
-    result
-        .rfind(':')
-        .map(|pos| result.insert_str(pos + 1, "dds_::"));
+    let mut result = ros_topic.replace('/', "::");
+    if let Some(pos) = result.rfind(':') {
+        result.insert_str(pos + 1, "dds_::")
+    }
     result.push('_');
     result
 }
@@ -51,12 +72,12 @@ pub fn dds_type_to_ros2_service_type(dds_topic: &str) -> String {
 
 /// Convert ROS2 Service type to DDS Topic type for Request
 pub fn ros2_service_type_to_request_dds_type(ros_service: &str) -> String {
-    format!("{}Request_", ros2_message_type_to_dds_type(ros_service))
+    ros2_message_type_to_dds_type(&format!("{ros_service}_Request"))
 }
 
 /// Convert ROS2 Service type to DDS Topic type for Reply
 pub fn ros2_service_type_to_reply_dds_type(ros_service: &str) -> String {
-    format!("{}Response_", ros2_message_type_to_dds_type(ros_service))
+    ros2_message_type_to_dds_type(&format!("{ros_service}_Response"))
 }
 
 /// Convert DDS Topic type for ROS2 Action to ROS2 Action type
@@ -72,6 +93,66 @@ pub fn dds_type_to_ros2_action_type(dds_topic: &str) -> String {
             .or(dds_topic.strip_suffix("_FeedbackMessage_"))
             .unwrap_or(dds_topic),
     )
+}
+
+fn ros2_action_feedback_default_qos() -> Qos {
+    let mut qos = Qos::default();
+    qos.history = Some(History {
+        kind: HistoryKind::KEEP_LAST,
+        depth: 10,
+    });
+    qos.reliability = Some(Reliability {
+        kind: ReliabilityKind::RELIABLE,
+        max_blocking_time: DDS_INFINITE_TIME,
+    });
+    qos.data_representation = Some([0].into());
+    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
+        autodispose_unregistered_instances: false,
+    });
+    qos.type_consistency = Some(TypeConsistency {
+        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+        ignore_sequence_bounds: true,
+        ignore_string_bounds: true,
+        ignore_member_names: false,
+        prevent_type_widening: false,
+        force_type_validation: false,
+    });
+    qos
+}
+
+fn ros2_action_status_default_qos() -> Qos {
+    let mut qos = Qos::default();
+    qos.durability = Some(Durability {
+        kind: DurabilityKind::TRANSIENT_LOCAL,
+    });
+    qos.reliability = Some(Reliability {
+        kind: ReliabilityKind::RELIABLE,
+        max_blocking_time: DDS_INFINITE_TIME,
+    });
+    qos.data_representation = Some([0].into());
+    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
+        autodispose_unregistered_instances: false,
+    });
+    qos.type_consistency = Some(TypeConsistency {
+        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+        ignore_sequence_bounds: true,
+        ignore_string_bounds: true,
+        ignore_member_names: false,
+        prevent_type_widening: false,
+        force_type_validation: false,
+    });
+    qos
+}
+
+pub fn is_service_for_action(ros2_service_name: &str) -> bool {
+    ros2_service_name.ends_with(KE_SUFFIX_ACTION_SEND_GOAL.as_str())
+        || ros2_service_name.ends_with(KE_SUFFIX_ACTION_CANCEL_GOAL.as_str())
+        || ros2_service_name.ends_with(KE_SUFFIX_ACTION_GET_RESULT.as_str())
+}
+
+pub fn is_message_for_action(ros2_message_name: &str) -> bool {
+    ros2_message_name.ends_with(KE_SUFFIX_ACTION_FEEDBACK.as_str())
+        || ros2_message_name.ends_with(KE_SUFFIX_ACTION_STATUS.as_str())
 }
 
 /// Check if name is a ROS name: starting with '/' and useable as a key expression (removing 1st '/')
@@ -95,7 +176,7 @@ lazy_static::lazy_static!(
 pub fn new_service_id(participant: &dds_entity_t) -> Result<String, String> {
     // Service client or server id (16 bytes) generated in the same way than rmw_cyclone_dds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4908
-    let mut id: [u8; 16] = *get_guid(&participant)?;
+    let mut id: [u8; 16] = *get_guid(participant)?;
     let counter_be = CLIENT_ID_COUNTER
         .fetch_add(1, Ordering::Relaxed)
         .to_be_bytes();

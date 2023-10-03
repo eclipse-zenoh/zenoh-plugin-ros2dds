@@ -32,7 +32,8 @@ use crate::dds_utils::{
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
-    new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
+    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+    ros2_service_type_to_request_dds_type,
 };
 use crate::{Config, LOG_PAYLOAD};
 
@@ -83,7 +84,7 @@ impl fmt::Display for RouteServiceCli<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Route Service Client (ROS:{} -> Zenoh:{})",
+            "Route Service Client (ROS:{} <-> Zenoh:{})",
             self.ros2_name, self.zenoh_key_expr
         )
     }
@@ -101,7 +102,7 @@ impl RouteServiceCli<'_> {
         type_info: &Option<Arc<TypeInfo>>,
     ) -> Result<RouteServiceCli<'a>, String> {
         log::debug!(
-            "Route Service Client ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
+            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
 
         // Default Service QoS copied from:
@@ -122,7 +123,7 @@ impl RouteServiceCli<'_> {
         let user_data = format!("serviceid= {server_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
-            "Route Service Client ({ros2_name} -> {zenoh_key_expr}): using id '{server_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
+            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): using id '{server_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
         );
 
         // create DDS Writer to send replies coming from Zenoh to the Client
@@ -137,7 +138,7 @@ impl RouteServiceCli<'_> {
         )?;
 
         let route_id: String =
-            format!("Route Service Client (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})",);
+            format!("Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr})",);
 
         // create DDS Reader to receive requests and route them to Zenoh
         let req_topic_name = format!("rq{ros2_name}Request");
@@ -181,21 +182,24 @@ impl RouteServiceCli<'_> {
     async fn activate<'a>(&'a mut self, plugin_id: &keyexpr) -> Result<(), String> {
         self.is_active = true;
 
-        // create associated LivelinessToken
-        let liveliness_ke =
-            new_ke_liveliness_service_cli(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(self.zsession
-            .liveliness()
-            .declare_token(liveliness_ke)
-            .res_async()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed create LivelinessToken associated to route for Service Client {ros2_name}: {e}"
-                )
-            })?
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_service_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke =
+                new_ke_liveliness_service_cli(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(self.zsession
+                .liveliness()
+                .declare_token(liveliness_ke)
+                .res_async()
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed create LivelinessToken associated to route for Service Client {ros2_name}: {e}"
+                    )
+                })?
+            );
+        }
         Ok(())
     }
 
@@ -267,14 +271,13 @@ impl RouteServiceCli<'_> {
     }
 }
 
-fn do_route_request<'a>(
+fn do_route_request(
     route_id: &str,
     sample: &DDSRawSample,
     zenoh_key_expr: OwnedKeyExpr,
-    zsession: &'a Arc<Session>,
+    zsession: &Arc<Session>,
     rep_writer: dds_entity_t,
 ) {
-    println!("-- {route_id} Routing request...");
     // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
     // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
@@ -284,11 +287,8 @@ fn do_route_request<'a>(
     }
 
     let zbuf: ZBuf = sample.into();
-    println!("--- {zbuf:?}");
     let dds_req_buf = zbuf.contiguous();
-    println!("--- {dds_req_buf:02x?}");
     let request_id: [u8; 16] = dds_req_buf[4..20].try_into().unwrap();
-    println!("--- {request_id:02x?}");
 
     // route request buffer stripped from request_id (client_id + sequence_number)
     let mut zenoh_req_buf = ZBuf::empty();

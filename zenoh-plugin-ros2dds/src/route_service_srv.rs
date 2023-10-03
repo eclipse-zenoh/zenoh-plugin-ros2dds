@@ -36,13 +36,13 @@ use crate::dds_utils::{
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
-    new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type,
+    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+    ros2_service_type_to_request_dds_type,
 };
 use crate::Config;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
 pub struct RouteServiceSrv<'a> {
     // the ROS2 Service name
@@ -100,7 +100,7 @@ impl fmt::Display for RouteServiceSrv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Route Service Server (ROS:{} -> Zenoh:{})",
+            "Route Service Server (ROS:{} <-> Zenoh:{})",
             self.ros2_name, self.zenoh_key_expr
         )
     }
@@ -118,7 +118,7 @@ impl RouteServiceSrv<'_> {
         type_info: &Option<Arc<TypeInfo>>,
     ) -> Result<RouteServiceSrv<'a>, String> {
         log::debug!(
-            "Route Service Server ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
+            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
 
         // Default Service QoS copied from:
@@ -139,7 +139,7 @@ impl RouteServiceSrv<'_> {
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
-            "Route Service Server ({ros2_name} -> {zenoh_key_expr}): using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
+            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
         );
 
         // create DDS Writer to send requests coming from Zenoh to the Service
@@ -178,7 +178,7 @@ impl RouteServiceSrv<'_> {
                 do_route_reply(
                     sample,
                     zenoh_key_expr2.clone(),
-                    &mut *zwrite!(queries_in_progress2),
+                    &mut zwrite!(queries_in_progress2),
                     "",
                     client_guid,
                 );
@@ -231,7 +231,7 @@ impl RouteServiceSrv<'_> {
                 .callback(move |query| {
                     do_route_request(
                         query,
-                        &mut *zwrite!(queries_in_progress),
+                        &mut zwrite!(queries_in_progress),
                         &sequence_number,
                         &route_id,
                         client_guid,
@@ -248,21 +248,24 @@ impl RouteServiceSrv<'_> {
                 })?,
         );
 
-        // create associated LivelinessToken
-        let liveliness_ke =
-            new_ke_liveliness_service_srv(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
-        let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(self.zsession
-            .liveliness()
-            .declare_token(liveliness_ke)
-            .res()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed create LivelinessToken associated to route for Service Server {ros2_name}: {e}"
-                )
-            })?
-        );
+        // if not for an Action (since actions declare their own liveliness)
+        if !is_service_for_action(&self.ros2_name) {
+            // create associated LivelinessToken
+            let liveliness_ke =
+                new_ke_liveliness_service_srv(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
+            let ros2_name = self.ros2_name.clone();
+            self.liveliness_token = Some(self.zsession
+                .liveliness()
+                .declare_token(liveliness_ke)
+                .res()
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed create LivelinessToken associated to route for Service Server {ros2_name}: {e}"
+                    )
+                })?
+            );
+        }
         Ok(())
     }
 
@@ -377,7 +380,7 @@ fn do_route_request(
         dds_req_buf
     } else {
         // No query payload - send a request containing just client_guid + sequence_number
-        let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.clone().into();
+        let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.into();
         dds_req_buf.extend_from_slice(&client_guid.to_le_bytes());
         dds_req_buf.extend_from_slice(&n.to_le_bytes());
         dds_req_buf

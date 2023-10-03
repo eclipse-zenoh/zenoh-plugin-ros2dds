@@ -212,6 +212,19 @@ impl RosDiscoveryInfoMgr {
         *has_changed = true;
     }
 
+    pub fn add_dds_writers(&self, gids: Vec<Gid>) {
+        let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
+        let writer_gid_seq = &mut info
+            .node_entities_info_seq
+            .get_mut(&self.node_fullname)
+            .unwrap()
+            .writer_gid_seq;
+        for gid in gids {
+            writer_gid_seq.insert(gid);
+        }
+        *has_changed = true;
+    }
+
     pub fn remove_dds_writer(&self, gid: Gid) {
         let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
         info.node_entities_info_seq
@@ -219,6 +232,19 @@ impl RosDiscoveryInfoMgr {
             .unwrap()
             .writer_gid_seq
             .remove(&gid);
+        *has_changed = true;
+    }
+
+    pub fn remove_dds_writers(&self, gids: Vec<Gid>) {
+        let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
+        let writer_gid_seq = &mut info
+            .node_entities_info_seq
+            .get_mut(&self.node_fullname)
+            .unwrap()
+            .writer_gid_seq;
+        for gid in gids {
+            writer_gid_seq.remove(&gid);
+        }
         *has_changed = true;
     }
 
@@ -232,6 +258,19 @@ impl RosDiscoveryInfoMgr {
         *has_changed = true;
     }
 
+    pub fn add_dds_readers(&self, gids: Vec<Gid>) {
+        let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
+        let reader_gid_seq = &mut info
+            .node_entities_info_seq
+            .get_mut(&self.node_fullname)
+            .unwrap()
+            .reader_gid_seq;
+        for gid in gids {
+            reader_gid_seq.insert(gid);
+        }
+        *has_changed = true;
+    }
+
     pub fn remove_dds_reader(&self, gid: Gid) {
         let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
         info.node_entities_info_seq
@@ -239,6 +278,19 @@ impl RosDiscoveryInfoMgr {
             .unwrap()
             .reader_gid_seq
             .remove(&gid);
+        *has_changed = true;
+    }
+
+    pub fn remove_dds_readers(&self, gids: Vec<Gid>) {
+        let (ref mut info, ref mut has_changed) = *zwrite!(self.participant_entities_state);
+        let reader_gid_seq = &mut info
+            .node_entities_info_seq
+            .get_mut(&self.node_fullname)
+            .unwrap()
+            .reader_gid_seq;
+        for gid in gids {
+            reader_gid_seq.remove(&gid);
+        }
         *has_changed = true;
     }
 
@@ -271,7 +323,6 @@ impl RosDiscoveryInfoMgr {
             }
 
             map.values()
-                .into_iter()
                 .filter_map(|sample| {
                     log::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
                     match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(

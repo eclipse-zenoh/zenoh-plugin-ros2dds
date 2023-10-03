@@ -448,11 +448,6 @@ impl NodeInfo {
     }
 
     #[inline]
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    #[inline]
     pub fn fullname(&self) -> &str {
         &self.id[self.fullname.clone()]
     }
@@ -470,12 +465,6 @@ impl NodeInfo {
     #[inline]
     pub fn id_as_keyexpr(&self) -> &keyexpr {
         ke_for_sure!(&self.id)
-    }
-
-    #[inline]
-    pub fn fullname_as_keyexpr(&self) -> &keyexpr {
-        // fullname always start with '/' - remove it
-        ke_for_sure!(&self.fullname()[1..])
     }
 
     pub fn update_with_reader(&mut self, entity: &DdsEntity) -> Option<ROS2DiscoveryEvent> {
