@@ -26,7 +26,7 @@ use zenoh::prelude::{keyexpr, KeyExpr};
 use crate::{dds_utils::get_guid, ke_for_sure};
 
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
-pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/srv/GoalStatusArray";
+pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
 
 lazy_static::lazy_static!(
     pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr = ke_for_sure!("_action/send_goal");
