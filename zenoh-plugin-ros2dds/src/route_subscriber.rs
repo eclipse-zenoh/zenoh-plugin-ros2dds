@@ -31,7 +31,7 @@ use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
-use crate::ros2_utils::{ros2_message_type_to_dds_type, is_message_for_action};
+use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
 use crate::{
     dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, Config, KE_ANY_1_SEGMENT,
     LOG_PAYLOAD,

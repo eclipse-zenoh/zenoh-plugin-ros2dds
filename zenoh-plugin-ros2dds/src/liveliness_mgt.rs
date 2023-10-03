@@ -247,7 +247,6 @@ pub(crate) fn parse_ke_liveliness_action_cli(
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 
-
 fn escape_slashes(s: &str) -> OwnedKeyExpr {
     OwnedKeyExpr::try_from(s.replace('/', SLASH_REPLACEMSNT_CHAR)).unwrap()
 }

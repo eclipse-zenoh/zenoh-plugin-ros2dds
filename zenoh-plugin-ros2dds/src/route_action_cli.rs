@@ -13,13 +13,14 @@
 //
 use cyclors::dds_entity_t;
 use serde::Serialize;
-use zenoh_core::AsyncResolve;
 use std::{collections::HashSet, fmt, sync::Arc};
-use zenoh::{prelude::*, liveliness::LivelinessToken};
+use zenoh::{liveliness::LivelinessToken, prelude::*};
+use zenoh_core::AsyncResolve;
 
 use crate::{
-    config::Config, gid::Gid, ros2_utils::*, route_action_srv::serialize_action_zenoh_key_expr,
-    route_service_cli::RouteServiceCli, route_subscriber::RouteSubscriber, liveliness_mgt::new_ke_liveliness_action_cli,
+    config::Config, gid::Gid, liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
+    route_action_srv::serialize_action_zenoh_key_expr, route_service_cli::RouteServiceCli,
+    route_subscriber::RouteSubscriber,
 };
 
 #[derive(Serialize)]

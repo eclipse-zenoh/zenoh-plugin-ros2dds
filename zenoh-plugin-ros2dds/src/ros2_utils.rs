@@ -18,7 +18,7 @@ use cyclors::{
     dds_entity_t,
     qos::{
         Durability, DurabilityKind, History, HistoryKind, Qos, Reliability, ReliabilityKind,
-        DDS_INFINITE_TIME,
+        TypeConsistency, TypeConsistencyKind, WriterDataLifecycle, DDS_INFINITE_TIME,
     },
 };
 use zenoh::prelude::{keyexpr, KeyExpr};
@@ -105,6 +105,18 @@ fn ros2_action_feedback_default_qos() -> Qos {
         kind: ReliabilityKind::RELIABLE,
         max_blocking_time: DDS_INFINITE_TIME,
     });
+    qos.data_representation = Some([0].into());
+    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
+        autodispose_unregistered_instances: false,
+    });
+    qos.type_consistency = Some(TypeConsistency {
+        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+        ignore_sequence_bounds: true,
+        ignore_string_bounds: true,
+        ignore_member_names: false,
+        prevent_type_widening: false,
+        force_type_validation: false,
+    });
     qos
 }
 
@@ -117,18 +129,30 @@ fn ros2_action_status_default_qos() -> Qos {
         kind: ReliabilityKind::RELIABLE,
         max_blocking_time: DDS_INFINITE_TIME,
     });
+    qos.data_representation = Some([0].into());
+    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
+        autodispose_unregistered_instances: false,
+    });
+    qos.type_consistency = Some(TypeConsistency {
+        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+        ignore_sequence_bounds: true,
+        ignore_string_bounds: true,
+        ignore_member_names: false,
+        prevent_type_widening: false,
+        force_type_validation: false,
+    });
     qos
 }
 
 pub fn is_service_for_action(ros2_service_name: &str) -> bool {
-    ros2_service_name.ends_with(KE_SUFFIX_ACTION_SEND_GOAL.as_str()) ||
-    ros2_service_name.ends_with(KE_SUFFIX_ACTION_CANCEL_GOAL.as_str()) ||
-    ros2_service_name.ends_with(KE_SUFFIX_ACTION_GET_RESULT.as_str())
+    ros2_service_name.ends_with(KE_SUFFIX_ACTION_SEND_GOAL.as_str())
+        || ros2_service_name.ends_with(KE_SUFFIX_ACTION_CANCEL_GOAL.as_str())
+        || ros2_service_name.ends_with(KE_SUFFIX_ACTION_GET_RESULT.as_str())
 }
 
 pub fn is_message_for_action(ros2_message_name: &str) -> bool {
-    ros2_message_name.ends_with(KE_SUFFIX_ACTION_FEEDBACK.as_str()) ||
-    ros2_message_name.ends_with(KE_SUFFIX_ACTION_STATUS.as_str())
+    ros2_message_name.ends_with(KE_SUFFIX_ACTION_FEEDBACK.as_str())
+        || ros2_message_name.ends_with(KE_SUFFIX_ACTION_STATUS.as_str())
 }
 
 /// Check if name is a ROS name: starting with '/' and useable as a key expression (removing 1st '/')

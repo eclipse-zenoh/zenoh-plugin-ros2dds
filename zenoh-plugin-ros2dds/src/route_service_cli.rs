@@ -32,7 +32,8 @@ use crate::dds_utils::{
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
-    new_service_id, ros2_service_type_to_reply_dds_type, ros2_service_type_to_request_dds_type, is_service_for_action,
+    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+    ros2_service_type_to_request_dds_type,
 };
 use crate::{Config, LOG_PAYLOAD};
 
