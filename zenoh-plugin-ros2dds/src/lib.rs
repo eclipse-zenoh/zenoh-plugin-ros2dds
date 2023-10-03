@@ -47,6 +47,8 @@ mod node_info;
 mod qos_helpers;
 mod ros2_utils;
 mod ros_discovery;
+mod route_action_cli;
+mod route_action_srv;
 mod route_publisher;
 mod route_service_cli;
 mod route_service_srv;

@@ -58,7 +58,7 @@ pub struct RouteSubscriber<'a> {
     zsession: &'a Arc<Session>,
     // the config
     #[serde(skip)]
-    _config: Arc<Config>,
+    config: Arc<Config>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -124,7 +124,7 @@ impl RouteSubscriber<'_> {
             ros2_type,
             zenoh_key_expr,
             zsession,
-            _config: config,
+            config: config,
             zenoh_subscriber: None,
             dds_writer,
             transient_local,
@@ -137,7 +137,6 @@ impl RouteSubscriber<'_> {
 
     async fn activate(
         &mut self,
-        config: &Config,
         plugin_id: &keyexpr,
         discovered_reader_qos: &Qos,
     ) -> Result<(), String> {
@@ -155,34 +154,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr).into();
-            log::error!("{self}: query historical data from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
-            {
-                use zenoh_core::SyncResolve;
-                //
-                println!("********* QUERY FROM {query_selector}");
-                let rep = self
-                    .zsession
-                    .get(&query_selector)
-                    .target(QueryTarget::All)
-                    .consolidation(ConsolidationMode::None)
-                    .accept_replies(ReplyKeyExpr::Any)
-                    .res_sync()
-                    .unwrap();
-                while let Ok(reply) = rep.recv() {
-                    match reply.sample {
-                        Ok(sample) => println!(
-                            ">>>>>> Received ('{}': '{:02x?}')",
-                            sample.key_expr.as_str(),
-                            sample.value.payload.contiguous(),
-                        ),
-                        Err(err) => {
-                            println!(">> Received (ERROR: '{}')", String::try_from(&err).unwrap())
-                        }
-                    }
-                }
-                //
-            }
-
+            log::debug!("{self}: query historical data from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
@@ -190,7 +162,7 @@ impl RouteSubscriber<'_> {
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
                 .querying()
-                .query_timeout(config.queries_timeout)
+                .query_timeout(self.config.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
                 .res()
@@ -261,33 +233,6 @@ impl RouteSubscriber<'_> {
                 .fetch({
                     let session = &self.zsession;
                     let query_selector = query_selector.clone();
-                    {
-                        use zenoh_core::SyncResolve;
-                        //
-                        println!("********* FETCH FROM {query_selector}");
-                        let rep = session
-                            .get(&query_selector)
-                            .target(QueryTarget::All)
-                            .consolidation(ConsolidationMode::None)
-                            .accept_replies(ReplyKeyExpr::Any)
-                            .res_sync()
-                            .unwrap();
-                        while let Ok(reply) = rep.recv() {
-                            match reply.sample {
-                                Ok(sample) => println!(
-                                    ">>>>>> Received ('{}': '{:02x?}')",
-                                    sample.key_expr.as_str(),
-                                    sample.value.payload.contiguous(),
-                                ),
-                                Err(err) => println!(
-                                    ">> Received (ERROR: '{}')",
-                                    String::try_from(&err).unwrap()
-                                ),
-                            }
-                        }
-                        //
-                    }
-
                     move |cb| {
                         use zenoh_core::SyncResolve;
                         session
@@ -341,7 +286,6 @@ impl RouteSubscriber<'_> {
     pub async fn add_local_node(
         &mut self,
         entity_key: String,
-        config: &Config,
         plugin_id: &keyexpr,
         discovered_reader_qos: &Qos,
     ) {
@@ -349,10 +293,7 @@ impl RouteSubscriber<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self
-                .activate(config, plugin_id, discovered_reader_qos)
-                .await
-            {
+            if let Err(e) = self.activate(plugin_id, discovered_reader_qos).await {
                 log::error!("{self} activation failed: {e}");
             }
         }

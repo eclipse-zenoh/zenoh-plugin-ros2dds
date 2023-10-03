@@ -42,7 +42,6 @@ use crate::Config;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
 pub struct RouteServiceSrv<'a> {
     // the ROS2 Service name
@@ -100,7 +99,7 @@ impl fmt::Display for RouteServiceSrv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Route Service Server (ROS:{} -> Zenoh:{})",
+            "Route Service Server (ROS:{} <-> Zenoh:{})",
             self.ros2_name, self.zenoh_key_expr
         )
     }
@@ -118,7 +117,7 @@ impl RouteServiceSrv<'_> {
         type_info: &Option<Arc<TypeInfo>>,
     ) -> Result<RouteServiceSrv<'a>, String> {
         log::debug!(
-            "Route Service Server ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
+            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
 
         // Default Service QoS copied from:
@@ -139,7 +138,7 @@ impl RouteServiceSrv<'_> {
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
-            "Route Service Server ({ros2_name} -> {zenoh_key_expr}): using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
+            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
         );
 
         // create DDS Writer to send requests coming from Zenoh to the Service

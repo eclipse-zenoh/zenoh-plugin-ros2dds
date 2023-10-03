@@ -83,7 +83,7 @@ impl fmt::Display for RouteServiceCli<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Route Service Client (ROS:{} -> Zenoh:{})",
+            "Route Service Client (ROS:{} <-> Zenoh:{})",
             self.ros2_name, self.zenoh_key_expr
         )
     }
@@ -101,7 +101,7 @@ impl RouteServiceCli<'_> {
         type_info: &Option<Arc<TypeInfo>>,
     ) -> Result<RouteServiceCli<'a>, String> {
         log::debug!(
-            "Route Service Client ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
+            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
 
         // Default Service QoS copied from:
@@ -122,7 +122,7 @@ impl RouteServiceCli<'_> {
         let user_data = format!("serviceid= {server_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
-            "Route Service Client ({ros2_name} -> {zenoh_key_expr}): using id '{server_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
+            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): using id '{server_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
         );
 
         // create DDS Writer to send replies coming from Zenoh to the Client
@@ -137,7 +137,7 @@ impl RouteServiceCli<'_> {
         )?;
 
         let route_id: String =
-            format!("Route Service Client (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})",);
+            format!("Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr})",);
 
         // create DDS Reader to receive requests and route them to Zenoh
         let req_topic_name = format!("rq{ros2_name}Request");
