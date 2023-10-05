@@ -29,6 +29,7 @@ use crate::dds_utils::{delete_dds_entity, get_guid, serialize_entity_guid};
 use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_pub;
 use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
+use crate::routes_mgr::Context;
 use crate::{qos_helpers::*, Config};
 use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 
@@ -47,12 +48,9 @@ pub struct RoutePublisher<'a> {
     ros2_type: String,
     // the Zenoh key expression used for routing
     zenoh_key_expr: OwnedKeyExpr,
-    // the zenoh session
+    // the context
     #[serde(skip)]
-    zsession: &'a Arc<Session>,
-    // the config
-    #[serde(skip)]
-    config: Arc<Config>,
+    context: Context<'a>,
     // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -95,15 +93,13 @@ impl fmt::Display for RoutePublisher<'_> {
 impl RoutePublisher<'_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
-        config: Arc<Config>,
-        zsession: &'a Arc<Session>,
-        participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
         keyless: bool,
         reader_qos: Qos,
+        context: &Context<'a>,
     ) -> Result<RoutePublisher<'a>, String> {
         let transient_local = is_transient_local(&reader_qos);
         log::debug!(
@@ -111,7 +107,7 @@ impl RoutePublisher<'_> {
         );
 
         // declare the zenoh key expression (for wire optimization)
-        let declared_ke = zsession
+        let declared_ke = context.zsession
             .declare_keyexpr(zenoh_key_expr.clone())
             .res()
             .await
@@ -121,8 +117,8 @@ impl RoutePublisher<'_> {
 
         // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
         let congestion_ctrl = match (
-            config.reliable_routes_blocking,
-            is_reader_reliable(&reader_qos.reliability),
+            context.config.reliable_routes_blocking,
+            is_reliable(&reader_qos),
         ) {
             (true, true) => CongestionControl::Block,
             _ => CongestionControl::Drop,
@@ -130,18 +126,18 @@ impl RoutePublisher<'_> {
 
         let topic_name = format!("rt{ros2_name}");
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
-        let read_period = get_read_period(&config, &zenoh_key_expr);
+        let read_period = get_read_period(&context.config, &zenoh_key_expr);
 
         // create matching DDS Reader that forwards data coming from DDS to Zenoh
         let dds_reader = create_forwarding_dds_reader(
-            participant,
+            context.participant,
             topic_name,
             type_name,
             type_info,
             keyless,
             reader_qos.clone(),
             declared_ke.clone(),
-            zsession.clone(),
+            context.zsession.clone(),
             read_period,
             congestion_ctrl,
         )?;
@@ -151,8 +147,7 @@ impl RoutePublisher<'_> {
             ros2_type,
             dds_reader,
             zenoh_key_expr,
-            zsession,
-            config,
+            context: context.clone(),
             zenoh_publisher: None,
             transient_local,
             keyless,
@@ -162,13 +157,10 @@ impl RoutePublisher<'_> {
         })
     }
 
-    async fn activate<'a>(
-        &'a mut self,
-        plugin_id: &keyexpr,
-        discovered_writer_qos: &Qos,
-    ) -> Result<(), String> {
+    async fn activate<'a>(&'a mut self, discovered_writer_qos: &Qos) -> Result<(), String> {
         // For lifetime issue, redeclare the zenoh key expression that can't be stored in Self
         let declared_ke = self
+            .context
             .zsession
             .declare_keyexpr(self.zenoh_key_expr.clone())
             .res()
@@ -206,16 +198,17 @@ impl RoutePublisher<'_> {
                 (HistoryKind::KEEP_ALL, _) => usize::MAX,
             };
             // In case there are several Writers served by this route, increase the cache size
-            history = history.saturating_mul(self.config.transient_local_cache_multiplier);
+            history = history.saturating_mul(self.context.config.transient_local_cache_multiplier);
             log::debug!(
                 "{self}: caching TRANSIENT_LOCAL publications via a PublicationCache with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
             let pub_cache = self
+                .context
                 .zsession
                 .declare_publication_cache(&declared_ke)
                 .history(history)
-                .queryable_prefix(*KE_PREFIX_PUB_CACHE / plugin_id)
+                .queryable_prefix(*KE_PREFIX_PUB_CACHE / &self.context.plugin_id)
                 .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
                 .res()
                 .await
@@ -228,6 +221,7 @@ impl RoutePublisher<'_> {
             Some(ZPublisher::PublicationCache(pub_cache))
         } else {
             if let Err(e) = self
+                .context
                 .zsession
                 .declare_publisher(declared_ke.clone())
                 .res()
@@ -247,14 +241,14 @@ impl RoutePublisher<'_> {
         if !is_message_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_pub(
-                plugin_id,
+                &self.context.plugin_id,
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
                 discovered_writer_qos,
             )?;
             let ros2_name = self.ros2_name.clone();
-            self.liveliness_token = Some(self.zsession
+            self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
                 .res()
@@ -302,17 +296,12 @@ impl RoutePublisher<'_> {
     }
 
     #[inline]
-    pub async fn add_local_node(
-        &mut self,
-        node: String,
-        plugin_id: &keyexpr,
-        discovered_writer_qos: &Qos,
-    ) {
+    pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
         self.local_nodes.insert(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(plugin_id, discovered_writer_qos).await {
+            if let Err(e) = self.activate(discovered_writer_qos).await {
                 log::error!("{self} activation failed: {e}");
             }
         }

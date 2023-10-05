@@ -35,7 +35,8 @@ use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
     ros2_service_type_to_request_dds_type,
 };
-use crate::{Config, LOG_PAYLOAD};
+use crate::routes_mgr::Context;
+use crate::LOG_PAYLOAD;
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]
@@ -47,12 +48,9 @@ pub struct RouteServiceCli<'a> {
     ros2_type: String,
     // the Zenoh key expression used for routing
     zenoh_key_expr: OwnedKeyExpr,
-    // the zenoh session
+    // the context
     #[serde(skip)]
-    zsession: &'a Arc<Session>,
-    // the config
-    #[serde(skip)]
-    _config: Arc<Config>,
+    context: Context<'a>,
     is_active: bool,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
     #[serde(serialize_with = "serialize_entity_guid")]
@@ -93,13 +91,11 @@ impl fmt::Display for RouteServiceCli<'_> {
 impl RouteServiceCli<'_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
-        config: Arc<Config>,
-        zsession: &'a Arc<Session>,
-        participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
+        context: &Context<'a>,
     ) -> Result<RouteServiceCli<'a>, String> {
         log::debug!(
             "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
@@ -119,7 +115,7 @@ impl RouteServiceCli<'_> {
 
         // Add DATA_USER QoS similarly to rmw_cyclone_dds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L5028C17-L5028C17
-        let server_id_str = new_service_id(&participant)?;
+        let server_id_str = new_service_id(&context.participant)?;
         let user_data = format!("serviceid= {server_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
@@ -130,7 +126,7 @@ impl RouteServiceCli<'_> {
         let rep_topic_name = format!("rr{ros2_name}Reply");
         let rep_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
         let rep_writer = create_dds_writer(
-            participant,
+            context.participant,
             rep_topic_name,
             rep_type_name,
             true,
@@ -144,9 +140,9 @@ impl RouteServiceCli<'_> {
         let req_topic_name = format!("rq{ros2_name}Request");
         let req_type_name = ros2_service_type_to_request_dds_type(&ros2_type);
         let zenoh_key_expr2 = zenoh_key_expr.clone();
-        let zsession2 = zsession.clone();
+        let zsession2 = context.zsession.clone();
         let req_reader = create_dds_reader(
-            participant,
+            context.participant,
             req_topic_name,
             req_type_name,
             type_info,
@@ -154,13 +150,7 @@ impl RouteServiceCli<'_> {
             qos,
             None,
             move |sample| {
-                do_route_request(
-                    &route_id,
-                    sample,
-                    zenoh_key_expr2.clone(),
-                    &zsession2,
-                    rep_writer,
-                );
+                do_route_request(&route_id, sample, &zenoh_key_expr2, &zsession2, rep_writer);
             },
         )?;
 
@@ -168,8 +158,7 @@ impl RouteServiceCli<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            zsession,
-            _config: config,
+            context: context.clone(),
             is_active: false,
             rep_writer,
             req_reader,
@@ -179,16 +168,19 @@ impl RouteServiceCli<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self, plugin_id: &keyexpr) -> Result<(), String> {
+    async fn activate<'a>(&'a mut self) -> Result<(), String> {
         self.is_active = true;
 
         // if not for an Action (since actions declare their own liveliness)
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
-            let liveliness_ke =
-                new_ke_liveliness_service_cli(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
+            let liveliness_ke = new_ke_liveliness_service_cli(
+                &self.context.plugin_id,
+                &self.zenoh_key_expr,
+                &self.ros2_type,
+            )?;
             let ros2_name = self.ros2_name.clone();
-            self.liveliness_token = Some(self.zsession
+            self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
                 .res_async()
@@ -239,12 +231,12 @@ impl RouteServiceCli<'_> {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String, plugin_id: &keyexpr) {
+    pub async fn add_local_node(&mut self, node: String) {
         self.local_nodes.insert(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(plugin_id).await {
+            if let Err(e) = self.activate().await {
                 log::error!("{self} activation failed: {e}");
             }
         }
@@ -274,7 +266,7 @@ impl RouteServiceCli<'_> {
 fn do_route_request(
     route_id: &str,
     sample: &DDSRawSample,
-    zenoh_key_expr: OwnedKeyExpr,
+    zenoh_key_expr: &OwnedKeyExpr,
     zsession: &Arc<Session>,
     rep_writer: dds_entity_t,
 ) {

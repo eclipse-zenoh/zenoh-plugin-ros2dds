@@ -68,12 +68,21 @@ enum RouteRef {
     ActionCliRoute(String),
 }
 
+// A Context struct to be shared as an Arc amongst all the code
+#[derive(Clone)]
+pub struct Context<'a> {
+    pub(crate) plugin_id: Arc<OwnedKeyExpr>,
+    pub(crate) config: Arc<Config>,
+    pub(crate) zsession: &'a Arc<Session>,
+    pub(crate) participant: dds_entity_t,
+    // all discovered entities
+    pub(crate) discovered_entities: Arc<RwLock<DiscoveredEntities>>,
+    // ros_discovery_info read/write manager
+    pub(crate) ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
+}
+
 pub struct RoutesMgr<'a> {
-    plugin_id: OwnedKeyExpr,
-    config: Arc<Config>,
-    zsession: &'a Arc<Session>,
-    participant: dds_entity_t,
-    discovered_entities: Arc<RwLock<DiscoveredEntities>>,
+    context: Arc<Context<'a>>,
     // maps of established routes - ecah map indexed by topic/service/action name
     routes_publishers: HashMap<String, RoutePublisher<'a>>,
     routes_subscribers: HashMap<String, RouteSubscriber<'a>>,
@@ -81,8 +90,7 @@ pub struct RoutesMgr<'a> {
     routes_service_cli: HashMap<String, RouteServiceCli<'a>>,
     routes_action_srv: HashMap<String, RouteActionSrv<'a>>,
     routes_action_cli: HashMap<String, RouteActionCli<'a>>,
-    // ros_discovery_info read/write manager
-    ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
+    // admin space key prefix (stripped in map indexes)
     admin_prefix: OwnedKeyExpr,
     // admin space: index is the admin_keyexpr (relative to admin_prefix)
     admin_space: HashMap<OwnedKeyExpr, RouteRef>,
@@ -98,19 +106,23 @@ impl<'a> RoutesMgr<'a> {
         ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
         admin_prefix: OwnedKeyExpr,
     ) -> RoutesMgr<'a> {
-        RoutesMgr {
-            plugin_id,
+        let context = Arc::new(Context {
+            plugin_id: Arc::new(plugin_id),
             config,
             zsession,
             participant,
             discovered_entities,
+            ros_discovery_mgr,
+        });
+
+        RoutesMgr {
+            context,
             routes_publishers: HashMap::new(),
             routes_subscribers: HashMap::new(),
             routes_service_srv: HashMap::new(),
             routes_service_cli: HashMap::new(),
             routes_action_srv: HashMap::new(),
             routes_action_cli: HashMap::new(),
-            ros_discovery_mgr,
             admin_prefix,
             admin_space: HashMap::new(),
         }
@@ -123,10 +135,9 @@ impl<'a> RoutesMgr<'a> {
         use ROS2DiscoveryEvent::*;
         match event {
             DiscoveredMsgPub(node, iface) => {
-                let plugin_id = self.plugin_id.clone();
                 // Retrieve info on DDS Writer
                 let entity = {
-                    let entities = zread!(self.discovered_entities);
+                    let entities = zread!(self.context.discovered_entities);
                     entities
                         .get_writer(&iface.writer)
                         .ok_or(format!(
@@ -145,7 +156,7 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_local_node(node, &plugin_id, &entity.qos).await;
+                route.add_local_node(node, &entity.qos).await;
             }
 
             UndiscoveredMsgPub(node, iface) => {
@@ -158,10 +169,11 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove reader's GID in ros_discovery_msg
-                        self.ros_discovery_mgr
-                            .remove_dds_reader(route.dds_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
-                            })?);
+                        self.context.ros_discovery_mgr.remove_dds_reader(
+                            route.dds_reader_guid().map_err(|e| {
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
+                            })?,
+                        );
                         log::info!("{route} removed");
                     }
                 }
@@ -170,7 +182,7 @@ impl<'a> RoutesMgr<'a> {
             DiscoveredMsgSub(node, iface) => {
                 // Retrieve info on DDS Reader
                 let entity = {
-                    let entities = zread!(self.discovered_entities);
+                    let entities = zread!(self.context.discovered_entities);
                     entities
                         .get_reader(&iface.reader)
                         .ok_or(format!(
@@ -179,7 +191,6 @@ impl<'a> RoutesMgr<'a> {
                         ))?
                         .clone()
                 };
-                let plugin_id = self.plugin_id.clone();
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_subscriber(
@@ -190,7 +201,7 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_local_node(node, &plugin_id, &entity.qos).await;
+                route.add_local_node(node, &entity.qos).await;
             }
 
             UndiscoveredMsgSub(node, iface) => {
@@ -204,21 +215,21 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr
-                            .remove_dds_writer(route.dds_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
-                            })?);
+                        self.context.ros_discovery_mgr.remove_dds_writer(
+                            route.dds_writer_guid().map_err(|e| {
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
+                            })?,
+                        );
                         log::info!("{route} removed");
                     }
                 }
             }
             DiscoveredServiceSrv(node, iface) => {
-                let plugin_id = self.plugin_id.clone();
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_service_srv(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node, &plugin_id).await;
+                route.add_local_node(node).await;
             }
             UndiscoveredServiceSrv(node, iface) => {
                 if let Entry::Occupied(mut entry) =
@@ -231,14 +242,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_reader(
+                        self.context.ros_discovery_mgr.remove_dds_reader(
                             route.dds_rep_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writer(
+                        self.context.ros_discovery_mgr.remove_dds_writer(
                             route.dds_req_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -246,12 +257,11 @@ impl<'a> RoutesMgr<'a> {
                 }
             }
             DiscoveredServiceCli(node, iface) => {
-                let plugin_id = self.plugin_id.clone();
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_service_cli(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node, &plugin_id).await;
+                route.add_local_node(node).await;
             }
             UndiscoveredServiceCli(node, iface) => {
                 if let Entry::Occupied(mut entry) =
@@ -264,14 +274,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_reader(
+                        self.context.ros_discovery_mgr.remove_dds_reader(
                             route.dds_req_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writer(
+                        self.context.ros_discovery_mgr.remove_dds_writer(
                             route.dds_rep_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -279,12 +289,11 @@ impl<'a> RoutesMgr<'a> {
                 }
             }
             DiscoveredActionSrv(node, iface) => {
-                let plugin_id = self.plugin_id.clone();
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_action_srv(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node, &plugin_id).await;
+                route.add_local_node(node).await;
             }
             UndiscoveredActionSrv(node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_srv.entry(iface.name.clone())
@@ -296,14 +305,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_SRV / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_readers(
+                        self.context.ros_discovery_mgr.remove_dds_readers(
                             route.dds_readers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writers(
+                        self.context.ros_discovery_mgr.remove_dds_writers(
                             route.dds_writers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -311,12 +320,11 @@ impl<'a> RoutesMgr<'a> {
                 }
             }
             DiscoveredActionCli(node, iface) => {
-                let plugin_id = self.plugin_id.clone();
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_action_cli(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node, &plugin_id).await;
+                route.add_local_node(node).await;
             }
             UndiscoveredActionCli(node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_cli.entry(iface.name.clone())
@@ -328,14 +336,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_CLI / iface.name_as_keyexpr()));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_readers(
+                        self.context.ros_discovery_mgr.remove_dds_readers(
                             route.dds_readers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writers(
+                        self.context.ros_discovery_mgr.remove_dds_writers(
                             route.dds_writers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -387,10 +395,11 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr
-                            .remove_dds_writer(route.dds_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
-                            })?);
+                        self.context.ros_discovery_mgr.remove_dds_writer(
+                            route.dds_writer_guid().map_err(|e| {
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
+                            })?,
+                        );
                         log::info!("{route} removed");
                     }
                 }
@@ -431,10 +440,11 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove reader's GID in ros_discovery_msg
-                        self.ros_discovery_mgr
-                            .remove_dds_reader(route.dds_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
-                            })?);
+                        self.context.ros_discovery_mgr.remove_dds_reader(
+                            route.dds_reader_guid().map_err(|e| {
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
+                            })?,
+                        );
                         log::info!("{route} removed");
                     }
                 }
@@ -467,14 +477,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_reader(
+                        self.context.ros_discovery_mgr.remove_dds_reader(
                             route.dds_req_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writer(
+                        self.context.ros_discovery_mgr.remove_dds_writer(
                             route.dds_rep_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -509,14 +519,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_reader(
+                        self.context.ros_discovery_mgr.remove_dds_reader(
                             route.dds_rep_reader_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writer(
+                        self.context.ros_discovery_mgr.remove_dds_writer(
                             route.dds_req_writer_guid().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -551,14 +561,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_readers(
+                        self.context.ros_discovery_mgr.remove_dds_readers(
                             route.dds_readers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writers(
+                        self.context.ros_discovery_mgr.remove_dds_writers(
                             route.dds_writers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -593,14 +603,14 @@ impl<'a> RoutesMgr<'a> {
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
                         let route = entry.remove();
                         // remove reader's and writer's GID in ros_discovery_msg
-                        self.ros_discovery_mgr.remove_dds_readers(
+                        self.context.ros_discovery_mgr.remove_dds_readers(
                             route.dds_readers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
-                        self.ros_discovery_mgr.remove_dds_writers(
+                        self.context.ros_discovery_mgr.remove_dds_writers(
                             route.dds_writers_guids().map_err(|e| {
-                                format!("Failed to update ros_discovery_info message: {e}")
+                                format!("{route}: failed to update ros_discovery_info message: {e}")
                             })?,
                         );
                         log::info!("{route} removed");
@@ -614,7 +624,7 @@ impl<'a> RoutesMgr<'a> {
     pub async fn query_historical_all_publications(&mut self, plugin_id: &keyexpr) {
         for route in self.routes_subscribers.values_mut() {
             route
-                .query_historical_publications(plugin_id, self.config.queries_timeout)
+                .query_historical_publications(plugin_id, self.context.config.queries_timeout)
                 .await;
         }
     }
@@ -633,25 +643,23 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RoutePublisher::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     &None,
                     keyless,
                     reader_qos,
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert reader's GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_reader(
-                    route
-                        .dds_reader_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_reader(route.dds_reader_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -680,24 +688,22 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RouteSubscriber::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     keyless,
                     writer_qos,
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert writer's GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_writer(
-                    route
-                        .dds_writer_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_writer(route.dds_writer_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -724,27 +730,25 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RouteServiceSrv::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     &None,
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert reader's and writer's GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_reader(
-                    route
-                        .dds_rep_reader_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
+                self.context.ros_discovery_mgr.add_dds_reader(
+                    route.dds_rep_reader_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?,
                 );
-                self.ros_discovery_mgr.add_dds_writer(
-                    route
-                        .dds_req_writer_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
+                self.context.ros_discovery_mgr.add_dds_writer(
+                    route.dds_req_writer_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?,
                 );
 
                 if admin_space_ref {
@@ -772,27 +776,25 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RouteServiceCli::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     &None,
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert reader's and writer's GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_reader(
-                    route
-                        .dds_req_reader_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
+                self.context.ros_discovery_mgr.add_dds_reader(
+                    route.dds_req_reader_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?,
                 );
-                self.ros_discovery_mgr.add_dds_writer(
-                    route
-                        .dds_rep_writer_guid()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
+                self.context.ros_discovery_mgr.add_dds_writer(
+                    route.dds_rep_writer_guid().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?,
                 );
 
                 if admin_space_ref {
@@ -819,27 +821,25 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RouteActionSrv::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert readers' and writes' GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_readers(
-                    route
-                        .dds_readers_guids()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
-                self.ros_discovery_mgr.add_dds_writers(
-                    route
-                        .dds_writers_guids()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_readers(route.dds_readers_guids().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_writers(route.dds_writers_guids().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
 
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / zenoh_key_expr;
@@ -863,27 +863,25 @@ impl<'a> RoutesMgr<'a> {
                 let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
                 // create route
                 let route = RouteActionCli::create(
-                    self.config.clone(),
-                    self.zsession,
-                    self.participant,
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
+                    &self.context,
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert readers' and writes' GID in ros_discovery_msg
-                self.ros_discovery_mgr.add_dds_readers(
-                    route
-                        .dds_readers_guids()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
-                self.ros_discovery_mgr.add_dds_writers(
-                    route
-                        .dds_writers_guids()
-                        .map_err(|e| format!("Failed to update ros_discovery_info message: {e}"))?,
-                );
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_readers(route.dds_readers_guids().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
+                self.context
+                    .ros_discovery_mgr
+                    .add_dds_writers(route.dds_writers_guids().map_err(|e| {
+                        format!("{route}: failed to update ros_discovery_info message: {e}")
+                    })?);
 
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / zenoh_key_expr;
