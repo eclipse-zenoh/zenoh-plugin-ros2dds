@@ -78,6 +78,12 @@ pub struct RouteSubscriber<'a> {
 
 impl Drop for RouteSubscriber<'_> {
     fn drop(&mut self) {
+        // remove writer's GID from ros_discovery_info message
+        match get_guid(&self.dds_writer) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+
         if let Err(e) = delete_dds_entity(self.dds_writer) {
             log::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
@@ -117,6 +123,10 @@ impl RouteSubscriber<'_> {
             keyless,
             writer_qos,
         )?;
+        // add writer's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_writer(get_guid(&dds_writer)?);
 
         Ok(RouteSubscriber {
             ros2_name,

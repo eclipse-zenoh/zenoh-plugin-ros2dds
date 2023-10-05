@@ -74,6 +74,12 @@ pub struct RoutePublisher<'a> {
 
 impl Drop for RoutePublisher<'_> {
     fn drop(&mut self) {
+        // remove reader's GID from ros_discovery_info message
+        match get_guid(&self.dds_reader) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+
         if let Err(e) = delete_dds_entity(self.dds_reader) {
             log::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
@@ -141,6 +147,10 @@ impl RoutePublisher<'_> {
             read_period,
             congestion_ctrl,
         )?;
+        // add reader's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_reader(get_guid(&dds_reader)?);
 
         Ok(RoutePublisher {
             ros2_name,

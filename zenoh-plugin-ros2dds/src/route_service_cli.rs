@@ -69,6 +69,17 @@ pub struct RouteServiceCli<'a> {
 
 impl Drop for RouteServiceCli<'_> {
     fn drop(&mut self) {
+        // remove reader's GID from ros_discovery_info message
+        match get_guid(&self.req_reader) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+        // remove writer's GID from ros_discovery_info message
+        match get_guid(&self.rep_writer) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+
         if let Err(e) = delete_dds_entity(self.req_reader) {
             log::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
@@ -132,6 +143,10 @@ impl RouteServiceCli<'_> {
             true,
             qos.clone(),
         )?;
+        // add writer's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_writer(get_guid(&rep_writer)?);
 
         let route_id: String =
             format!("Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr})",);
@@ -153,6 +168,10 @@ impl RouteServiceCli<'_> {
                 do_route_request(&route_id, sample, &zenoh_key_expr2, &zsession2, rep_writer);
             },
         )?;
+        // add reader's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_reader(get_guid(&req_reader)?);
 
         Ok(RouteServiceCli {
             ros2_name,

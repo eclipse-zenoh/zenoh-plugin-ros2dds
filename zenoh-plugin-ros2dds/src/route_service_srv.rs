@@ -84,6 +84,17 @@ pub struct RouteServiceSrv<'a> {
 
 impl Drop for RouteServiceSrv<'_> {
     fn drop(&mut self) {
+        // remove writer's GID from ros_discovery_info message
+        match get_guid(&self.req_writer) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+        // remove reader's GID from ros_discovery_info message
+        match get_guid(&self.rep_reader) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+
         if let Err(e) = delete_dds_entity(self.req_writer) {
             log::warn!("{}: error deleting DDS Writer:  {}", self, e);
         }
@@ -147,6 +158,10 @@ impl RouteServiceSrv<'_> {
             true,
             qos.clone(),
         )?;
+        // add writer's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_writer(get_guid(&req_writer)?);
 
         // client_guid used in requests; use dds_instance_handle of writer as rmw_cyclonedds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4848
@@ -179,6 +194,10 @@ impl RouteServiceSrv<'_> {
                 );
             },
         )?;
+        // add reader's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_reader(get_guid(&rep_reader)?);
 
         Ok(RouteServiceSrv {
             ros2_name,
