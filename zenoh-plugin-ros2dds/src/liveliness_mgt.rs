@@ -184,7 +184,6 @@ pub(crate) fn parse_ke_liveliness_service_cli(
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 
-/////////
 pub(crate) fn new_ke_liveliness_action_srv(
     plugin_id: &keyexpr,
     zenoh_key_expr: &keyexpr,

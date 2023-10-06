@@ -29,7 +29,6 @@ use crate::dds_utils::serialize_entity_guid;
 use crate::dds_utils::{
     create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
 };
-use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
@@ -220,14 +219,6 @@ impl RouteServiceCli<'_> {
         // The DDS Writer remains to be discovered by local ROS nodes
         self.is_active = false;
         self.liveliness_token = None;
-    }
-
-    pub fn dds_rep_writer_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.rep_writer)
-    }
-
-    pub fn dds_req_reader_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.req_reader)
     }
 
     #[inline]

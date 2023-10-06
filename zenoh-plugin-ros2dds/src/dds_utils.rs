@@ -32,10 +32,10 @@ use crate::{
     vec_into_raw_parts,
 };
 
-const DDS_ENTITY_NULL: dds_entity_t = 0;
+pub const DDS_ENTITY_NULL: dds_entity_t = 0;
 
 // An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
-type AtomicDDSEntity = AtomicI32;
+pub type AtomicDDSEntity = AtomicI32;
 
 pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
     unsafe {
@@ -44,15 +44,6 @@ pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
             0 | DDS_RETCODE_ALREADY_DELETED => Ok(()),
             e => Err(format!("Error deleting DDS entity - retcode={e}")),
         }
-    }
-}
-
-pub(crate) fn delete_atomic_dds_entity(entity: &mut AtomicDDSEntity) -> Result<(), String> {
-    let dds_entity = entity.swap(DDS_ENTITY_NULL, std::sync::atomic::Ordering::Relaxed);
-    if dds_entity != DDS_ENTITY_NULL {
-        delete_dds_entity(dds_entity)
-    } else {
-        Ok(())
     }
 }
 
@@ -82,6 +73,10 @@ pub fn serialize_atomic_entity_guid<S>(entity: &AtomicDDSEntity, s: S) -> Result
 where
     S: Serializer,
 {
+    println!(
+        "--- serialize_atomic_entity_guid: {}",
+        entity.load(std::sync::atomic::Ordering::Relaxed)
+    );
     match entity.load(std::sync::atomic::Ordering::Relaxed) {
         DDS_ENTITY_NULL => s.serialize_str(""),
         entity => serialize_entity_guid(&entity, s),

@@ -27,7 +27,6 @@ use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
 use crate::dds_utils::{create_dds_writer, delete_dds_entity, get_guid};
-use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
 use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
@@ -265,11 +264,6 @@ impl RouteSubscriber<'_> {
                 );
             }
         }
-    }
-
-    #[inline]
-    pub fn dds_writer_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.dds_writer)
     }
 
     #[inline]

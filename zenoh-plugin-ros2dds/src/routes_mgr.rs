@@ -542,13 +542,6 @@ impl<'a> RoutesMgr<'a> {
                 .await?;
                 log::info!("{route} created");
 
-                // insert reader's GID in ros_discovery_msg
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_reader(route.dds_reader_guid().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
-
                 if admin_space_ref {
                     // insert reference in admin_space
                     let admin_ke = *KE_PREFIX_ROUTE_PUBLISHER / zenoh_key_expr;
@@ -585,13 +578,6 @@ impl<'a> RoutesMgr<'a> {
                 )
                 .await?;
                 log::info!("{route} created");
-
-                // insert writer's GID in ros_discovery_msg
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_writer(route.dds_writer_guid().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -693,18 +679,6 @@ impl<'a> RoutesMgr<'a> {
                 .await?;
                 log::info!("{route} created");
 
-                // insert readers' and writes' GID in ros_discovery_msg
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_readers(route.dds_readers_guids().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_writers(route.dds_writers_guids().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
-
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / zenoh_key_expr;
                 self.admin_space
@@ -734,18 +708,6 @@ impl<'a> RoutesMgr<'a> {
                 )
                 .await?;
                 log::info!("{route} created");
-
-                // insert readers' and writes' GID in ros_discovery_msg
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_readers(route.dds_readers_guids().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
-                self.context
-                    .ros_discovery_mgr
-                    .add_dds_writers(route.dds_writers_guids().map_err(|e| {
-                        format!("{route}: failed to update ros_discovery_info message: {e}")
-                    })?);
 
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / zenoh_key_expr;

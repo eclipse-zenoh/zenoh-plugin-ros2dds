@@ -17,7 +17,7 @@ use zenoh::{liveliness::LivelinessToken, prelude::*};
 use zenoh_core::AsyncResolve;
 
 use crate::{
-    gid::Gid, liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
+    liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
     route_action_srv::serialize_action_zenoh_key_expr, route_service_cli::RouteServiceCli,
     route_subscriber::RouteSubscriber, routes_mgr::Context,
 };
@@ -169,26 +169,6 @@ impl RouteActionCli<'_> {
         // The DDS Writer remains to be discovered by local ROS nodes
         self.is_active = false;
         self.liveliness_token = None;
-    }
-
-    pub fn dds_writers_guids(&self) -> Result<Vec<Gid>, String> {
-        Ok([
-            self.route_send_goal.dds_rep_writer_guid()?,
-            self.route_cancel_goal.dds_rep_writer_guid()?,
-            self.route_get_result.dds_rep_writer_guid()?,
-            self.route_feedback.dds_writer_guid()?,
-            self.route_status.dds_writer_guid()?,
-        ]
-        .into())
-    }
-
-    pub fn dds_readers_guids(&self) -> Result<Vec<Gid>, String> {
-        Ok([
-            self.route_send_goal.dds_req_reader_guid()?,
-            self.route_cancel_goal.dds_req_reader_guid()?,
-            self.route_get_result.dds_req_reader_guid()?,
-        ]
-        .into())
     }
 
     #[inline]
