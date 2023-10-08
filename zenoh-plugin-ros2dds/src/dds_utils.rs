@@ -20,7 +20,7 @@ use serde::Serializer;
 use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
-    sync::Arc,
+    sync::{atomic::AtomicI32, Arc},
     time::Duration,
 };
 #[cfg(feature = "dds_shm")]
@@ -31,6 +31,11 @@ use crate::{
     gid::Gid,
     vec_into_raw_parts,
 };
+
+pub const DDS_ENTITY_NULL: dds_entity_t = 0;
+
+// An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
+pub type AtomicDDSEntity = AtomicI32;
 
 pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
     unsafe {
@@ -61,6 +66,20 @@ where
     match get_guid(entity) {
         Ok(guid) => s.serialize_str(&guid.to_string()),
         Err(_) => s.serialize_str("UNKOWN_GUID"),
+    }
+}
+
+pub fn serialize_atomic_entity_guid<S>(entity: &AtomicDDSEntity, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    println!(
+        "--- serialize_atomic_entity_guid: {}",
+        entity.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    match entity.load(std::sync::atomic::Ordering::Relaxed) {
+        DDS_ENTITY_NULL => s.serialize_str(""),
+        entity => serialize_entity_guid(&entity, s),
     }
 }
 

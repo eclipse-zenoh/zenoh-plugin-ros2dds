@@ -11,8 +11,7 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::task;
-use cyclors::qos::{History, HistoryKind, Qos};
+use cyclors::qos::Qos;
 use cyclors::*;
 use flume::Sender;
 use serde::{Deserialize, Serialize};
@@ -21,14 +20,8 @@ use std::fmt;
 use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
-use std::time::Duration;
-use zenoh::prelude::*;
-use zenoh::publication::CongestionControl;
-use zenoh::Session;
-use zenoh_core::SyncResolve;
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::create_topic;
+use crate::dds_types::TypeInfo;
 use crate::gid::Gid;
 
 const MAX_SAMPLES: usize = 32;
@@ -293,150 +286,5 @@ pub fn run_discovery(dp: dds_entity_t, tx: Sender<DDSDiscoveryEvent>) {
             std::ptr::null(),
             sub_listener,
         );
-    }
-}
-
-unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (String, KeyExpr, Arc<Session>, CongestionControl);
-    let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
-    #[allow(clippy::uninit_assumed_init)]
-    let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
-    while dds_takecdr(
-        dr,
-        &mut zp,
-        1,
-        si.as_mut_ptr() as *mut dds_sample_info_t,
-        DDS_ANY_STATE,
-    ) > 0
-    {
-        let si = si.assume_init();
-        if si[0].valid_data {
-            let raw_sample = DDSRawSample::create(zp);
-
-            if *crate::LOG_PAYLOAD {
-                log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - payload: {:02x?}",
-                    &(*pa).0,
-                    &(*pa).1,
-                    raw_sample
-                );
-            } else {
-                log::trace!(
-                    "Route Publisher (DDS:{} -> Zenoh:{}) - routing data - {} bytes",
-                    &(*pa).0,
-                    &(*pa).1,
-                    raw_sample.len()
-                );
-            }
-            let _ = (*pa)
-                .2
-                .put(&(*pa).1, &raw_sample)
-                .congestion_control((*pa).3)
-                .res_sync();
-        }
-        ddsi_serdata_unref(zp);
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn create_forwarding_dds_reader(
-    dp: dds_entity_t,
-    topic_name: String,
-    type_name: String,
-    type_info: &Option<Arc<TypeInfo>>,
-    keyless: bool,
-    mut qos: Qos,
-    z_key: KeyExpr,
-    z: Arc<Session>,
-    read_period: Option<Duration>,
-    congestion_ctrl: CongestionControl,
-) -> Result<dds_entity_t, String> {
-    unsafe {
-        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
-
-        match read_period {
-            None => {
-                // Use a Listener to route data as soon as it arrives
-                let arg = Box::new((topic_name, z_key, z, congestion_ctrl));
-                let sub_listener =
-                    dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
-                dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
-                let qos_native = qos.to_qos_native();
-                let reader = dds_create_reader(dp, t, qos_native, sub_listener);
-                Qos::delete_qos_native(qos_native);
-                if reader >= 0 {
-                    let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
-                    if res < 0 {
-                        log::error!(
-                            "Error calling dds_reader_wait_for_historical_data(): {}",
-                            CStr::from_ptr(dds_strretcode(-res))
-                                .to_str()
-                                .unwrap_or("unrecoverable DDS retcode")
-                        );
-                    }
-                    Ok(reader)
-                } else {
-                    Err(format!(
-                        "Error creating DDS Reader: {}",
-                        CStr::from_ptr(dds_strretcode(-reader))
-                            .to_str()
-                            .unwrap_or("unrecoverable DDS retcode")
-                    ))
-                }
-            }
-            Some(period) => {
-                // Use a periodic task that takes data to route from a Reader with KEEP_LAST 1
-                qos.history = Some(History {
-                    kind: HistoryKind::KEEP_LAST,
-                    depth: 1,
-                });
-                let qos_native = qos.to_qos_native();
-                let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
-                let z_key = z_key.into_owned();
-                task::spawn(async move {
-                    // loop while reader's instance handle remain the same
-                    // (if reader was deleted, its dds_entity_t value might have been
-                    // reused by a new entity... don't trust it! Only trust instance handle)
-                    let mut original_handle: dds_instance_handle_t = 0;
-                    dds_get_instance_handle(reader, &mut original_handle);
-                    let mut handle: dds_instance_handle_t = 0;
-                    while dds_get_instance_handle(reader, &mut handle) == DDS_RETCODE_OK as i32 {
-                        if handle != original_handle {
-                            break;
-                        }
-
-                        async_std::task::sleep(period).await;
-                        let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
-                        #[allow(clippy::uninit_assumed_init)]
-                        let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
-                        while dds_takecdr(
-                            reader,
-                            &mut zp,
-                            1,
-                            si.as_mut_ptr() as *mut dds_sample_info_t,
-                            DDS_ANY_STATE,
-                        ) > 0
-                        {
-                            let si = si.assume_init();
-                            if si[0].valid_data {
-                                log::trace!(
-                                    "Route (periodic) data to zenoh resource with rid={}",
-                                    z_key
-                                );
-
-                                let raw_sample = DDSRawSample::create(zp);
-
-                                let _ = z
-                                    .put(&z_key, &raw_sample)
-                                    .congestion_control(congestion_ctrl)
-                                    .res_sync();
-                            }
-                            ddsi_serdata_unref(zp);
-                        }
-                    }
-                });
-                Ok(reader)
-            }
-        }
     }
 }

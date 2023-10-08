@@ -33,13 +33,12 @@ use crate::dds_utils::{
     create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
     get_instance_handle,
 };
-use crate::gid::Gid;
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
     ros2_service_type_to_request_dds_type,
 };
-use crate::Config;
+use crate::routes_mgr::Context;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
@@ -51,12 +50,9 @@ pub struct RouteServiceSrv<'a> {
     ros2_type: String,
     // the Zenoh key expression used for routing
     zenoh_key_expr: OwnedKeyExpr,
-    // the zenoh session
+    // the context
     #[serde(skip)]
-    zsession: &'a Arc<Session>,
-    // the config
-    #[serde(skip)]
-    _config: Arc<Config>,
+    context: Context<'a>,
     // the zenoh queryable used to expose the service server in zenoh.
     // `None` when route is created on a remote announcement and no local ROS2 Service Server discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -87,6 +83,17 @@ pub struct RouteServiceSrv<'a> {
 
 impl Drop for RouteServiceSrv<'_> {
     fn drop(&mut self) {
+        // remove writer's GID from ros_discovery_info message
+        match get_guid(&self.req_writer) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+        // remove reader's GID from ros_discovery_info message
+        match get_guid(&self.rep_reader) {
+            Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
+            Err(e) => log::warn!("{self}: {e}"),
+        }
+
         if let Err(e) = delete_dds_entity(self.req_writer) {
             log::warn!("{}: error deleting DDS Writer:  {}", self, e);
         }
@@ -109,13 +116,11 @@ impl fmt::Display for RouteServiceSrv<'_> {
 impl RouteServiceSrv<'_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
-        config: Arc<Config>,
-        zsession: &'a Arc<Session>,
-        participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
+        context: &Context<'a>,
     ) -> Result<RouteServiceSrv<'a>, String> {
         log::debug!(
             "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
@@ -135,7 +140,7 @@ impl RouteServiceSrv<'_> {
 
         // Add DATA_USER QoS similarly to rmw_cyclone_dds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L5028C17-L5028C17
-        let client_id_str = new_service_id(&participant)?;
+        let client_id_str = new_service_id(&context.participant)?;
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
         log::debug!(
@@ -146,12 +151,16 @@ impl RouteServiceSrv<'_> {
         let req_topic_name = format!("rq{ros2_name}Request");
         let req_type_name = ros2_service_type_to_request_dds_type(&ros2_type);
         let req_writer = create_dds_writer(
-            participant,
+            context.participant,
             req_topic_name,
             req_type_name,
             true,
             qos.clone(),
         )?;
+        // add writer's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_writer(get_guid(&req_writer)?);
 
         // client_guid used in requests; use dds_instance_handle of writer as rmw_cyclonedds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4848
@@ -167,7 +176,7 @@ impl RouteServiceSrv<'_> {
         let queries_in_progress2 = queries_in_progress.clone();
         let zenoh_key_expr2 = zenoh_key_expr.clone();
         let rep_reader = create_dds_reader(
-            participant,
+            context.participant,
             rep_topic_name,
             rep_type_name,
             type_info,
@@ -184,13 +193,16 @@ impl RouteServiceSrv<'_> {
                 );
             },
         )?;
+        // add reader's GID in ros_discovery_info message
+        context
+            .ros_discovery_mgr
+            .add_dds_reader(get_guid(&rep_reader)?);
 
         Ok(RouteServiceSrv {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            zsession,
-            _config: config,
+            context: context.clone(),
             zenoh_queryable: None,
             req_writer,
             rep_reader,
@@ -203,9 +215,10 @@ impl RouteServiceSrv<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self, plugin_id: &keyexpr) -> Result<(), String> {
+    async fn activate<'a>(&'a mut self) -> Result<(), String> {
         // For lifetime issue, redeclare the zenoh key expression that can't be stored in Self
         let declared_ke = self
+            .context
             .zsession
             .declare_keyexpr(self.zenoh_key_expr.clone())
             .res()
@@ -226,7 +239,8 @@ impl RouteServiceSrv<'_> {
         let client_guid = self.client_guid;
         let req_writer: i32 = self.req_writer;
         self.zenoh_queryable = Some(
-            self.zsession
+            self.context
+                .zsession
                 .declare_queryable(&self.zenoh_key_expr)
                 .callback(move |query| {
                     do_route_request(
@@ -251,10 +265,13 @@ impl RouteServiceSrv<'_> {
         // if not for an Action (since actions declare their own liveliness)
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
-            let liveliness_ke =
-                new_ke_liveliness_service_srv(plugin_id, &self.zenoh_key_expr, &self.ros2_type)?;
+            let liveliness_ke = new_ke_liveliness_service_srv(
+                &self.context.plugin_id,
+                &self.zenoh_key_expr,
+                &self.ros2_type,
+            )?;
             let ros2_name = self.ros2_name.clone();
-            self.liveliness_token = Some(self.zsession
+            self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
                 .res()
@@ -277,14 +294,6 @@ impl RouteServiceSrv<'_> {
         self.liveliness_token = None;
     }
 
-    pub fn dds_req_writer_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.req_writer)
-    }
-
-    pub fn dds_rep_reader_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.rep_reader)
-    }
-
     #[inline]
     pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
@@ -305,12 +314,12 @@ impl RouteServiceSrv<'_> {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String, plugin_id: &keyexpr) {
+    pub async fn add_local_node(&mut self, node: String) {
         self.local_nodes.insert(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(plugin_id).await {
+            if let Err(e) = self.activate().await {
                 log::error!("{self} activation failed: {e}");
             }
         }

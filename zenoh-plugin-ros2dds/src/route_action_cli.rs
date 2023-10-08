@@ -11,16 +11,15 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use cyclors::dds_entity_t;
 use serde::Serialize;
-use std::{collections::HashSet, fmt, sync::Arc};
+use std::{collections::HashSet, fmt};
 use zenoh::{liveliness::LivelinessToken, prelude::*};
 use zenoh_core::AsyncResolve;
 
 use crate::{
-    config::Config, gid::Gid, liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
+    liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
     route_action_srv::serialize_action_zenoh_key_expr, route_service_cli::RouteServiceCli,
-    route_subscriber::RouteSubscriber,
+    route_subscriber::RouteSubscriber, routes_mgr::Context,
 };
 
 #[derive(Serialize)]
@@ -35,12 +34,9 @@ pub struct RouteActionCli<'a> {
         serialize_with = "serialize_action_zenoh_key_expr"
     )]
     zenoh_key_expr_prefix: OwnedKeyExpr,
-    // the zenoh session
+    // the context
     #[serde(skip)]
-    zsession: &'a Arc<Session>,
-    // the config
-    #[serde(skip)]
-    _config: Arc<Config>,
+    context: Context<'a>,
     is_active: bool,
     #[serde(skip)]
     route_send_goal: RouteServiceCli<'a>,
@@ -73,68 +69,56 @@ impl fmt::Display for RouteActionCli<'_> {
 
 impl RouteActionCli<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create(
-        config: Arc<Config>,
-        zsession: &Arc<Session>,
-        participant: dds_entity_t,
+    pub async fn create<'a>(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,
-    ) -> Result<RouteActionCli<'_>, String> {
+        context: &Context<'a>,
+    ) -> Result<RouteActionCli<'a>, String> {
         let route_send_goal = RouteServiceCli::create(
-            config.clone(),
-            zsession,
-            participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL,
             &None,
+            context,
         )
         .await?;
 
         let route_cancel_goal = RouteServiceCli::create(
-            config.clone(),
-            zsession,
-            participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_CANCEL_GOAL),
             ROS2_ACTION_CANCEL_GOAL_SRV_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL,
             &None,
+            context,
         )
         .await?;
 
         let route_get_result = RouteServiceCli::create(
-            config.clone(),
-            zsession,
-            participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_GET_RESULT),
             format!("{ros2_type}_GetResult"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT,
             &None,
+            context,
         )
         .await?;
 
         let route_feedback = RouteSubscriber::create(
-            config.clone(),
-            zsession,
-            participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_FEEDBACK),
             format!("{ros2_type}_FeedbackMessage"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_FEEDBACK,
             true,
             QOS_ACTION_FEEDBACK.clone(),
+            context,
         )
         .await?;
 
         let route_status = RouteSubscriber::create(
-            config.clone(),
-            zsession,
-            participant,
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_STATUS),
             ROS2_ACTION_STATUS_MSG_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS,
             true,
             QOS_ACTION_STATUS.clone(),
+            context,
         )
         .await?;
 
@@ -142,8 +126,7 @@ impl RouteActionCli<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr_prefix,
-            zsession,
-            _config: config,
+            context: context.clone(),
             is_active: false,
             route_send_goal,
             route_cancel_goal,
@@ -156,14 +139,17 @@ impl RouteActionCli<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self, plugin_id: &keyexpr) -> Result<(), String> {
+    async fn activate<'a>(&'a mut self) -> Result<(), String> {
         self.is_active = true;
 
         // create associated LivelinessToken
-        let liveliness_ke =
-            new_ke_liveliness_action_cli(plugin_id, &self.zenoh_key_expr_prefix, &self.ros2_type)?;
+        let liveliness_ke = new_ke_liveliness_action_cli(
+            &self.context.plugin_id,
+            &self.zenoh_key_expr_prefix,
+            &self.ros2_type,
+        )?;
         let ros2_name = self.ros2_name.clone();
-        self.liveliness_token = Some(self.zsession
+        self.liveliness_token = Some(self.context.zsession
             .liveliness()
             .declare_token(liveliness_ke)
             .res_async()
@@ -183,26 +169,6 @@ impl RouteActionCli<'_> {
         // The DDS Writer remains to be discovered by local ROS nodes
         self.is_active = false;
         self.liveliness_token = None;
-    }
-
-    pub fn dds_writers_guids(&self) -> Result<Vec<Gid>, String> {
-        Ok([
-            self.route_send_goal.dds_rep_writer_guid()?,
-            self.route_cancel_goal.dds_rep_writer_guid()?,
-            self.route_get_result.dds_rep_writer_guid()?,
-            self.route_feedback.dds_writer_guid()?,
-            self.route_status.dds_writer_guid()?,
-        ]
-        .into())
-    }
-
-    pub fn dds_readers_guids(&self) -> Result<Vec<Gid>, String> {
-        Ok([
-            self.route_send_goal.dds_req_reader_guid()?,
-            self.route_cancel_goal.dds_req_reader_guid()?,
-            self.route_get_result.dds_req_reader_guid()?,
-        ]
-        .into())
     }
 
     #[inline]
@@ -260,24 +226,22 @@ impl RouteActionCli<'_> {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String, plugin_id: &keyexpr) {
+    pub async fn add_local_node(&mut self, node: String) {
         futures::join!(
-            self.route_send_goal.add_local_node(node.clone(), plugin_id),
-            self.route_cancel_goal
-                .add_local_node(node.clone(), plugin_id),
-            self.route_get_result
-                .add_local_node(node.clone(), plugin_id),
+            self.route_send_goal.add_local_node(node.clone()),
+            self.route_cancel_goal.add_local_node(node.clone()),
+            self.route_get_result.add_local_node(node.clone()),
             self.route_feedback
-                .add_local_node(node.clone(), plugin_id, &QOS_ACTION_FEEDBACK),
+                .add_local_node(node.clone(), &QOS_ACTION_FEEDBACK),
             self.route_status
-                .add_local_node(node.clone(), plugin_id, &QOS_ACTION_STATUS),
+                .add_local_node(node.clone(), &QOS_ACTION_STATUS),
         );
 
         self.local_nodes.insert(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(plugin_id).await {
+            if let Err(e) = self.activate().await {
                 log::error!("{self} activation failed: {e}");
             }
         }

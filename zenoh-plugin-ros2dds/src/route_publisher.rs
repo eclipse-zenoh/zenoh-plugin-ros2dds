@@ -13,28 +13,43 @@
 //
 
 use cyclors::qos::{HistoryKind, Qos};
-use cyclors::{dds_entity_t, DDS_LENGTH_UNLIMITED};
-use serde::Serialize;
+use cyclors::DDS_LENGTH_UNLIMITED;
+use serde::{Serialize, Serializer};
+use std::ops::Deref;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashSet, fmt};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
+use zenoh::publication::Publisher;
+use zenoh_core::SyncResolve;
 use zenoh_ext::{PublicationCache, SessionExt};
 
-use crate::dds_discovery::create_forwarding_dds_reader;
-use crate::dds_types::TypeInfo;
-use crate::dds_utils::{delete_dds_entity, get_guid, serialize_entity_guid};
-use crate::gid::Gid;
+use crate::dds_types::{DDSRawSample, TypeInfo};
+use crate::dds_utils::{
+    create_dds_reader, delete_dds_entity, get_guid, serialize_atomic_entity_guid, AtomicDDSEntity,
+    DDS_ENTITY_NULL,
+};
 use crate::liveliness_mgt::new_ke_liveliness_pub;
 use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
+use crate::routes_mgr::Context;
 use crate::{qos_helpers::*, Config};
-use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
+use crate::{KE_PREFIX_PUB_CACHE, LOG_PAYLOAD};
 
-enum ZPublisher<'a> {
-    Publisher(KeyExpr<'a>),
-    PublicationCache(PublicationCache<'a>),
+pub struct ZPublisher<'a> {
+    publisher: Publisher<'static>,
+    _cache: Option<PublicationCache<'a>>,
+    cache_size: usize,
+}
+
+impl<'a> Deref for ZPublisher<'a> {
+    type Target = Publisher<'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.publisher
+    }
 }
 
 // a route from DDS to Zenoh
@@ -47,24 +62,30 @@ pub struct RoutePublisher<'a> {
     ros2_type: String,
     // the Zenoh key expression used for routing
     zenoh_key_expr: OwnedKeyExpr,
-    // the zenoh session
+    // the context
     #[serde(skip)]
-    zsession: &'a Arc<Session>,
-    // the config
-    #[serde(skip)]
-    config: Arc<Config>,
+    context: Context<'a>,
     // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
-    #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
-    zenoh_publisher: Option<ZPublisher<'a>>,
+    #[serde(
+        rename = "publication_cache_size",
+        serialize_with = "serialize_pub_cache"
+    )]
+    zenoh_publisher: ZPublisher<'a>,
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh data coming from DDS)
-    #[serde(serialize_with = "serialize_entity_guid")]
-    dds_reader: dds_entity_t,
-    // if the Reader is TRANSIENT_LOCAL
-    transient_local: bool,
+    #[serde(serialize_with = "serialize_atomic_entity_guid")]
+    dds_reader: AtomicDDSEntity,
+    // TypeInfo for Reader creation (if available)
+    #[serde(skip)]
+    type_info: Option<Arc<TypeInfo>>,
     // if the topic is keyless
     #[serde(skip)]
     keyless: bool,
+    // the QoS for the DDS Reader to be created.
+    // those are either the QoS announced by a remote bridge on a Reader discovery,
+    // either the QoS adapted from a local disovered Writer
+    #[serde(skip)]
+    reader_qos: Qos,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
@@ -76,9 +97,7 @@ pub struct RoutePublisher<'a> {
 
 impl Drop for RoutePublisher<'_> {
     fn drop(&mut self) {
-        if let Err(e) = delete_dds_entity(self.dds_reader) {
-            log::warn!("{}: error deleting DDS Reader:  {}", self, e);
-        }
+        self.deactivate_dds_reader();
     }
 }
 
@@ -95,100 +114,28 @@ impl fmt::Display for RoutePublisher<'_> {
 impl RoutePublisher<'_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
-        config: Arc<Config>,
-        zsession: &'a Arc<Session>,
-        participant: dds_entity_t,
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
         keyless: bool,
         reader_qos: Qos,
+        context: &Context<'a>,
     ) -> Result<RoutePublisher<'a>, String> {
-        let transient_local = is_transient_local(&reader_qos);
         log::debug!(
             "Route Publisher ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
         );
 
-        // declare the zenoh key expression (for wire optimization)
-        let declared_ke = zsession
-            .declare_keyexpr(zenoh_key_expr.clone())
-            .res()
-            .await
-            .map_err(|e| {
-                format!("Route Publisher ({ros2_name} -> {zenoh_key_expr}): failed to declare KeyExpr: {e}")
-            })?;
-
-        // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
-        let congestion_ctrl = match (
-            config.reliable_routes_blocking,
-            is_reader_reliable(&reader_qos.reliability),
-        ) {
-            (true, true) => CongestionControl::Block,
-            _ => CongestionControl::Drop,
-        };
-
-        let topic_name = format!("rt{ros2_name}");
-        let type_name = ros2_message_type_to_dds_type(&ros2_type);
-        let read_period = get_read_period(&config, &zenoh_key_expr);
-
-        // create matching DDS Reader that forwards data coming from DDS to Zenoh
-        let dds_reader = create_forwarding_dds_reader(
-            participant,
-            topic_name,
-            type_name,
-            type_info,
-            keyless,
-            reader_qos.clone(),
-            declared_ke.clone(),
-            zsession.clone(),
-            read_period,
-            congestion_ctrl,
-        )?;
-
-        Ok(RoutePublisher {
-            ros2_name,
-            ros2_type,
-            dds_reader,
-            zenoh_key_expr,
-            zsession,
-            config,
-            zenoh_publisher: None,
-            transient_local,
-            keyless,
-            liveliness_token: None,
-            remote_routes: HashSet::new(),
-            local_nodes: HashSet::new(),
-        })
-    }
-
-    async fn activate<'a>(
-        &'a mut self,
-        plugin_id: &keyexpr,
-        discovered_writer_qos: &Qos,
-    ) -> Result<(), String> {
-        // For lifetime issue, redeclare the zenoh key expression that can't be stored in Self
-        let declared_ke = self
-            .zsession
-            .declare_keyexpr(self.zenoh_key_expr.clone())
-            .res()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Route Publisher (ROS:{} -> Zenoh:{}): failed to declare KeyExpr: {e}",
-                    self.ros2_name, self.zenoh_key_expr
-                )
-            })?;
-
         // create the zenoh Publisher
-        // if Reader is TRANSIENT_LOCAL, use a PublicationCache to store historical data
-        self.zenoh_publisher = if self.transient_local {
+        // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical data
+        let transient_local = is_transient_local(&reader_qos);
+        let (cache, cache_size) = if transient_local {
             #[allow(non_upper_case_globals)]
-            let history_qos = get_history_or_default(discovered_writer_qos);
-            let durability_service_qos = get_durability_service_or_default(discovered_writer_qos);
+            let history_qos = get_history_or_default(&reader_qos);
+            let durability_service_qos = get_durability_service_or_default(&reader_qos);
             let mut history = match (history_qos.kind, history_qos.depth) {
                 (HistoryKind::KEEP_LAST, n) => {
-                    if self.keyless {
+                    if keyless {
                         // only 1 instance => history=n
                         n as usize
                     } else if durability_service_qos.max_instances == DDS_LENGTH_UNLIMITED {
@@ -206,58 +153,131 @@ impl RoutePublisher<'_> {
                 (HistoryKind::KEEP_ALL, _) => usize::MAX,
             };
             // In case there are several Writers served by this route, increase the cache size
-            history = history.saturating_mul(self.config.transient_local_cache_multiplier);
+            history = history.saturating_mul(context.config.transient_local_cache_multiplier);
             log::debug!(
-                "{self}: caching TRANSIENT_LOCAL publications via a PublicationCache with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
+                "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications via a PublicationCache with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
-            let pub_cache = self
-                .zsession
-                .declare_publication_cache(&declared_ke)
-                .history(history)
-                .queryable_prefix(*KE_PREFIX_PUB_CACHE / plugin_id)
-                .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
-                .res()
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Failed create PublicationCache for key {} (rid={}): {e}",
-                        self.zenoh_key_expr, declared_ke
-                    )
-                })?;
-            Some(ZPublisher::PublicationCache(pub_cache))
+            (
+                Some(
+                    context
+                        .zsession
+                        .declare_publication_cache(&zenoh_key_expr)
+                        .history(history)
+                        .queryable_prefix(*KE_PREFIX_PUB_CACHE / &context.plugin_id)
+                        .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
+                        .res_async()
+                        .await
+                        .map_err(|e| {
+                            format!("Failed create PublicationCache for key {zenoh_key_expr}: {e}",)
+                        })?,
+                ),
+                history,
+            )
         } else {
-            if let Err(e) = self
-                .zsession
-                .declare_publisher(declared_ke.clone())
-                .res()
-                .await
-            {
-                log::warn!(
-                    "Failed to declare publisher for key {} (rid={}): {}",
-                    self.zenoh_key_expr,
-                    declared_ke,
-                    e
-                );
-            }
-            Some(ZPublisher::Publisher(declared_ke.clone()))
+            (None, 0)
         };
 
-        // if not for an Action (since actions declare their own liveliness)
+        // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
+        let congestion_ctrl = match (
+            context.config.reliable_routes_blocking,
+            is_reliable(&reader_qos),
+        ) {
+            (true, true) => CongestionControl::Block,
+            _ => CongestionControl::Drop,
+        };
+
+        let publisher: Publisher<'static> = context
+            .zsession
+            .declare_publisher(zenoh_key_expr.clone())
+            .congestion_control(congestion_ctrl)
+            .res_async()
+            .await
+            .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?;
+
+        Ok(RoutePublisher {
+            ros2_name,
+            ros2_type,
+            zenoh_key_expr,
+            context: context.clone(),
+            zenoh_publisher: ZPublisher {
+                publisher,
+                _cache: cache,
+                cache_size,
+            },
+            dds_reader: DDS_ENTITY_NULL.into(),
+            type_info: type_info.clone(),
+            reader_qos,
+            keyless,
+            liveliness_token: None,
+            remote_routes: HashSet::new(),
+            local_nodes: HashSet::new(),
+        })
+    }
+
+    fn activate_dds_reader(&mut self) -> Result<(), String> {
+        let topic_name = format!("rt{}", self.ros2_name);
+        let type_name = ros2_message_type_to_dds_type(&self.ros2_type);
+        let read_period = get_read_period(&self.context.config, &self.zenoh_key_expr);
+        let route_id = self.to_string();
+        let publisher = self.zenoh_publisher.deref().clone();
+
+        // create matching DDS Reader that forwards data coming from DDS to Zenoh
+        let dds_reader = create_dds_reader(
+            self.context.participant,
+            topic_name,
+            type_name,
+            &self.type_info,
+            self.keyless,
+            self.reader_qos.clone(),
+            read_period,
+            move |sample: &DDSRawSample| {
+                do_route_message(
+                    sample, &publisher, // &ke,
+                    &route_id,
+                );
+            },
+        )?;
+        self.dds_reader.swap(dds_reader, Ordering::Relaxed);
+
+        // add reader's GID in ros_discovery_info message
+        self.context
+            .ros_discovery_mgr
+            .add_dds_reader(get_guid(&dds_reader)?);
+
+        Ok(())
+    }
+
+    fn deactivate_dds_reader(&mut self) {
+        let dds_reader = self.dds_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
+        if dds_reader != DDS_ENTITY_NULL {
+            // remove reader's GID from ros_discovery_info message
+            match get_guid(&dds_reader) {
+                Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
+                Err(e) => log::warn!("{self}: {e}"),
+            }
+            if let Err(e) = delete_dds_entity(dds_reader) {
+                log::warn!("{}: error deleting DDS Reader:  {}", self, e);
+            }
+        }
+    }
+
+    async fn announce_route(&mut self, discovered_writer_qos: &Qos) -> Result<(), String> {
+        // only if not for an Action (since actions declare their own liveliness)
         if !is_message_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_pub(
-                plugin_id,
+                &self.context.plugin_id,
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
                 discovered_writer_qos,
             )?;
             let ros2_name = self.ros2_name.clone();
-            self.liveliness_token = Some(self.zsession
+            self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
-                .res()
+                .res_async()
                 .await
                 .map_err(|e| {
                     format!(
@@ -269,17 +289,8 @@ impl RoutePublisher<'_> {
         Ok(())
     }
 
-    fn deactivate(&mut self) {
-        log::debug!("{self} deactivate");
-        // Drop Zenoh Publisher and Liveliness token
-        // The DDS Writer remains to be discovered by local ROS nodes
-        self.zenoh_publisher = None;
+    fn retire_route(&mut self) {
         self.liveliness_token = None;
-    }
-
-    #[inline]
-    pub fn dds_reader_guid(&self) -> Result<Gid, String> {
-        get_guid(&self.dds_reader)
     }
 
     #[inline]
@@ -287,6 +298,12 @@ impl RoutePublisher<'_> {
         self.remote_routes
             .insert(format!("{plugin_id}:{zenoh_key_expr}"));
         log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        // if 1st remote route added, activate the DDS Reader
+        if self.remote_routes.len() == 1 {
+            if let Err(e) = self.activate_dds_reader() {
+                log::error!("{self} activation of DDS Reader failed: {e}");
+            }
+        }
     }
 
     #[inline]
@@ -294,6 +311,10 @@ impl RoutePublisher<'_> {
         self.remote_routes
             .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
         log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        // if last remote route removed, deactivate the DDS Reader
+        if self.remote_routes.is_empty() {
+            self.deactivate_dds_reader();
+        }
     }
 
     #[inline]
@@ -302,18 +323,13 @@ impl RoutePublisher<'_> {
     }
 
     #[inline]
-    pub async fn add_local_node(
-        &mut self,
-        node: String,
-        plugin_id: &keyexpr,
-        discovered_writer_qos: &Qos,
-    ) {
+    pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
         self.local_nodes.insert(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, activate the route
+        // if 1st local node added, announce the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(plugin_id, discovered_writer_qos).await {
-                log::error!("{self} activation failed: {e}");
+            if let Err(e) = self.announce_route(discovered_writer_qos).await {
+                log::error!("{self} announcement failed: {e}");
             }
         }
     }
@@ -322,9 +338,9 @@ impl RoutePublisher<'_> {
     pub fn remove_local_node(&mut self, node: &str) {
         self.local_nodes.remove(node);
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, deactivate the route
+        // if last local node removed, retire the route
         if self.local_nodes.is_empty() {
-            self.deactivate();
+            self.retire_route();
         }
     }
 
@@ -339,6 +355,13 @@ impl RoutePublisher<'_> {
     }
 }
 
+pub fn serialize_pub_cache<S>(zpub: &ZPublisher, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_u64(zpub.cache_size as u64)
+}
+
 // Return the read period if keyexpr matches one of the "pub_max_frequencies" option
 fn get_read_period(config: &Config, ke: &keyexpr) -> Option<Duration> {
     for (re, freq) in &config.pub_max_frequencies {
@@ -347,4 +370,15 @@ fn get_read_period(config: &Config, ke: &keyexpr) -> Option<Duration> {
         }
     }
     None
+}
+
+fn do_route_message(sample: &DDSRawSample, publisher: &Publisher, route_id: &str) {
+    if *LOG_PAYLOAD {
+        log::trace!("{route_id}: routing message - payload: {:02x?}", sample);
+    } else {
+        log::trace!("{route_id}: routing message - {} bytes", sample.len());
+    }
+    if let Err(e) = publisher.put(sample).res_sync() {
+        log::error!("{route_id}: failed to route message: {e}");
+    }
 }

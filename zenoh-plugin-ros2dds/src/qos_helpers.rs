@@ -27,8 +27,8 @@ pub fn get_durability_service_or_default(qos: &Qos) -> DurabilityService {
     }
 }
 
-pub fn is_reader_reliable(reliability: &Option<Reliability>) -> bool {
-    reliability.as_ref().map_or(false, |reliability| {
+pub fn is_reliable(qos: &Qos) -> bool {
+    qos.reliability.as_ref().map_or(false, |reliability| {
         reliability.kind == ReliabilityKind::RELIABLE
     })
 }
