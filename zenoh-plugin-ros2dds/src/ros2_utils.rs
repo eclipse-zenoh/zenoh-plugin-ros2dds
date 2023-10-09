@@ -18,7 +18,7 @@ use cyclors::{
     dds_entity_t,
     qos::{
         Durability, DurabilityKind, History, HistoryKind, Qos, Reliability, ReliabilityKind,
-        TypeConsistency, TypeConsistencyKind, WriterDataLifecycle, DDS_INFINITE_TIME,
+        TypeConsistency, TypeConsistencyKind, WriterDataLifecycle, DDS_INFINITE_TIME, IgnoreLocal, IgnoreLocalKind,
     },
 };
 use zenoh::prelude::{keyexpr, KeyExpr};
@@ -35,9 +35,9 @@ lazy_static::lazy_static!(
     pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr = ke_for_sure!("_action/feedback");
     pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr = ke_for_sure!("_action/status");
 
-    pub static ref QOS_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
-    pub static ref QOS_ACTION_STATUS: Qos = ros2_action_status_default_qos();
-
+    pub static ref QOS_DEFAULT_SERVICE: Qos = ros2_service_default_qos();
+    pub static ref QOS_DEFAULT_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
+    pub static ref QOS_DEFAULT_ACTION_STATUS: Qos = ros2_action_status_default_qos();
 );
 
 /// Convert DDS Topic type to ROS2 Message type
@@ -95,6 +95,24 @@ pub fn dds_type_to_ros2_action_type(dds_topic: &str) -> String {
     )
 }
 
+fn ros2_service_default_qos() -> Qos {
+    // Default Service QoS copied from:
+    // https://github.com/ros2/rmw/blob/83445be486deae8c78d275e092eafb4bf380bd49/rmw/include/rmw/qos_profiles.h#L64C44-L64C44
+    let mut qos = Qos::default();
+    qos.history = Some(History {
+        kind: HistoryKind::KEEP_LAST,
+        depth: 10,
+    });
+    qos.reliability = Some(Reliability {
+        kind: ReliabilityKind::RELIABLE,
+        max_blocking_time: DDS_INFINITE_TIME,
+    });
+    // Add ignore_local to avoid loops
+    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
+    qos
+}
+
+
 fn ros2_action_feedback_default_qos() -> Qos {
     let mut qos = Qos::default();
     qos.history = Some(History {
@@ -117,10 +135,14 @@ fn ros2_action_feedback_default_qos() -> Qos {
         prevent_type_widening: false,
         force_type_validation: false,
     });
+    // Add ignore_local to avoid loops
+    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
     qos
 }
 
 fn ros2_action_status_default_qos() -> Qos {
+    // Default Status topic QoS copied from:
+    // https://github.com/ros2/rcl/blob/8f7f4f0804a34ee9d9ecd2d7e75a57ce2b7ced5d/rcl_action/include/rcl_action/default_qos.h#L30
     let mut qos = Qos::default();
     qos.durability = Some(Durability {
         kind: DurabilityKind::TRANSIENT_LOCAL,
@@ -141,6 +163,8 @@ fn ros2_action_status_default_qos() -> Qos {
         prevent_type_widening: false,
         force_type_validation: false,
     });
+    // Add ignore_local to avoid loops
+    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
     qos
 }
 
