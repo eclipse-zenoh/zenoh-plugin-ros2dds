@@ -73,10 +73,6 @@ pub fn serialize_atomic_entity_guid<S>(entity: &AtomicDDSEntity, s: S) -> Result
 where
     S: Serializer,
 {
-    println!(
-        "--- serialize_atomic_entity_guid: {}",
-        entity.load(std::sync::atomic::Ordering::Relaxed)
-    );
     match entity.load(std::sync::atomic::Ordering::Relaxed) {
         DDS_ENTITY_NULL => s.serialize_str(""),
         entity => serialize_entity_guid(&entity, s),

@@ -36,7 +36,7 @@ use crate::dds_utils::{
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type,
+    ros2_service_type_to_request_dds_type, QOS_DEFAULT_SERVICE,
 };
 use crate::routes_mgr::Context;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
@@ -126,17 +126,8 @@ impl RouteServiceSrv<'_> {
             "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
 
-        // Default Service QoS copied from:
-        // https://github.com/ros2/rmw/blob/83445be486deae8c78d275e092eafb4bf380bd49/rmw/include/rmw/qos_profiles.h#L64C44-L64C44
-        let mut qos = Qos::default();
-        qos.history = Some(History {
-            kind: HistoryKind::KEEP_LAST,
-            depth: 10,
-        });
-        qos.reliability = Some(Reliability {
-            kind: ReliabilityKind::RELIABLE,
-            max_blocking_time: DDS_INFINITE_TIME,
-        });
+        // Default Service QoS
+        let mut qos = QOS_DEFAULT_SERVICE.clone();
 
         // Add DATA_USER QoS similarly to rmw_cyclone_dds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L5028C17-L5028C17

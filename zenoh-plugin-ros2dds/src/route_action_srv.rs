@@ -107,7 +107,7 @@ impl RouteActionSrv<'_> {
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_FEEDBACK,
             &None,
             true,
-            QOS_ACTION_FEEDBACK.clone(),
+            QOS_DEFAULT_ACTION_FEEDBACK.clone(),
             context,
         )
         .await?;
@@ -118,7 +118,7 @@ impl RouteActionSrv<'_> {
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS,
             &None,
             true,
-            QOS_ACTION_STATUS.clone(),
+            QOS_DEFAULT_ACTION_STATUS.clone(),
             context,
         )
         .await?;
@@ -233,9 +233,9 @@ impl RouteActionSrv<'_> {
             self.route_cancel_goal.add_local_node(node.clone()),
             self.route_get_result.add_local_node(node.clone()),
             self.route_feedback
-                .add_local_node(node.clone(), &QOS_ACTION_FEEDBACK),
+                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_FEEDBACK),
             self.route_status
-                .add_local_node(node.clone(), &QOS_ACTION_STATUS),
+                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_STATUS),
         );
 
         self.local_nodes.insert(node);

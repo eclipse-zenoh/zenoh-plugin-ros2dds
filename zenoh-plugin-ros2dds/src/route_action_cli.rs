@@ -107,7 +107,7 @@ impl RouteActionCli<'_> {
             format!("{ros2_type}_FeedbackMessage"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_FEEDBACK,
             true,
-            QOS_ACTION_FEEDBACK.clone(),
+            QOS_DEFAULT_ACTION_FEEDBACK.clone(),
             context,
         )
         .await?;
@@ -117,7 +117,7 @@ impl RouteActionCli<'_> {
             ROS2_ACTION_STATUS_MSG_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS,
             true,
-            QOS_ACTION_STATUS.clone(),
+            QOS_DEFAULT_ACTION_STATUS.clone(),
             context,
         )
         .await?;
@@ -232,9 +232,9 @@ impl RouteActionCli<'_> {
             self.route_cancel_goal.add_local_node(node.clone()),
             self.route_get_result.add_local_node(node.clone()),
             self.route_feedback
-                .add_local_node(node.clone(), &QOS_ACTION_FEEDBACK),
+                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_FEEDBACK),
             self.route_status
-                .add_local_node(node.clone(), &QOS_ACTION_STATUS),
+                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_STATUS),
         );
 
         self.local_nodes.insert(node);
