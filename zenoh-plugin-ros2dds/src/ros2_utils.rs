@@ -17,8 +17,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use cyclors::{
     dds_entity_t,
     qos::{
-        Durability, DurabilityKind, History, HistoryKind, Qos, Reliability, ReliabilityKind,
-        TypeConsistency, TypeConsistencyKind, WriterDataLifecycle, DDS_INFINITE_TIME, IgnoreLocal, IgnoreLocalKind,
+        Durability, DurabilityKind, History, HistoryKind, IgnoreLocal, IgnoreLocalKind, Qos,
+        Reliability, ReliabilityKind, TypeConsistency, TypeConsistencyKind, WriterDataLifecycle,
+        DDS_INFINITE_TIME,
     },
 };
 use zenoh::prelude::{keyexpr, KeyExpr};
@@ -108,10 +109,11 @@ fn ros2_service_default_qos() -> Qos {
         max_blocking_time: DDS_INFINITE_TIME,
     });
     // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
+    qos.ignore_local = Some(IgnoreLocal {
+        kind: IgnoreLocalKind::PARTICIPANT,
+    });
     qos
 }
-
 
 fn ros2_action_feedback_default_qos() -> Qos {
     let mut qos = Qos::default();
@@ -136,7 +138,9 @@ fn ros2_action_feedback_default_qos() -> Qos {
         force_type_validation: false,
     });
     // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
+    qos.ignore_local = Some(IgnoreLocal {
+        kind: IgnoreLocalKind::PARTICIPANT,
+    });
     qos
 }
 
@@ -164,7 +168,9 @@ fn ros2_action_status_default_qos() -> Qos {
         force_type_validation: false,
     });
     // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal { kind: IgnoreLocalKind::PARTICIPANT});
+    qos.ignore_local = Some(IgnoreLocal {
+        kind: IgnoreLocalKind::PARTICIPANT,
+    });
     qos
 }
 

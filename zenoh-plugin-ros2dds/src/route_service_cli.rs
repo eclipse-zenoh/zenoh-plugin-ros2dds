@@ -344,7 +344,7 @@ fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writ
             }
         }
         Err(val) => {
-            log::warn!("{route_id}: received error as reply for {request_id:02x?}: {val:?}");
+            log::warn!("{route_id}: received error as reply for {request_id:02x?}: {val}");
         }
     }
 }
