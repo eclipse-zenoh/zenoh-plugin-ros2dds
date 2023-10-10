@@ -35,7 +35,7 @@ pub struct RouteActionSrv<'a> {
     zenoh_key_expr_prefix: OwnedKeyExpr,
     // the context
     #[serde(skip)]
-    context: Context<'a>,
+    context: Context,
     is_active: bool,
     #[serde(skip)]
     route_send_goal: RouteServiceSrv<'a>,
@@ -72,14 +72,14 @@ impl RouteActionSrv<'_> {
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,
-        context: &Context<'a>,
+        context: Context,
     ) -> Result<RouteActionSrv<'a>, String> {
         let route_send_goal = RouteServiceSrv::create(
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL,
             &None,
-            context,
+            context.clone(),
         )
         .await?;
 
@@ -88,7 +88,7 @@ impl RouteActionSrv<'_> {
             ROS2_ACTION_CANCEL_GOAL_SRV_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL,
             &None,
-            context,
+            context.clone(),
         )
         .await?;
 
@@ -97,7 +97,7 @@ impl RouteActionSrv<'_> {
             format!("{ros2_type}_GetResult"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT,
             &None,
-            context,
+            context.clone(),
         )
         .await?;
 
@@ -108,7 +108,7 @@ impl RouteActionSrv<'_> {
             &None,
             true,
             QOS_DEFAULT_ACTION_FEEDBACK.clone(),
-            context,
+            context.clone(),
         )
         .await?;
 
@@ -119,7 +119,7 @@ impl RouteActionSrv<'_> {
             &None,
             true,
             QOS_DEFAULT_ACTION_STATUS.clone(),
-            context,
+            context.clone(),
         )
         .await?;
 
@@ -127,7 +127,7 @@ impl RouteActionSrv<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr_prefix,
-            context: context.clone(),
+            context,
             is_active: false,
             route_send_goal,
             route_cancel_goal,
@@ -140,7 +140,7 @@ impl RouteActionSrv<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self) -> Result<(), String> {
+    async fn activate(&mut self) -> Result<(), String> {
         self.is_active = true;
 
         // create associated LivelinessToken

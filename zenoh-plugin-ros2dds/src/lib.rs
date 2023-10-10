@@ -267,7 +267,7 @@ pub async fn run(runtime: Runtime, config: Config) {
 
     let mut ros2_plugin = ROS2PluginRuntime {
         config: Arc::new(config),
-        zsession: &zsession,
+        zsession,
         participant,
         _member: member,
         plugin_id,
@@ -281,7 +281,7 @@ pub struct ROS2PluginRuntime<'a> {
     config: Arc<Config>,
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
-    zsession: &'a Arc<Session>,
+    zsession: Arc<Session>,
     participant: dds_entity_t,
     _member: LivelinessToken<'a>,
     plugin_id: OwnedKeyExpr,
@@ -323,7 +323,7 @@ impl<'a> ROS2PluginRuntime<'a> {
             .liveliness()
             .declare_subscriber(ke_liveliness_all)
             .querying()
-            .with(zenoh::handlers::DefaultHandler {})
+            .with(flume::unbounded())
             .res_async()
             .await
             .expect("Failed to create Liveliness Subscriber");
@@ -367,7 +367,7 @@ impl<'a> ROS2PluginRuntime<'a> {
         let mut routes_mgr = RoutesMgr::new(
             self.plugin_id.clone(),
             self.config.clone(),
-            self.zsession,
+            self.zsession.clone(),
             self.participant,
             discovery_mgr.discovered_entities.clone(),
             ros_discovery_mgr,
