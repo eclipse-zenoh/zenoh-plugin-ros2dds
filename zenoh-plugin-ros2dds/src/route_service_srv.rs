@@ -132,7 +132,10 @@ impl RouteServiceSrv<'_> {
         let client_id_str = new_service_id(&context.participant)?;
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
-        log::debug!("{route_id}: using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap());
+        log::debug!(
+            "{route_id}: using id '{client_id_str}' => USER_DATA={:?}",
+            qos.user_data.as_ref().unwrap()
+        );
 
         // create DDS Writer to send requests coming from Zenoh to the Service
         let req_topic_name = format!("rq{ros2_name}Request");
@@ -384,8 +387,6 @@ fn do_route_request(
         dds_req_buf
     };
 
-    println!("<--- {route_id}: routing request #{n} to Service - client_guid: {client_guid:02x?}");
-
     if *LOG_PAYLOAD {
         log::trace!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
     } else {
@@ -431,7 +432,6 @@ fn do_route_reply(
     } else {
         u64::from_le_bytes(dds_rep_buf[12..20].try_into().unwrap())
     };
-    println!("---> {route_id}: routing reply #{seq_num} to Client - client_guid: {client_guid:02x?}");
 
     if guid != client_guid {
         log::warn!(
