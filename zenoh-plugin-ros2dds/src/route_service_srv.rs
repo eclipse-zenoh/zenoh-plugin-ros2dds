@@ -13,7 +13,6 @@
 //
 
 use cyclors::dds_entity_t;
-use cyclors::qos::{History, HistoryKind, Qos, Reliability, ReliabilityKind, DDS_INFINITE_TIME};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,7 +51,7 @@ pub struct RouteServiceSrv<'a> {
     zenoh_key_expr: OwnedKeyExpr,
     // the context
     #[serde(skip)]
-    context: Context<'a>,
+    context: Context,
     // the zenoh queryable used to expose the service server in zenoh.
     // `None` when route is created on a remote announcement and no local ROS2 Service Server discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -120,11 +119,10 @@ impl RouteServiceSrv<'_> {
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
-        context: &Context<'a>,
+        context: Context,
     ) -> Result<RouteServiceSrv<'a>, String> {
-        log::debug!(
-            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
-        );
+        let route_id = format!("Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr})");
+        log::debug!("{route_id}: creation with type {ros2_type}");
 
         // Default Service QoS
         let mut qos = QOS_DEFAULT_SERVICE.clone();
@@ -134,9 +132,7 @@ impl RouteServiceSrv<'_> {
         let client_id_str = new_service_id(&context.participant)?;
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
-        log::debug!(
-            "Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap()
-        );
+        log::debug!("{route_id}: using id '{client_id_str}' => USER_DATA={:?}", qos.user_data.as_ref().unwrap());
 
         // create DDS Writer to send requests coming from Zenoh to the Service
         let req_topic_name = format!("rq{ros2_name}Request");
@@ -164,8 +160,6 @@ impl RouteServiceSrv<'_> {
         // create DDS Reader to receive replies and route them to Zenoh
         let rep_topic_name = format!("rr{ros2_name}Reply");
         let rep_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
-        let queries_in_progress2 = queries_in_progress.clone();
-        let zenoh_key_expr2 = zenoh_key_expr.clone();
         let rep_reader = create_dds_reader(
             context.participant,
             rep_topic_name,
@@ -174,14 +168,18 @@ impl RouteServiceSrv<'_> {
             true,
             qos,
             None,
-            move |sample| {
-                do_route_reply(
-                    sample,
-                    zenoh_key_expr2.clone(),
-                    &mut zwrite!(queries_in_progress2),
-                    "",
-                    client_guid,
-                );
+            {
+                let queries_in_progress = queries_in_progress.clone();
+                let zenoh_key_expr = zenoh_key_expr.clone();
+                move |sample| {
+                    do_route_reply(
+                        sample,
+                        zenoh_key_expr.clone(),
+                        &mut zwrite!(queries_in_progress),
+                        &route_id,
+                        client_guid,
+                    );
+                }
             },
         )?;
         // add reader's GID in ros_discovery_info message
@@ -193,7 +191,7 @@ impl RouteServiceSrv<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            context: context.clone(),
+            context,
             zenoh_queryable: None,
             req_writer,
             rep_reader,
@@ -206,7 +204,7 @@ impl RouteServiceSrv<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self) -> Result<(), String> {
+    async fn activate(&mut self) -> Result<(), String> {
         // For lifetime issue, redeclare the zenoh key expression that can't be stored in Self
         let declared_ke = self
             .context
@@ -386,6 +384,8 @@ fn do_route_request(
         dds_req_buf
     };
 
+    println!("<--- {route_id}: routing request #{n} to Service - client_guid: {client_guid:02x?}");
+
     if *LOG_PAYLOAD {
         log::trace!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
     } else {
@@ -426,17 +426,19 @@ fn do_route_reply(
         u64::from_le_bytes(dds_rep_buf[4..12].try_into().unwrap())
     };
 
-    if guid != client_guid {
-        log::warn!(
-            "{route_id}: received response for another client: {guid:0x?} (me: {client_guid:0x?}"
-        );
-        return;
-    }
     let seq_num = if cdr_header[1] == 0 {
         u64::from_be_bytes(dds_rep_buf[12..20].try_into().unwrap())
     } else {
         u64::from_le_bytes(dds_rep_buf[12..20].try_into().unwrap())
     };
+    println!("---> {route_id}: routing reply #{seq_num} to Client - client_guid: {client_guid:02x?}");
+
+    if guid != client_guid {
+        log::warn!(
+            "{route_id}: received response for another client: {guid:0x?} (me: {client_guid:0x?})"
+        );
+        return;
+    }
     match queries_in_progress.remove(&seq_num) {
         Some(query) => {
             use zenoh_core::SyncResolve;

@@ -70,10 +70,10 @@ enum RouteRef {
 
 // A Context struct to be shared as an Arc amongst all the code
 #[derive(Clone)]
-pub struct Context<'a> {
+pub struct Context {
     pub(crate) plugin_id: Arc<OwnedKeyExpr>,
     pub(crate) config: Arc<Config>,
-    pub(crate) zsession: &'a Arc<Session>,
+    pub(crate) zsession: Arc<Session>,
     pub(crate) participant: dds_entity_t,
     // all discovered entities
     pub(crate) discovered_entities: Arc<RwLock<DiscoveredEntities>>,
@@ -82,7 +82,7 @@ pub struct Context<'a> {
 }
 
 pub struct RoutesMgr<'a> {
-    context: Arc<Context<'a>>,
+    context: Context,
     // maps of established routes - ecah map indexed by topic/service/action name
     routes_publishers: HashMap<String, RoutePublisher<'a>>,
     routes_subscribers: HashMap<String, RouteSubscriber<'a>>,
@@ -100,20 +100,20 @@ impl<'a> RoutesMgr<'a> {
     pub fn new(
         plugin_id: OwnedKeyExpr,
         config: Arc<Config>,
-        zsession: &'a Arc<Session>,
+        zsession: Arc<Session>,
         participant: dds_entity_t,
         discovered_entities: Arc<RwLock<DiscoveredEntities>>,
         ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
         admin_prefix: OwnedKeyExpr,
     ) -> RoutesMgr<'a> {
-        let context = Arc::new(Context {
+        let context = Context {
             plugin_id: Arc::new(plugin_id),
             config,
             zsession,
             participant,
             discovered_entities,
             ros_discovery_mgr,
-        });
+        };
 
         RoutesMgr {
             context,
@@ -537,7 +537,7 @@ impl<'a> RoutesMgr<'a> {
                     &None,
                     keyless,
                     reader_qos,
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
@@ -574,7 +574,7 @@ impl<'a> RoutesMgr<'a> {
                     zenoh_key_expr.to_owned(),
                     keyless,
                     writer_qos,
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
@@ -608,7 +608,7 @@ impl<'a> RoutesMgr<'a> {
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     &None,
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
@@ -642,7 +642,7 @@ impl<'a> RoutesMgr<'a> {
                     ros2_type,
                     zenoh_key_expr.to_owned(),
                     &None,
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
@@ -674,7 +674,7 @@ impl<'a> RoutesMgr<'a> {
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
@@ -704,7 +704,7 @@ impl<'a> RoutesMgr<'a> {
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.to_owned(),
-                    &self.context,
+                    self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");

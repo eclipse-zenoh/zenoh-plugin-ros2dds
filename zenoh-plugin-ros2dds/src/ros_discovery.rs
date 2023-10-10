@@ -189,7 +189,11 @@ impl RosDiscoveryInfoMgr {
                     _ = ros_disco_timer_rcv.recv_async() => {
                         let (ref msg, ref mut has_changed) = *zwrite!(participant_entities_state);
                         if *has_changed {
-                            log::debug!("Publish update on 'ros_discovery_info': {msg:?}");
+                            log::debug!("Publish update on 'ros_discovery_info' with {} writers and {} readers",
+                                msg.node_entities_info_seq.values().next().map_or(0, |n| n.writer_gid_seq.len()),
+                                msg.node_entities_info_seq.values().next().map_or(0, |n| n.reader_gid_seq.len())
+                            );
+                            log::trace!("Publish update on 'ros_discovery_info': {msg:?}");
                             Self::write(writer, msg).unwrap_or_else(|e|
                                 log::error!("Failed to publish update on 'ros_discovery_info' topic: {e}")
                             );

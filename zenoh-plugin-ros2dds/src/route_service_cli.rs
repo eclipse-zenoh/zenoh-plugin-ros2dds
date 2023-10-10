@@ -13,7 +13,6 @@
 //
 
 use cyclors::dds_entity_t;
-use cyclors::qos::{History, HistoryKind, Qos, Reliability, ReliabilityKind, DDS_INFINITE_TIME};
 use serde::Serialize;
 use std::sync::Arc;
 use std::{collections::HashSet, fmt};
@@ -49,7 +48,7 @@ pub struct RouteServiceCli<'a> {
     zenoh_key_expr: OwnedKeyExpr,
     // the context
     #[serde(skip)]
-    context: Context<'a>,
+    context: Context,
     is_active: bool,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
     #[serde(serialize_with = "serialize_entity_guid")]
@@ -105,7 +104,7 @@ impl RouteServiceCli<'_> {
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
-        context: &Context<'a>,
+        context: Context,
     ) -> Result<RouteServiceCli<'a>, String> {
         log::debug!(
             "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
@@ -167,7 +166,7 @@ impl RouteServiceCli<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            context: context.clone(),
+            context,
             is_active: false,
             rep_writer,
             req_reader,
@@ -177,7 +176,7 @@ impl RouteServiceCli<'_> {
         })
     }
 
-    async fn activate<'a>(&'a mut self) -> Result<(), String> {
+    async fn activate(&mut self) -> Result<(), String> {
         self.is_active = true;
 
         // if not for an Action (since actions declare their own liveliness)

@@ -53,7 +53,7 @@ pub struct RouteSubscriber<'a> {
     zenoh_key_expr: OwnedKeyExpr,
     // the context
     #[serde(skip)]
-    context: Context<'a>,
+    context: Context,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
@@ -107,7 +107,7 @@ impl RouteSubscriber<'_> {
         zenoh_key_expr: OwnedKeyExpr,
         keyless: bool,
         writer_qos: Qos,
-        context: &Context<'a>,
+        context: Context,
     ) -> Result<RouteSubscriber<'a>, String> {
         let transient_local = is_transient_local(&writer_qos);
         log::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
@@ -131,7 +131,7 @@ impl RouteSubscriber<'_> {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            context: context.clone(),
+            context,
             zenoh_subscriber: None,
             dds_writer,
             transient_local,
@@ -233,7 +233,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<plugin_id>/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / plugin_id / &self.zenoh_key_expr).into();
-            log::error!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical data from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
+            log::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical data from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
                 self.zenoh_key_expr, self.ros2_name
             );
 

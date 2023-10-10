@@ -25,7 +25,7 @@ use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::Publisher;
 use zenoh_core::SyncResolve;
-use zenoh_ext::{PublicationCache, SessionExt};
+use zenoh_ext::{ArcSessionExt, PublicationCache};
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
 use crate::dds_utils::{
@@ -34,23 +34,32 @@ use crate::dds_utils::{
 };
 use crate::liveliness_mgt::new_ke_liveliness_pub;
 use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
+use crate::ros_discovery::RosDiscoveryInfoMgr;
 use crate::routes_mgr::Context;
 use crate::{qos_helpers::*, Config};
 use crate::{KE_PREFIX_PUB_CACHE, LOG_PAYLOAD};
 
-pub struct ZPublisher<'a> {
-    publisher: Publisher<'static>,
-    _cache: Option<PublicationCache<'a>>,
+pub struct ZPublisher {
+    publisher: Arc<Publisher<'static>>,
+    _matching_listener: zenoh::publication::MatchingListener<'static, ()>,
+    _cache: Option<PublicationCache<'static>>,
     cache_size: usize,
 }
 
-impl<'a> Deref for ZPublisher<'a> {
-    type Target = Publisher<'static>;
+impl Deref for ZPublisher {
+    type Target = Arc<Publisher<'static>>;
 
     fn deref(&self) -> &Self::Target {
         &self.publisher
     }
 }
+
+// struct InnerState<'a> {
+// TODO? solution to create empty route, and then add an InnerState after containing
+// ZPublisher + dds_reader Atomic + Matching Listener that create DDS Reader
+//
+// not sure it solves since anyway MatchingListener holds a &Publisher
+// }
 
 // a route from DDS to Zenoh
 #[allow(clippy::upper_case_acronyms)]
@@ -64,17 +73,17 @@ pub struct RoutePublisher<'a> {
     zenoh_key_expr: OwnedKeyExpr,
     // the context
     #[serde(skip)]
-    context: Context<'a>,
+    context: Context,
     // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(
         rename = "publication_cache_size",
         serialize_with = "serialize_pub_cache"
     )]
-    zenoh_publisher: ZPublisher<'a>,
+    zenoh_publisher: ZPublisher,
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh data coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
-    dds_reader: AtomicDDSEntity,
+    dds_reader: Arc<AtomicDDSEntity>,
     // TypeInfo for Reader creation (if available)
     #[serde(skip)]
     type_info: Option<Arc<TypeInfo>>,
@@ -113,15 +122,15 @@ impl fmt::Display for RoutePublisher<'_> {
 
 impl RoutePublisher<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
         keyless: bool,
         reader_qos: Qos,
-        context: &Context<'a>,
-    ) -> Result<RoutePublisher<'a>, String> {
+        context: Context,
+    ) -> Result<RoutePublisher<'_>, String> {
         log::debug!(
             "Route Publisher ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
         );
@@ -129,7 +138,7 @@ impl RoutePublisher<'_> {
         // create the zenoh Publisher
         // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical data
         let transient_local = is_transient_local(&reader_qos);
-        let (cache, cache_size) = if transient_local {
+        let (cache, cache_size): (Option<PublicationCache>, usize) = if transient_local {
             #[allow(non_upper_case_globals)]
             let history_qos = get_history_or_default(&reader_qos);
             let durability_service_qos = get_durability_service_or_default(&reader_qos);
@@ -187,25 +196,78 @@ impl RoutePublisher<'_> {
             _ => CongestionControl::Drop,
         };
 
-        let publisher: Publisher<'static> = context
+        let publisher: Arc<Publisher<'static>> = context
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .congestion_control(congestion_ctrl)
             .res_async()
             .await
-            .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?;
+            .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
+            .into_arc();
+
+        // activate/deactivate DDS Reader on detection/undetection of matching Subscribers
+        // (copy/move all required args for the callback)
+        let dds_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
+
+        let matching_listener = {
+            publisher
+                .matching_listener()
+                .callback({
+                    let dds_reader = dds_reader.clone();
+                    let ros2_name = ros2_name.clone();
+                    let ros2_type = ros2_type.clone();
+                    let zenoh_key_expr = zenoh_key_expr.clone();
+                    let route_id =
+                        format!("Route Publisher (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})");
+                    let context = context.clone();
+                    let reader_qos = reader_qos.clone();
+                    let type_info = type_info.clone();
+                    let publisher = publisher.clone();
+
+                    move |status| {
+                        if status.is_matching() {
+                            if let Err(e) = activate_dds_reader(
+                                &dds_reader,
+                                &ros2_name,
+                                &ros2_type,
+                                &zenoh_key_expr,
+                                &route_id,
+                                &context,
+                                keyless,
+                                &reader_qos,
+                                &type_info,
+                                &publisher,
+                            ) {
+                                log::error!("{route_id}: failed to activate DDS Reader: {e}");
+                            }
+                        } else {
+                            deactivate_dds_reader(
+                                &dds_reader,
+                                &route_id,
+                                &context.ros_discovery_mgr,
+                            )
+                        }
+                    }
+                })
+                .res_async()
+                .await
+                .map_err(|e| format!("Failed to lisetn of matchibng status changes: {e}",))?
+        };
+
+        // Ok(route)
 
         Ok(RoutePublisher {
             ros2_name,
             ros2_type,
             zenoh_key_expr,
-            context: context.clone(),
+            context,
             zenoh_publisher: ZPublisher {
                 publisher,
+                _matching_listener: matching_listener,
                 _cache: cache,
                 cache_size,
             },
-            dds_reader: DDS_ENTITY_NULL.into(),
+            dds_reader,
             type_info: type_info.clone(),
             reader_qos,
             keyless,
@@ -220,7 +282,7 @@ impl RoutePublisher<'_> {
         let type_name = ros2_message_type_to_dds_type(&self.ros2_type);
         let read_period = get_read_period(&self.context.config, &self.zenoh_key_expr);
         let route_id = self.to_string();
-        let publisher = self.zenoh_publisher.deref().clone();
+        let publisher = self.zenoh_publisher.clone();
 
         // create matching DDS Reader that forwards data coming from DDS to Zenoh
         let dds_reader = create_dds_reader(
@@ -233,12 +295,19 @@ impl RoutePublisher<'_> {
             read_period,
             move |sample: &DDSRawSample| {
                 do_route_message(
-                    sample, &publisher, // &ke,
+                    sample, &publisher,
+                    // &self.zenoh_key_expr,
+                    // &self.context.zsession,
                     &route_id,
                 );
             },
         )?;
-        self.dds_reader.swap(dds_reader, Ordering::Relaxed);
+        let old = self.dds_reader.swap(dds_reader, Ordering::Relaxed);
+        if old != DDS_ENTITY_NULL {
+            if let Err(e) = delete_dds_entity(old) {
+                log::warn!("{self}: failed to delete overwritten DDS Reader: {e}");
+            }
+        }
 
         // add reader's GID in ros_discovery_info message
         self.context
@@ -372,7 +441,72 @@ fn get_read_period(config: &Config, ke: &keyexpr) -> Option<Duration> {
     None
 }
 
-fn do_route_message(sample: &DDSRawSample, publisher: &Publisher, route_id: &str) {
+#[allow(clippy::too_many_arguments)]
+fn activate_dds_reader(
+    dds_reader: &Arc<AtomicDDSEntity>,
+    ros2_name: &str,
+    ros2_type: &str,
+    zenoh_key_expr: &OwnedKeyExpr,
+    route_id: &str,
+    context: &Context,
+    keyless: bool,
+    reader_qos: &Qos,
+    type_info: &Option<Arc<TypeInfo>>,
+    publisher: &Arc<Publisher<'static>>,
+) -> Result<(), String> {
+    let topic_name: String = format!("rt{}", ros2_name);
+    let type_name = ros2_message_type_to_dds_type(ros2_type);
+    let read_period = get_read_period(&context.config, zenoh_key_expr);
+
+    // create matching DDS Reader that forwards data coming from DDS to Zenoh
+    let reader = create_dds_reader(
+        context.participant,
+        topic_name,
+        type_name,
+        type_info,
+        keyless,
+        reader_qos.clone(),
+        read_period,
+        {
+            let route_id = route_id.to_string();
+            let publisher = publisher.clone();
+            move |sample: &DDSRawSample| {
+                do_route_message(sample, &publisher, &route_id);
+            }
+        },
+    )?;
+    let old = dds_reader.deref().swap(reader, Ordering::Relaxed);
+    // add reader's GID in ros_discovery_info message
+    context.ros_discovery_mgr.add_dds_reader(get_guid(&reader)?);
+
+    if old != DDS_ENTITY_NULL {
+        if let Err(e) = delete_dds_entity(old) {
+            log::warn!("{route_id}: failed to delete overwritten DDS Reader: {e}");
+        }
+    }
+
+    Ok(())
+}
+
+fn deactivate_dds_reader(
+    dds_reader: &Arc<AtomicDDSEntity>,
+    route_id: &str,
+    ros_discovery_mgr: &Arc<RosDiscoveryInfoMgr>,
+) {
+    let reader = dds_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
+    if reader != DDS_ENTITY_NULL {
+        // remove reader's GID from ros_discovery_info message
+        match get_guid(&reader) {
+            Ok(gid) => ros_discovery_mgr.remove_dds_reader(gid),
+            Err(e) => log::warn!("{route_id}: {e}"),
+        }
+        if let Err(e) = delete_dds_entity(reader) {
+            log::warn!("{route_id}: error deleting DDS Reader:  {e}");
+        }
+    }
+}
+
+fn do_route_message(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
     if *LOG_PAYLOAD {
         log::trace!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {
