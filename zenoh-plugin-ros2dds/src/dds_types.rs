@@ -20,7 +20,7 @@ use zenoh::buffers::ZBuf;
 use zenoh::buffers::ZSlice;
 use zenoh::prelude::*;
 
-use crate::dds_utils::ddsrt_iov_len_from;
+use crate::dds_utils::ddsrt_iov_len_to_usize;
 
 #[derive(Debug)]
 pub struct TypeInfo {
@@ -132,7 +132,7 @@ impl DDSRawSample {
         unsafe {
             slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                ddsrt_iov_len_from(self.data.iov_len).unwrap(),
+                ddsrt_iov_len_to_usize(self.data.iov_len).unwrap(),
             )
         }
     }
@@ -147,7 +147,7 @@ impl DDSRawSample {
             }
             &slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                ddsrt_iov_len_from(self.data.iov_len).unwrap(),
+                ddsrt_iov_len_to_usize(self.data.iov_len).unwrap(),
             )[4..]
         }
     }
@@ -176,7 +176,7 @@ impl DDSRawSample {
         }
 
         #[cfg(not(feature = "dds_shm"))]
-        ddsrt_iov_len_from(self.data.iov_len).unwrap()
+        ddsrt_iov_len_to_usize(self.data.iov_len).unwrap()
     }
 }
 

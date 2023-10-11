@@ -25,7 +25,7 @@ use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
-use crate::dds_utils::{create_dds_writer, ddsrt_iov_len_from, delete_dds_entity, get_guid};
+use crate::dds_utils::{create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
 use crate::liveliness_mgt::new_ke_liveliness_sub;
 use crate::qos_helpers::is_transient_local;
 use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
@@ -343,7 +343,7 @@ fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
         // that is not necessarily safe or guaranteed to be leak free.
         // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
         let (ptr, len, capacity) = vec_into_raw_parts(bs);
-        let size: ddsrt_iov_len_t = match ddsrt_iov_len_from(len) {
+        let size: ddsrt_iov_len_t = match ddsrt_iov_len_from_usize(len) {
             Ok(s) => s,
             Err(_) => {
                 log::warn!(

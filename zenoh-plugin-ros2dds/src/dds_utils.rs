@@ -37,13 +37,21 @@ pub const DDS_ENTITY_NULL: dds_entity_t = 0;
 // An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
 pub type AtomicDDSEntity = AtomicI32;
 
-#[inline]
-pub fn ddsrt_iov_len_from(i: usize) -> Result<ddsrt_iov_len_t, String> {
+pub fn ddsrt_iov_len_to_usize(len: ddsrt_iov_len_t) -> Result<usize, String> {
     // Depending the platform ddsrt_iov_len_t can have different typedef
     // See https://github.com/eclipse-cyclonedds/cyclonedds/blob/master/src/ddsrt/include/dds/ddsrt/iovec.h
-    // Thus this conversion is useless on most platforms, but not all!
+    // Thus this conversion is NOT useless on Windows where ddsrt_iov_len_t is a u32 !
     #[allow(clippy::useless_conversion)]
-    i.try_into()
+    len.try_into()
+        .map_err(|e| format!("INTERNAL ERROR converting a ddsrt_iov_len_t to usize: {e}"))
+}
+
+pub fn ddsrt_iov_len_from_usize(len: usize) -> Result<ddsrt_iov_len_t, String> {
+    // Depending the platform ddsrt_iov_len_t can have different typedef
+    // See https://github.com/eclipse-cyclonedds/cyclonedds/blob/master/src/ddsrt/include/dds/ddsrt/iovec.h
+    // Thus this conversion is NOT useless on Windows where ddsrt_iov_len_t is a u32 !
+    #[allow(clippy::useless_conversion)]
+    len.try_into()
         .map_err(|e| format!("INTERNAL ERROR converting a usize to ddsrt_iov_len_t: {e}"))
 }
 
@@ -176,7 +184,7 @@ pub fn dds_write(data_writer: dds_entity_t, data: Vec<u8>) -> Result<(), String>
         // that is not necessarily safe or guaranteed to be leak free.
         // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
         let (ptr, len, capacity) = vec_into_raw_parts(data);
-        let size: ddsrt_iov_len_t = ddsrt_iov_len_from(len)?;
+        let size: ddsrt_iov_len_t = ddsrt_iov_len_from_usize(len)?;
 
         let data_out = ddsrt_iovec_t {
             iov_base: ptr as *mut std::ffi::c_void,

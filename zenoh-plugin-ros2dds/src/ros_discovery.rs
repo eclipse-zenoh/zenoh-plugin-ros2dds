@@ -13,7 +13,7 @@ use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_utils::{ddsrt_iov_len_from, delete_dds_entity, get_guid};
+use crate::dds_utils::{ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
 use crate::gid::Gid;
 use async_std::task;
 use cdr::{CdrLe, Infinite};
@@ -318,7 +318,7 @@ impl RosDiscoveryInfoMgr {
             // that is not necessarily safe or guaranteed to be leak free.
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
-            let size: ddsrt_iov_len_t = ddsrt_iov_len_from(len)?;
+            let size: ddsrt_iov_len_t = ddsrt_iov_len_from_usize(len)?;
 
             let data_out = ddsrt_iovec_t {
                 iov_base: ptr as *mut std::ffi::c_void,
