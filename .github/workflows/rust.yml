@@ -49,11 +49,11 @@ jobs:
           command: fmt
           args: -- --check
 
-      # - name: Clippy
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: clippy
-      #     args: --all --examples -- -D warnings
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --examples -- -D warnings
 
       - name: Build zenoh-plugin-ros2dds
         uses: actions-rs/cargo@v1

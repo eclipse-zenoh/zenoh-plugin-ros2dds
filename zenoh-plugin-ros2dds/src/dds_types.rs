@@ -20,6 +20,8 @@ use zenoh::buffers::ZBuf;
 use zenoh::buffers::ZSlice;
 use zenoh::prelude::*;
 
+use crate::dds_utils::ddsrt_iov_len_from;
+
 #[derive(Debug)]
 pub struct TypeInfo {
     pub(crate) ptr: *mut dds_typeinfo_t,
@@ -130,7 +132,7 @@ impl DDSRawSample {
         unsafe {
             slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap(),
+                ddsrt_iov_len_from(self.data.iov_len).unwrap(),
             )
         }
     }
@@ -145,7 +147,7 @@ impl DDSRawSample {
             }
             &slice::from_raw_parts(
                 self.data.iov_base as *const u8,
-                self.data.iov_len.try_into().unwrap(),
+                ddsrt_iov_len_from(self.data.iov_len).unwrap(),
             )[4..]
         }
     }
@@ -174,7 +176,7 @@ impl DDSRawSample {
         }
 
         #[cfg(not(feature = "dds_shm"))]
-        self.data.iov_len.try_into().unwrap()
+        ddsrt_iov_len_from(self.data.iov_len).unwrap()
     }
 }
 
