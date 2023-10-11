@@ -93,7 +93,7 @@ impl fmt::Debug for Gid {
         if self == &Gid::NOT_DISCOVERED {
             write!(f, "NOT_DISCOVERED")
         } else {
-            let s = hex::encode(&self.0);
+            let s = hex::encode(self.0);
             write!(f, "{s}")
         }
     }

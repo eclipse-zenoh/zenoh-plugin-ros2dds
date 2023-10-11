@@ -99,79 +99,79 @@ pub fn dds_type_to_ros2_action_type(dds_topic: &str) -> String {
 fn ros2_service_default_qos() -> Qos {
     // Default Service QoS copied from:
     // https://github.com/ros2/rmw/blob/83445be486deae8c78d275e092eafb4bf380bd49/rmw/include/rmw/qos_profiles.h#L64C44-L64C44
-    let mut qos = Qos::default();
-    qos.history = Some(History {
-        kind: HistoryKind::KEEP_LAST,
-        depth: 10,
-    });
-    qos.reliability = Some(Reliability {
-        kind: ReliabilityKind::RELIABLE,
-        max_blocking_time: DDS_INFINITE_TIME,
-    });
-    // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal {
-        kind: IgnoreLocalKind::PARTICIPANT,
-    });
-    qos
+    Qos {
+        history: Some(History {
+            kind: HistoryKind::KEEP_LAST,
+            depth: 10,
+        }),
+        reliability: Some(Reliability {
+            kind: ReliabilityKind::RELIABLE,
+            max_blocking_time: DDS_INFINITE_TIME,
+        }),
+        ignore_local: Some(IgnoreLocal {
+            kind: IgnoreLocalKind::PARTICIPANT,
+        }),
+        ..Default::default()
+    }
 }
 
 fn ros2_action_feedback_default_qos() -> Qos {
-    let mut qos = Qos::default();
-    qos.history = Some(History {
-        kind: HistoryKind::KEEP_LAST,
-        depth: 10,
-    });
-    qos.reliability = Some(Reliability {
-        kind: ReliabilityKind::RELIABLE,
-        max_blocking_time: DDS_INFINITE_TIME,
-    });
-    qos.data_representation = Some([0].into());
-    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
-        autodispose_unregistered_instances: false,
-    });
-    qos.type_consistency = Some(TypeConsistency {
-        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
-        ignore_sequence_bounds: true,
-        ignore_string_bounds: true,
-        ignore_member_names: false,
-        prevent_type_widening: false,
-        force_type_validation: false,
-    });
-    // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal {
-        kind: IgnoreLocalKind::PARTICIPANT,
-    });
-    qos
+    Qos {
+        history: Some(History {
+            kind: HistoryKind::KEEP_LAST,
+            depth: 10,
+        }),
+        reliability: Some(Reliability {
+            kind: ReliabilityKind::RELIABLE,
+            max_blocking_time: DDS_INFINITE_TIME,
+        }),
+        data_representation: Some([0].into()),
+        writer_data_lifecycle: Some(WriterDataLifecycle {
+            autodispose_unregistered_instances: false,
+        }),
+        type_consistency: Some(TypeConsistency {
+            kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+            ignore_sequence_bounds: true,
+            ignore_string_bounds: true,
+            ignore_member_names: false,
+            prevent_type_widening: false,
+            force_type_validation: false,
+        }),
+        ignore_local: Some(IgnoreLocal {
+            kind: IgnoreLocalKind::PARTICIPANT,
+        }),
+        ..Default::default()
+    }
 }
 
 fn ros2_action_status_default_qos() -> Qos {
     // Default Status topic QoS copied from:
     // https://github.com/ros2/rcl/blob/8f7f4f0804a34ee9d9ecd2d7e75a57ce2b7ced5d/rcl_action/include/rcl_action/default_qos.h#L30
-    let mut qos = Qos::default();
-    qos.durability = Some(Durability {
-        kind: DurabilityKind::TRANSIENT_LOCAL,
-    });
-    qos.reliability = Some(Reliability {
-        kind: ReliabilityKind::RELIABLE,
-        max_blocking_time: DDS_INFINITE_TIME,
-    });
-    qos.data_representation = Some([0].into());
-    qos.writer_data_lifecycle = Some(WriterDataLifecycle {
-        autodispose_unregistered_instances: false,
-    });
-    qos.type_consistency = Some(TypeConsistency {
-        kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
-        ignore_sequence_bounds: true,
-        ignore_string_bounds: true,
-        ignore_member_names: false,
-        prevent_type_widening: false,
-        force_type_validation: false,
-    });
-    // Add ignore_local to avoid loops
-    qos.ignore_local = Some(IgnoreLocal {
-        kind: IgnoreLocalKind::PARTICIPANT,
-    });
-    qos
+    Qos {
+        durability: Some(Durability {
+            kind: DurabilityKind::TRANSIENT_LOCAL,
+        }),
+        reliability: Some(Reliability {
+            kind: ReliabilityKind::RELIABLE,
+            max_blocking_time: DDS_INFINITE_TIME,
+        }),
+        data_representation: Some([0].into()),
+        writer_data_lifecycle: Some(WriterDataLifecycle {
+            autodispose_unregistered_instances: false,
+        }),
+        type_consistency: Some(TypeConsistency {
+            kind: TypeConsistencyKind::ALLOW_TYPE_COERCION,
+            ignore_sequence_bounds: true,
+            ignore_string_bounds: true,
+            ignore_member_names: false,
+            prevent_type_widening: false,
+            force_type_validation: false,
+        }),
+        ignore_local: Some(IgnoreLocal {
+            kind: IgnoreLocalKind::PARTICIPANT,
+        }),
+        ..Default::default()
+    }
 }
 
 pub fn is_service_for_action(ros2_service_name: &str) -> bool {

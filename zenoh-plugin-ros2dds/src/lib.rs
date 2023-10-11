@@ -285,7 +285,7 @@ pub struct ROS2PluginRuntime<'a> {
     participant: dds_entity_t,
     _member: LivelinessToken<'a>,
     plugin_id: OwnedKeyExpr,
-    // admin space: index is the admin_keyexpr (relative to admin_prefix)
+    // admin space: index is the admin_keyexpr
     // value is the JSon string to return to queries.
     admin_space: HashMap<OwnedKeyExpr, AdminRef>,
 }

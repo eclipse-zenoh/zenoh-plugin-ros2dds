@@ -27,7 +27,7 @@
       //// nodename: A ROS node name to be used by this bridge.
       ////            Default: "zenoh_bridge_ros2dds"
       ////
-      // namespace: "zenoh_bridge_ros2dds",
+      // nodename: "zenoh_bridge_ros2dds",
 
       ////
       //// domain: The DDS Domain ID. By default set to 0, or to "$ROS_DOMAIN_ID" is this environment variable is defined.
@@ -76,7 +76,7 @@
       // },
 
       ////
-      //// pub_max_frequencies: Specifies a list of maximum frequency of messages routing over zenoh for a set of topics.
+      //// pub_max_frequencies: Specifies a list of maximum frequency of publications routing over zenoh for a set of Publishers.
       ////                      The strings must have the format "<regex>=<float>":
       ////                      - "regex" is a regular expression matching a Publisher interface name
       ////                      - "float" is the maximum frequency in Hertz;

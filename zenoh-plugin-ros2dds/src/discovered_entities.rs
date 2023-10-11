@@ -45,26 +45,26 @@ pub struct DiscoveredEntities {
 
 impl Debug for DiscoveredEntities {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
+        writeln!(
             f,
-            "participants: {:?}\n",
+            "participants: {:?}",
             self.participants.keys().collect::<Vec<&Gid>>()
         )?;
-        write!(
+        writeln!(
             f,
-            "writers: {:?}\n",
+            "writers: {:?}",
             self.writers.keys().collect::<Vec<&Gid>>()
         )?;
-        write!(
+        writeln!(
             f,
-            "readers: {:?}\n",
+            "readers: {:?}",
             self.readers.keys().collect::<Vec<&Gid>>()
         )?;
-        write!(f, "ros_participant_info: {:?}\n", self.ros_participant_info)?;
-        write!(f, "nodes_info: {:?}\n", self.nodes_info)?;
-        write!(
+        writeln!(f, "ros_participant_info: {:?}", self.ros_participant_info)?;
+        writeln!(f, "nodes_info: {:?}", self.nodes_info)?;
+        writeln!(
             f,
-            "admin_space: {:?}\n",
+            "admin_space: {:?}",
             self.admin_space.keys().collect::<Vec<&OwnedKeyExpr>>()
         )
     }
@@ -126,8 +126,8 @@ impl DiscoveredEntities {
 
         // Check if this Writer is present in some NodeInfo.undiscovered_writer list
         let mut event: Option<ROS2DiscoveryEvent> = None;
-        for (_, nodes_map) in &mut self.nodes_info {
-            for (_, node) in nodes_map {
+        for nodes_map in self.nodes_info.values_mut() {
+            for node in nodes_map.values_mut() {
                 if let Some(i) = node
                     .undiscovered_writer
                     .iter()
@@ -168,8 +168,8 @@ impl DiscoveredEntities {
             );
 
             // Remove the Writer from any NodeInfo that might use it, possibly leading to a UndiscoveredX event
-            for (_, nodes_map) in &mut self.nodes_info {
-                for (_, node) in nodes_map {
+            for nodes_map in self.nodes_info.values_mut() {
+                for node in nodes_map.values_mut() {
                     if let Some(e) = node.remove_writer(gid) {
                         // A Reader can be used by only 1 Node, no need to go on with loops
                         return Some(e);
@@ -196,8 +196,8 @@ impl DiscoveredEntities {
 
         // Check if this Reader is present in some NodeInfo.undiscovered_reader list
         let mut event = None;
-        for (_, nodes_map) in &mut self.nodes_info {
-            for (_, node) in nodes_map {
+        for nodes_map in self.nodes_info.values_mut() {
+            for node in nodes_map.values_mut() {
                 if let Some(i) = node
                     .undiscovered_reader
                     .iter()
@@ -238,8 +238,8 @@ impl DiscoveredEntities {
             );
 
             // Remove the Reader from any NodeInfo that might use it, possibly leading to a UndiscoveredX event
-            for (_, nodes_map) in &mut self.nodes_info {
-                for (_, node) in nodes_map {
+            for nodes_map in self.nodes_info.values_mut() {
+                for node in nodes_map.values_mut() {
                     if let Some(e) = node.remove_reader(gid) {
                         // A Reader can be used by only 1 Node, no need to go on with loops
                         return Some(e);
@@ -337,7 +337,9 @@ impl DiscoveredEntities {
                     "ROS Node {ros_node_info} declares Reader on {}",
                     entity.topic_name
                 );
-                node.update_with_reader(entity).map(|e| events.push(e));
+                if let Some(e) = node.update_with_reader(entity) {
+                    events.push(e)
+                };
             } else {
                 log::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Reader: {rgid}"
@@ -352,7 +354,9 @@ impl DiscoveredEntities {
                     "ROS Node {ros_node_info} declares Writer on {}",
                     entity.topic_name
                 );
-                node.update_with_writer(entity).map(|e| events.push(e));
+                if let Some(e) = node.update_with_writer(entity) {
+                    events.push(e)
+                };
             } else {
                 log::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Writer: {wgid}"
@@ -389,8 +393,7 @@ impl DiscoveredEntities {
             EntityRef::Node(gid, name) => self
                 .nodes_info
                 .get(gid)
-                .map(|map| map.get(name))
-                .flatten()
+                .and_then(|map| map.get(name))
                 .map(serde_json::to_value)
                 .transpose(),
         }

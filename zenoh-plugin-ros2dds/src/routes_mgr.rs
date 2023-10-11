@@ -60,12 +60,12 @@ pub enum RouteStatus {
 
 #[derive(Debug)]
 enum RouteRef {
-    PublisherRoute(String),
-    SubscriberRoute(String),
-    ServiceSrvRoute(String),
-    ServiceCliRoute(String),
-    ActionSrvRoute(String),
-    ActionCliRoute(String),
+    Publisher(String),
+    Subscriber(String),
+    ServiceSrv(String),
+    ServiceCli(String),
+    ActionSrv(String),
+    ActionCli(String),
 }
 
 // A Context struct to be shared as an Arc amongst all the code
@@ -546,7 +546,7 @@ impl<'a> RoutesMgr<'a> {
                     // insert reference in admin_space
                     let admin_ke = *KE_PREFIX_ROUTE_PUBLISHER / zenoh_key_expr;
                     self.admin_space
-                        .insert(admin_ke, RouteRef::PublisherRoute(ros2_name));
+                        .insert(admin_ke, RouteRef::Publisher(ros2_name));
                 }
 
                 Ok(entry.insert(route))
@@ -583,7 +583,7 @@ impl<'a> RoutesMgr<'a> {
                     // insert reference in admin_space
                     let admin_ke = *KE_PREFIX_ROUTE_SUBSCRIBER / zenoh_key_expr;
                     self.admin_space
-                        .insert(admin_ke, RouteRef::SubscriberRoute(ros2_name));
+                        .insert(admin_ke, RouteRef::Subscriber(ros2_name));
                 }
 
                 Ok(entry.insert(route))
@@ -617,7 +617,7 @@ impl<'a> RoutesMgr<'a> {
                     // insert reference in admin_space
                     let admin_ke = *KE_PREFIX_ROUTE_SERVICE_SRV / zenoh_key_expr;
                     self.admin_space
-                        .insert(admin_ke, RouteRef::ServiceSrvRoute(ros2_name));
+                        .insert(admin_ke, RouteRef::ServiceSrv(ros2_name));
                 }
 
                 Ok(entry.insert(route))
@@ -651,7 +651,7 @@ impl<'a> RoutesMgr<'a> {
                     // insert reference in admin_space
                     let admin_ke = *KE_PREFIX_ROUTE_SERVICE_CLI / zenoh_key_expr;
                     self.admin_space
-                        .insert(admin_ke, RouteRef::ServiceCliRoute(ros2_name));
+                        .insert(admin_ke, RouteRef::ServiceCli(ros2_name));
                 }
 
                 Ok(entry.insert(route))
@@ -682,7 +682,7 @@ impl<'a> RoutesMgr<'a> {
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / zenoh_key_expr;
                 self.admin_space
-                    .insert(admin_ke, RouteRef::ActionSrvRoute(ros2_name));
+                    .insert(admin_ke, RouteRef::ActionSrv(ros2_name));
 
                 Ok(entry.insert(route))
             }
@@ -712,7 +712,7 @@ impl<'a> RoutesMgr<'a> {
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / zenoh_key_expr;
                 self.admin_space
-                    .insert(admin_ke, RouteRef::ActionCliRoute(ros2_name));
+                    .insert(admin_ke, RouteRef::ActionCli(ros2_name));
 
                 Ok(entry.insert(route))
             }
@@ -773,32 +773,32 @@ impl<'a> RoutesMgr<'a> {
         route_ref: &RouteRef,
     ) -> Result<Option<serde_json::Value>, serde_json::Error> {
         match route_ref {
-            RouteRef::PublisherRoute(ke) => self
+            RouteRef::Publisher(ke) => self
                 .routes_publishers
                 .get(ke)
                 .map(serde_json::to_value)
                 .transpose(),
-            RouteRef::SubscriberRoute(ke) => self
+            RouteRef::Subscriber(ke) => self
                 .routes_subscribers
                 .get(ke)
                 .map(serde_json::to_value)
                 .transpose(),
-            RouteRef::ServiceSrvRoute(ke) => self
+            RouteRef::ServiceSrv(ke) => self
                 .routes_service_srv
                 .get(ke)
                 .map(serde_json::to_value)
                 .transpose(),
-            RouteRef::ServiceCliRoute(ke) => self
+            RouteRef::ServiceCli(ke) => self
                 .routes_service_cli
                 .get(ke)
                 .map(serde_json::to_value)
                 .transpose(),
-            RouteRef::ActionSrvRoute(ke) => self
+            RouteRef::ActionSrv(ke) => self
                 .routes_action_srv
                 .get(ke)
                 .map(serde_json::to_value)
                 .transpose(),
-            RouteRef::ActionCliRoute(ke) => self
+            RouteRef::ActionCli(ke) => self
                 .routes_action_cli
                 .get(ke)
                 .map(serde_json::to_value)

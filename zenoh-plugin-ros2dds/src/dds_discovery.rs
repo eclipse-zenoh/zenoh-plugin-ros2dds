@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use std::ffi::CStr;
 use std::fmt;
 use std::mem::MaybeUninit;
-use std::os::raw;
 use std::sync::Arc;
 
 use crate::dds_types::TypeInfo;
@@ -80,14 +79,14 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let _ = dds_get_instance_handle(dp, &mut dpih);
 
     #[allow(clippy::uninit_assumed_init)]
-    let mut si = MaybeUninit::<[dds_sample_info_t; MAX_SAMPLES as usize]>::uninit();
-    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES as usize] =
-        [std::ptr::null_mut(); MAX_SAMPLES as usize];
+    let mut si = MaybeUninit::<[dds_sample_info_t; MAX_SAMPLES]>::uninit();
+    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES] =
+        [std::ptr::null_mut(); MAX_SAMPLES];
     samples[0] = std::ptr::null_mut();
 
     let n = dds_take(
         dr,
-        samples.as_mut_ptr() as *mut *mut raw::c_void,
+        samples.as_mut_ptr(),
         si.as_mut_ptr() as *mut dds_sample_info_t,
         MAX_SAMPLES,
         MAX_SAMPLES as u32,
@@ -237,11 +236,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             }
         }
     }
-    dds_return_loan(
-        dr,
-        samples.as_mut_ptr() as *mut *mut raw::c_void,
-        MAX_SAMPLES as i32,
-    );
+    dds_return_loan(dr, samples.as_mut_ptr(), MAX_SAMPLES as i32);
     Box::into_raw(btx);
 }
 
