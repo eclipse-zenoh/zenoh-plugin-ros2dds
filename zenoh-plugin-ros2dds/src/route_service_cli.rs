@@ -291,7 +291,7 @@ fn do_route_request(
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {
-        log::trace!("{route_id}: routing request {request_id:02x?} to Zenoh - payload: {zenoh_req_buf:02x?}");
+        log::debug!("{route_id}: routing request {request_id:02x?} to Zenoh - payload: {zenoh_req_buf:02x?}");
     } else {
         log::trace!(
             "{route_id}: routing request {request_id:02x?} to Zenoh - {} bytes",
@@ -330,7 +330,7 @@ fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writ
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[4..]);
 
             if *LOG_PAYLOAD {
-                log::trace!("{route_id}: routing reply for {request_id:02x?} to Client - payload: {dds_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply for {request_id:02x?} to Client - payload: {dds_rep_buf:02x?}");
             } else {
                 log::trace!(
                     "{route_id}: routing reply for {request_id:02x?} to Client - {} bytes",
