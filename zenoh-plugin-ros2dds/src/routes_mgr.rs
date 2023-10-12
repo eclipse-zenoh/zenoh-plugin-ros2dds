@@ -17,6 +17,8 @@ use crate::events::ROS2AnnouncementEvent;
 use crate::events::ROS2DiscoveryEvent;
 use crate::qos_helpers::adapt_reader_qos_for_writer;
 use crate::qos_helpers::adapt_writer_qos_for_reader;
+use crate::ros2_utils::key_expr_to_ros2_name;
+use crate::ros2_utils::ros2_name_to_key_expr;
 use crate::ros_discovery::RosDiscoveryInfoMgr;
 use crate::route_action_cli::RouteActionCli;
 use crate::route_action_srv::RouteActionSrv;
@@ -315,7 +317,7 @@ impl<'a> RoutesMgr<'a> {
                 // with an associated DDS Writer allowing local ROS2 Nodes to discover it
                 let route = self
                     .get_or_create_route_subscriber(
-                        format!("/{zenoh_key_expr}"),
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
                         ros2_type,
                         keyless,
                         writer_qos,
@@ -354,7 +356,7 @@ impl<'a> RoutesMgr<'a> {
                 // with an associated DDS Reader allowing local ROS2 Nodes to discover it
                 let route = self
                     .get_or_create_route_publisher(
-                        format!("/{zenoh_key_expr}"),
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
                         ros2_type,
                         keyless,
                         reader_qos,
@@ -390,7 +392,11 @@ impl<'a> RoutesMgr<'a> {
                 // On remote Service Server route announcement, prepare a Service Client route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
-                    .get_or_create_route_service_cli(format!("/{zenoh_key_expr}"), ros2_type, true)
+                    .get_or_create_route_service_cli(
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
+                        ros2_type,
+                        true,
+                    )
                     .await?;
                 route.add_remote_route(&plugin_id, &zenoh_key_expr);
             }
@@ -421,7 +427,11 @@ impl<'a> RoutesMgr<'a> {
                 // On remote Service Client route announcement, prepare a Service Server route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
-                    .get_or_create_route_service_srv(format!("/{zenoh_key_expr}"), ros2_type, true)
+                    .get_or_create_route_service_srv(
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
+                        ros2_type,
+                        true,
+                    )
                     .await?;
                 route.add_remote_route(&plugin_id, &zenoh_key_expr);
             }
@@ -452,7 +462,10 @@ impl<'a> RoutesMgr<'a> {
                 // On remote Action Server route announcement, prepare a Action Client route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
-                    .get_or_create_route_action_cli(format!("/{zenoh_key_expr}"), ros2_type)
+                    .get_or_create_route_action_cli(
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
+                        ros2_type,
+                    )
                     .await?;
                 route.add_remote_route(&plugin_id, &zenoh_key_expr);
             }
@@ -483,7 +496,10 @@ impl<'a> RoutesMgr<'a> {
                 // On remote Action Client route announcement, prepare a Action Server route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
-                    .get_or_create_route_action_srv(format!("/{zenoh_key_expr}"), ros2_type)
+                    .get_or_create_route_action_srv(
+                        key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
+                        ros2_type,
+                    )
                     .await?;
                 route.add_remote_route(&plugin_id, &zenoh_key_expr);
             }
@@ -527,13 +543,13 @@ impl<'a> RoutesMgr<'a> {
     ) -> Result<&mut RoutePublisher<'a>, String> {
         match self.routes_publishers.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
-                // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                // ROS2 topic name => Zenoh key expr
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RoutePublisher::create(
                     ros2_name.clone(),
                     ros2_type,
-                    zenoh_key_expr.to_owned(),
+                    zenoh_key_expr.clone(),
                     &None,
                     keyless,
                     reader_qos,
@@ -544,7 +560,7 @@ impl<'a> RoutesMgr<'a> {
 
                 if admin_space_ref {
                     // insert reference in admin_space
-                    let admin_ke = *KE_PREFIX_ROUTE_PUBLISHER / zenoh_key_expr;
+                    let admin_ke = *KE_PREFIX_ROUTE_PUBLISHER / &zenoh_key_expr;
                     self.admin_space
                         .insert(admin_ke, RouteRef::Publisher(ros2_name));
                 }
@@ -565,13 +581,13 @@ impl<'a> RoutesMgr<'a> {
     ) -> Result<&mut RouteSubscriber<'a>, String> {
         match self.routes_subscribers.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
-                // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                // ROS2 topic name => Zenoh key expr
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RouteSubscriber::create(
                     ros2_name.clone(),
                     ros2_type,
-                    zenoh_key_expr.to_owned(),
+                    zenoh_key_expr.clone(),
                     keyless,
                     writer_qos,
                     self.context.clone(),
@@ -581,7 +597,7 @@ impl<'a> RoutesMgr<'a> {
 
                 if admin_space_ref {
                     // insert reference in admin_space
-                    let admin_ke = *KE_PREFIX_ROUTE_SUBSCRIBER / zenoh_key_expr;
+                    let admin_ke = *KE_PREFIX_ROUTE_SUBSCRIBER / &zenoh_key_expr;
                     self.admin_space
                         .insert(admin_ke, RouteRef::Subscriber(ros2_name));
                 }
@@ -600,13 +616,13 @@ impl<'a> RoutesMgr<'a> {
     ) -> Result<&mut RouteServiceSrv<'a>, String> {
         match self.routes_service_srv.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
-                // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                // ROS2 topic name => Zenoh key expr
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RouteServiceSrv::create(
                     ros2_name.clone(),
                     ros2_type,
-                    zenoh_key_expr.to_owned(),
+                    zenoh_key_expr.clone(),
                     &None,
                     self.context.clone(),
                 )
@@ -615,7 +631,7 @@ impl<'a> RoutesMgr<'a> {
 
                 if admin_space_ref {
                     // insert reference in admin_space
-                    let admin_ke = *KE_PREFIX_ROUTE_SERVICE_SRV / zenoh_key_expr;
+                    let admin_ke = *KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr;
                     self.admin_space
                         .insert(admin_ke, RouteRef::ServiceSrv(ros2_name));
                 }
@@ -635,12 +651,12 @@ impl<'a> RoutesMgr<'a> {
         match self.routes_service_cli.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RouteServiceCli::create(
                     ros2_name.clone(),
                     ros2_type,
-                    zenoh_key_expr.to_owned(),
+                    zenoh_key_expr.clone(),
                     &None,
                     self.context.clone(),
                 )
@@ -649,7 +665,7 @@ impl<'a> RoutesMgr<'a> {
 
                 if admin_space_ref {
                     // insert reference in admin_space
-                    let admin_ke = *KE_PREFIX_ROUTE_SERVICE_CLI / zenoh_key_expr;
+                    let admin_ke = *KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr;
                     self.admin_space
                         .insert(admin_ke, RouteRef::ServiceCli(ros2_name));
                 }
@@ -668,19 +684,19 @@ impl<'a> RoutesMgr<'a> {
         match self.routes_action_srv.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RouteActionSrv::create(
                     ros2_name.clone(),
                     ros2_type,
-                    zenoh_key_expr.to_owned(),
+                    zenoh_key_expr.clone(),
                     self.context.clone(),
                 )
                 .await?;
                 log::info!("{route} created");
 
                 // insert reference in admin_space
-                let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / zenoh_key_expr;
+                let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / &zenoh_key_expr;
                 self.admin_space
                     .insert(admin_ke, RouteRef::ActionSrv(ros2_name));
 
@@ -698,7 +714,7 @@ impl<'a> RoutesMgr<'a> {
         match self.routes_action_cli.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
-                let zenoh_key_expr = ke_for_sure!(&ros2_name[1..]);
+                let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
                 // create route
                 let route = RouteActionCli::create(
                     ros2_name.clone(),
@@ -710,7 +726,7 @@ impl<'a> RoutesMgr<'a> {
                 log::info!("{route} created");
 
                 // insert reference in admin_space
-                let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / zenoh_key_expr;
+                let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / &zenoh_key_expr;
                 self.admin_space
                     .insert(admin_ke, RouteRef::ActionCli(ros2_name));
 
