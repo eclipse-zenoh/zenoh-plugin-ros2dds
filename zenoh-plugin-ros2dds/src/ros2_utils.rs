@@ -22,9 +22,9 @@ use cyclors::{
         DDS_INFINITE_TIME,
     },
 };
-use zenoh::prelude::{keyexpr, KeyExpr};
+use zenoh::prelude::{keyexpr, KeyExpr, OwnedKeyExpr};
 
-use crate::{dds_utils::get_guid, ke_for_sure};
+use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
 
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
 pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
@@ -40,6 +40,34 @@ lazy_static::lazy_static!(
     pub static ref QOS_DEFAULT_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
     pub static ref QOS_DEFAULT_ACTION_STATUS: Qos = ros2_action_status_default_qos();
 );
+
+/// Convert ROS2 interface name to a Zenoh key expression,
+/// prefixing with "namespace" if configured
+pub fn ros2_name_to_key_expr(ros2_name: &str, config: &Config) -> OwnedKeyExpr {
+    // ros2_name as discovered by the bridge starts with a '/'
+    // config.namespace starts with a '/'
+    // But a Zenoh key_expr shall not start with a '/'
+    if config.namespace == "/" {
+        ke_for_sure!(&ros2_name[1..]).to_owned()
+    } else {
+        ke_for_sure!(&config.namespace[1..]) / ke_for_sure!(&ros2_name[1..])
+    }
+}
+
+/// Convert a Zenoh key expression to a ROS2 full interface name,
+/// removing "namespace" prefix if configured and present in the key expr
+pub fn key_expr_to_ros2_name(key_expr: &keyexpr, config: &Config) -> String {
+    // Zenoh key_expr never starts with a '/'
+    // But the full ROS2 name that is returned shall (full == with a namespace, even if just '/')
+    if config.namespace == "/" {
+        format!("/{key_expr}")
+    } else {
+        match key_expr.as_str().strip_prefix(&config.namespace[1..]) {
+            Some(s) => s.to_string(),
+            None => format!("/{key_expr}"),
+        }
+    }
+}
 
 /// Convert DDS Topic type to ROS2 Message type
 pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {

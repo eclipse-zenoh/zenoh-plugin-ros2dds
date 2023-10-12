@@ -18,16 +18,20 @@
       // id: "robot-1",
 
       ////
-      //// namespace: A ROS namespace to be used by this bridge.
-      ////            Default: "/"
-      ////
-      // namespace: "/",
-
-      ////
       //// nodename: A ROS node name to be used by this bridge.
       ////            Default: "zenoh_bridge_ros2dds"
       ////
       // nodename: "zenoh_bridge_ros2dds",
+
+      ////
+      //// namespace: A ROS namespace which:
+      ////             - is used for the "zenoh_bridge_ros2dds" node itself
+      ////             - is added to all discovered interfaces when routed to Zenoh
+      ////               (i.e. a "cmd_vel" topic in the robot will be seen as "namespace/cmd_vel" outside the robot)
+      ////               Note that this also applies to topics with absolute path such as "/rosout", "/tf" and "/tf_static".
+      ////            Default: "/"
+      ////
+      // namespace: "/",
 
       ////
       //// domain: The DDS Domain ID. By default set to 0, or to "$ROS_DOMAIN_ID" is this environment variable is defined.

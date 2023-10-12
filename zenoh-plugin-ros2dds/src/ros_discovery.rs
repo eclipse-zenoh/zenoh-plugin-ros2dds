@@ -398,7 +398,7 @@ impl std::fmt::Debug for NodeEntitiesInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "Node {}/{} :",
+            "Node namespace={} / name={} :",
             if &self.node_namespace == "/" {
                 ""
             } else {
