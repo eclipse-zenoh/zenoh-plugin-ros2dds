@@ -388,7 +388,7 @@ fn do_route_request(
     };
 
     if *LOG_PAYLOAD {
-        log::trace!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
+        log::debug!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
     } else {
         log::trace!(
             "{route_id}: routing request #{n} to Service - {} bytes",
@@ -448,7 +448,7 @@ fn do_route_reply(
             zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
             if *LOG_PAYLOAD {
-                log::trace!("{route_id}: routing reply #{seq_num} to Client - payload: {zenoh_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply #{seq_num} to Client - payload: {zenoh_rep_buf:02x?}");
             } else {
                 log::trace!(
                     "{route_id}: routing reply #{seq_num} to Client - {} bytes",

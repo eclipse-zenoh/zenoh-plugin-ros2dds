@@ -319,7 +319,7 @@ impl RouteSubscriber<'_> {
 
 fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
-        log::trace!(
+        log::debug!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:02x?}",
             s.key_expr,
             &ros2_name,

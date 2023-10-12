@@ -199,6 +199,7 @@ impl RoutePublisher<'_> {
         let publisher: Arc<Publisher<'static>> = context
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
+            .allowed_destination(Locality::Remote)
             .congestion_control(congestion_ctrl)
             .res_async()
             .await
@@ -508,7 +509,7 @@ fn deactivate_dds_reader(
 
 fn do_route_message(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
     if *LOG_PAYLOAD {
-        log::trace!("{route_id}: routing message - payload: {:02x?}", sample);
+        log::debug!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {
         log::trace!("{route_id}: routing message - {} bytes", sample.len());
     }
