@@ -23,7 +23,7 @@ While a Zenoh bridge for DDS already [exists](https://github.com/eclipse-zenoh/z
 
  - A better integration of the ROS graph (all ROS topics/services/actions can be seen across bridges)
  - A better support of ROS toolings (`ros2`, `rviz2`...)
- - Configuration of a ROS namespace to be prepended to all routed topics/services/actions
+ - Configuration of a ROS namespace on the bridge, instead of on each ROS Nodes
  - Easier integration with Zenoh native applications (services and actions are mapped to Zenoh Queryables)
  - More compact exchanges of discovery information between the bridges
 
@@ -143,3 +143,24 @@ The command line arguments overwrite the equivalent keys configured in a configu
 
 :warning: Work in progress... the configuration scheme might change before the first release !
 
+## Easy multi-robots via Namespace configuration
+
+Deploying a `zenoh-bridge-ros2dds` in each robot and configuring each with its own namespace brings several benefits:
+
+1. No need to configure each ROS Node with a namespace. As the DDS traffic between all Nodes of a single robot remains internal to the robot, no namespace needs to be configured
+2. Configuring each `zenoh-bridge-ros2dds` with `namespace: "/botX"` (where `'X'` is a unique id), each topic/service/action name routed to Zenoh is prefixed with `"/botX"`. Robots messages are not conflicting with each other.
+3. On a monitoring/controlling host, you have 2 options:
+   - Run a `zenoh-bridge-ros2dds` with `namespace: "/botX"` corresponding to 1 robot. Then to monitor/operate that specific robot, just any ROS Node without namespace.  
+   E.g.: `rviz2`
+   - Run a `zenoh-bridge-ros2dds` without namespace. Then you can monitor/operate any robot remapping the namespace to the robot's one, or each topic/service/action name you want to use adding the robot's namespace as a prefix.  
+  E.g.:  `rviz2 --ros-args -r /tf:=/botX2/tf -r /tf_static:=/botX/tf_static`
+
+NOTE: the bridge prefixes ALL topics/services/actions names with the configured namespace, including `/rosout`, `/parameter_events`, `/tf` and `/tf_static`.
+
+## Admin space
+
+The bridge exposes some internal states via a Zenoh admin space under `@ros2/<id>/**`, where `<id>` is the unique id of the bridge (configurable).  
+This admin space can be queried via Zenoh `get()` operation. If the REST plugin is configured for the bridge for instance via `--rest-http-port 8000` argument, those URLs can be queried:
+- [http://<bridge-IP>:8000/@ros2/<id>/dds/**]() : to get all the DDS Readers/Writers discovered by the bridge
+- [http://<bridge-IP>:8000/@ros2/<id>/node/**]() : to get all ROS nodes with their interfaces discovered by the bridge
+- [http://<bridge-IP>:8000/@ros2/<id>/route/**]() : to get all routes between ROS interfaces and Zenoh established by the bridge
