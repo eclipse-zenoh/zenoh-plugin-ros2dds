@@ -8,7 +8,7 @@
     //// ROS2 related configuration
     //// All settings are optional and are unset by default - uncomment the ones you want to set
     ////
-    ros2: {
+    ros2dds: {
       ////
       //// id: An identifier for this bridge, which must be unique in the system.
       ///      The bridge will use this identifier in it's administration space: `@ros2/<id>/**`.

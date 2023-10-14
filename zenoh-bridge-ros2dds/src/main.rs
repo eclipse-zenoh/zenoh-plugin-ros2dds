@@ -132,9 +132,9 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         Some(conf_file) => Config::from_file(conf_file).unwrap(),
         None => Config::default(),
     };
-    // if "ros2" plugin conf is not present, add it (empty to use default config)
-    if config.plugin("ros2").is_none() {
-        config.insert_json5("plugins/ros2", "{}").unwrap();
+    // if "ros2dds" plugin conf is not present, add it (empty to use default config)
+    if config.plugin("ros2dds").is_none() {
+        config.insert_json5("plugins/ros2dds", "{}").unwrap();
     }
 
     // apply zenoh related arguments over config
@@ -171,16 +171,16 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         .unwrap();
 
     // apply DDS related arguments over config
-    insert_json5!(config, args, "plugins/ros2/id", if "id",);
-    insert_json5!(config, args, "plugins/ros2/namespace", if "namespace",);
-    insert_json5!(config, args, "plugins/ros2/domain", if "domain", .parse::<u64>().unwrap());
-    insert_json5!(config, args, "plugins/ros2/ros_localhost_only", if "ros-localhost-only");
+    insert_json5!(config, args, "plugins/ros2dds/id", if "id",);
+    insert_json5!(config, args, "plugins/ros2dds/namespace", if "namespace",);
+    insert_json5!(config, args, "plugins/ros2dds/domain", if "domain", .parse::<u64>().unwrap());
+    insert_json5!(config, args, "plugins/ros2dds/ros_localhost_only", if "ros-localhost-only");
     #[cfg(feature = "dds_shm")]
     {
-        insert_json5!(config, args, "plugins/ros2/shm_enabled", if "dds-enable-shm");
+        insert_json5!(config, args, "plugins/ros2dds/shm_enabled", if "dds-enable-shm");
     }
-    insert_json5!(config, args, "plugins/ros2/pub_max_frequencies", for "pub-max-frequency", .collect::<Vec<_>>());
-    insert_json5!(config, args, "plugins/ros2/queries_timeout", if "queries-timeout", .parse::<f64>().unwrap());
+    insert_json5!(config, args, "plugins/ros2dds/pub_max_frequencies", for "pub-max-frequency", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/ros2dds/queries_timeout", if "queries-timeout", .parse::<f64>().unwrap());
 
     let watchdog_period = if args.is_present("watchdog") {
         args.value_of("watchdog").map(|s| s.parse::<f32>().unwrap())
@@ -217,7 +217,7 @@ async fn main() {
 
     // start DDS plugin
     use zenoh_plugin_trait::Plugin;
-    zenoh_plugin_ros2dds::ROS2Plugin::start("ros2", &runtime).unwrap();
+    zenoh_plugin_ros2dds::ROS2Plugin::start("ros2dds", &runtime).unwrap();
     async_std::future::pending::<()>().await;
 }
 
