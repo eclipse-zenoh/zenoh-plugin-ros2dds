@@ -239,7 +239,7 @@ jobs:
             *windows*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              7z -y a "${LIB_PKG_NAME}" zenoh-plugin*.dll
+              7z -y a "${LIB_PKG_NAME}" zenoh_plugin*.dll
               echo "Packaging ${BIN_PKG_NAME}:"
               7z -y a "${BIN_PKG_NAME}" zenoh-bridge-ros2dds.exe
               cd -
