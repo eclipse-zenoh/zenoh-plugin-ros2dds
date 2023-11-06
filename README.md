@@ -96,23 +96,26 @@ A typical usage is to run 1 bridge in a robot, and 1 bridge in another host moni
 
 It's important to make sure that NO DDS communication can occur between 2 hosts that are bridged by `zenoh-bridge-ros2dds`. Otherwise, some duplicate or looping traffic can occur.  
 To make sure of this, you can either:
- - define `ROS_LOCALHOST_ONLY=1`
+ - define `ROS_LOCALHOST_ONLY=1`.  
+   Preferably, enable MULTICAST on the loopback interface with this command (on Linux): `sudo ip l set lo multicast on`
  - use different `ROS_DOMAIN_ID` on each hosts
- - use a `CYCLONEDDS_URI` that configures CycloneDDS to only use internal interfaces to the robot.  
-   For instance for Turtlebot4 which embedds 2 hosts interconnected via USB:  
+ - use a `CYCLONEDDS_URI` that configures CycloneDDS to only use internal interfaces to the robot. This configuration has to be used for all ROS Nodes as well as for the bridge.  
+   For instance for Turtlebot4 which embeds 2 hosts interconnected via USB:  
    ```xml
    <CycloneDDS>
     <Domain>
         <General>
             <Interfaces>
-                <NetworkInterface name="usb0" priority="default" multicast="default"/>
-                <NetworkInterface address="127.0.0.1" multicast="true"/>
+                <NetworkInterface name="usb0"/>
+                <!-- For less traffic, force multicast usage on loopback even if not configured.         -->
+                <!-- All ROS Nodes and bridges must have this same config, otherwise they won't discover -->
+                <NetworkInterface address="127.0.0.1" multicast="true"/> 
             </Interfaces>
             <DontRoute>true</DontRoute>
         </General>
     </Domain>
   </CycloneDDS>
-   ```
+  ```
 
 On the robot, run:
   - `zenoh-bridge-dds -l tcp/0.0.0.0:7447`
@@ -123,7 +126,6 @@ On the operating host run:
     - `ros2 topic list`
     - `ros2 service list`
     - `ros2 action list`
-
 
 
 Other interconnectivity between the 2 bridges can be configured (e.g. automatic discovery via UDP multicast, interconnection via 1 or more Zenoh routers...).
