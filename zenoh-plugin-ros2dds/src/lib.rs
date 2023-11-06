@@ -95,7 +95,7 @@ zenoh::kedefine!(
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
 #[cfg(feature = "dds_shm")]
