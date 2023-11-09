@@ -219,7 +219,7 @@ impl RoutePublisher<'_> {
                     let publisher = publisher.clone();
 
                     move |status| {
-                        if status.is_matching() {
+                        if status.matching_subscribers() {
                             if let Err(e) = activate_dds_reader(
                                 &dds_reader,
                                 &ros2_name,
