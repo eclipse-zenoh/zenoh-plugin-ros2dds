@@ -583,7 +583,7 @@ impl<'a> ROS2PluginRuntime<'a> {
     async fn send_admin_reply(&self, query: &Query, key_expr: &keyexpr, admin_ref: &AdminRef) {
         let value: Value = match admin_ref {
             AdminRef::Version => VERSION_JSON_VALUE.clone(),
-            AdminRef::Config => match serde_json::to_value(&self.config) {
+            AdminRef::Config => match serde_json::to_value(&*self.config) {
                 Ok(v) => v.into(),
                 Err(e) => {
                     log::error!("INTERNAL ERROR serializing config as JSON: {}", e);
