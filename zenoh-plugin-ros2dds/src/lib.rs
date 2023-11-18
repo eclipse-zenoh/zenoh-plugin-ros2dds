@@ -17,8 +17,7 @@ use events::ROS2AnnouncementEvent;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use git_version::git_version;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::Serializer;
 use std::collections::HashMap;
 use std::env;
 use std::mem::ManuallyDrop;
@@ -288,18 +287,6 @@ pub struct ROS2PluginRuntime<'a> {
     // admin space: index is the admin_keyexpr
     // value is the JSon string to return to queries.
     admin_space: HashMap<OwnedKeyExpr, AdminRef>,
-}
-
-impl Serialize for ROS2PluginRuntime<'_> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // return the plugin's config as a JSON struct
-        let mut s = serializer.serialize_struct("dds", 3)?;
-        s.serialize_field("domain", &self.config.domain)?;
-        s.end()
-    }
 }
 
 // An reference used in admin space to point to a struct (DdsEntity or Route) stored in another map
@@ -596,7 +583,7 @@ impl<'a> ROS2PluginRuntime<'a> {
     async fn send_admin_reply(&self, query: &Query, key_expr: &keyexpr, admin_ref: &AdminRef) {
         let value: Value = match admin_ref {
             AdminRef::Version => VERSION_JSON_VALUE.clone(),
-            AdminRef::Config => match serde_json::to_value(self) {
+            AdminRef::Config => match serde_json::to_value(&*self.config) {
                 Ok(v) => v.into(),
                 Err(e) => {
                     log::error!("INTERNAL ERROR serializing config as JSON: {}", e);

@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use regex::Regex;
-use serde::{de, de::Visitor, Deserialize, Deserializer};
+use serde::{de, de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use std::env;
 use std::fmt;
 use std::time::Duration;
@@ -26,7 +26,7 @@ pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
@@ -41,7 +41,11 @@ pub struct Config {
     pub ros_localhost_only: bool,
     #[serde(default, flatten)]
     pub allowance: Option<Allowance>,
-    #[serde(default, deserialize_with = "deserialize_max_frequencies")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_max_frequencies",
+        serialize_with = "serialize_max_frequencies"
+    )]
     pub pub_max_frequencies: Vec<(Regex, f32)>,
     #[serde(default)]
     #[cfg(feature = "dds_shm")]
@@ -61,7 +65,7 @@ pub struct Config {
     __path__: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub enum Allowance {
     #[serde(rename = "allow")]
     Allow(ROS2InterfacesRegex),
@@ -167,41 +171,47 @@ impl Allowance {
     }
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Serialize)]
 pub struct ROS2InterfacesRegex {
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub publishers: Option<Regex>,
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub subscribers: Option<Regex>,
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub service_servers: Option<Regex>,
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub service_clients: Option<Regex>,
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub action_servers: Option<Regex>,
     #[serde(
         default,
         deserialize_with = "deserialize_regex",
+        serialize_with = "serialize_regex",
         skip_serializing_if = "Option::is_none"
     )]
     pub action_clients: Option<Regex>,
@@ -281,6 +291,16 @@ where
     Ok(Duration::from_secs_f32(seconds))
 }
 
+fn serialize_regex<S>(r: &Option<Regex>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match r {
+        Some(ex) => serializer.serialize_some(ex.as_str()),
+        None => serializer.serialize_none(),
+    }
+}
+
 fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
 where
     D: Deserializer<'de>,
@@ -344,4 +364,16 @@ where
         result.push((regex, frequency));
     }
     Ok(result)
+}
+
+fn serialize_max_frequencies<S>(v: &Vec<(Regex, f32)>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(v.len()))?;
+    for (r, f) in v {
+        let s = format!("{}={}", r.as_str(), f);
+        seq.serialize_element(&s)?;
+    }
+    seq.end()
 }
