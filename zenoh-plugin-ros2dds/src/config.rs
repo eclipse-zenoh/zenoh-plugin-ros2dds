@@ -382,7 +382,6 @@ where
     seq.end()
 }
 
-
 mod tests {
 
     #[test]
@@ -398,18 +397,22 @@ mod tests {
                     "action_servers": [".*/rotate_absolute"],
                     "action_clients": [ "" ]
                 }
-            }"#
-        ).unwrap();
+            }"#,
+        )
+        .unwrap();
         println!("allow: {}", serde_json::to_string(&allow).unwrap());
 
-        assert!(matches!(allow, Allowance::Allow(ROS2InterfacesRegex {
-            publishers: Some(_),
-            subscribers: None,
-            service_servers: Some(_),
-            service_clients: None,
-            action_servers: Some(_),
-            action_clients: Some(_),
-        })));
+        assert!(matches!(
+            allow,
+            Allowance::Allow(ROS2InterfacesRegex {
+                publishers: Some(_),
+                subscribers: None,
+                service_servers: Some(_),
+                service_clients: None,
+                action_servers: Some(_),
+                action_clients: Some(_),
+            })
+        ));
 
         assert!(allow.is_publisher_allowed("/tf"));
         assert!(allow.is_publisher_allowed("/x/y/pose"));
@@ -456,18 +459,22 @@ mod tests {
                     "action_servers": [".*/rotate_absolute"],
                     "action_clients": [ "" ]
                 }
-            }"#
-        ).unwrap();
+            }"#,
+        )
+        .unwrap();
         println!("deny: {}", serde_json::to_string(&allow).unwrap());
 
-        assert!(matches!(deny, Allowance::Deny(ROS2InterfacesRegex {
-            publishers: Some(_),
-            subscribers: None,
-            service_servers: Some(_),
-            service_clients: None,
-            action_servers: Some(_),
-            action_clients: Some(_),
-        })));
+        assert!(matches!(
+            deny,
+            Allowance::Deny(ROS2InterfacesRegex {
+                publishers: Some(_),
+                subscribers: None,
+                service_servers: Some(_),
+                service_clients: None,
+                action_servers: Some(_),
+                action_clients: Some(_),
+            })
+        ));
 
         assert!(!deny.is_publisher_allowed("/tf"));
         assert!(!deny.is_publisher_allowed("/x/y/pose"));
@@ -520,10 +527,8 @@ mod tests {
                     "action_servers": [""],
                     "action_clients": [ ".*/rotate_absolute" ]
                 },
-            }"#
+            }"#,
         );
         assert!(invalid.is_err());
-
-
     }
 }
