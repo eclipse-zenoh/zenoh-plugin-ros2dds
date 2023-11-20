@@ -55,7 +55,7 @@
       //// allow / deny: Specify the lists of ROS 2 interfaces that are allowed or denied to be routed over Zenoh.
       ////               Each element of the lists is a regular expression that must match the full interface name.
       ////               You cannot set both 'allow' and 'deny' in the same configuration.
-      ////               If neither 'allow' nor 'deny' are set, all interfaces are alowed.
+      ////               If neither 'allow' nor 'deny' are set, all interfaces are allowed.
       ////               Use 'allow' to allow only the specified interfaces. If an interface type is set to an empty list
       ////               or is not specified at all, it means that NO such interface is allowed.
       ////               Use 'deny' to allow all except the specified interfaces. If an interface type is set to an empty list
