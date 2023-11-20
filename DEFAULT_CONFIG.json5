@@ -52,10 +52,14 @@
       // shm_enabled: false,
 
       ////
-      //// allow: Sets of 1 or more regular expression per ROS interface kind matching the interface names that must be routed via zenoh.
-      ////        By default, all interfaces are allowed.
-      ////        If both 'allow' and 'deny' are set an interface will be allowed if it matches only the expression in 'allow' set.
-      ////
+      //// allow / deny: Specify the lists of ROS 2 interfaces that are allowed or denied to be routed over Zenoh.
+      ////               Each element of the lists is a regular expression that must match the full interface name.
+      ////               You cannot set both 'allow' and 'deny' in the same configuration.
+      ////               If neither 'allow' nor 'deny' are set, all interfaces are alowed.
+      ////               Use 'allow' to allow only the specified interfaces. If an interface type is set to an empty list
+      ////               or is not specified at all, it means that NO such interface is allowed.
+      ////               Use 'deny' to allow all except the specified interfaces. If an interface type is set to an empty list
+      ////               or is not specified at all, it means that ALL such interface are allowed.
       // allow: {
       //   publishers: [".*/laser_scan", "/tf", ".*/pose"],
       //   subscribers: [".*/cmd_vel"],
@@ -64,12 +68,6 @@
       //   action_servers: [".*/rotate_absolute"],
       //   action_clients: [],
       // },
-
-      ////
-      //// deny: Sets of 1 or more regular expression per ROS interface kind matching the interface names that must NOT be routed via zenoh.
-      ////       By default, no interface are denied.
-      ////       If both 'allow' and 'deny' are set an interface will be allowed if it matches only the expression in 'allow' set.
-      ////
       // deny: {
       //   publishers: ["/rosout", "/parameter_events"],
       //   subscribers: ["/rosout"],
@@ -80,7 +78,7 @@
       // },
 
       ////
-      //// pub_max_frequencies: Specifies a list of maximum frequency of publications routing over zenoh for a set of Publishers.
+      //// pub_max_frequencies: Specify a list of maximum frequency of publications routing over zenoh for a set of Publishers.
       ////                      The strings must have the format "<regex>=<float>":
       ////                      - "regex" is a regular expression matching a Publisher interface name
       ////                      - "float" is the maximum frequency in Hertz;
