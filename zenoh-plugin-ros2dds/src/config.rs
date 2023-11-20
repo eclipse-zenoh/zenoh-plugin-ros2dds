@@ -336,6 +336,10 @@ impl<'de> Visitor<'de> for RegexVisitor {
         while let Some(s) = seq.next_element::<String>()? {
             vec.push(format!("^{s}$"));
         }
+        if vec.is_empty() {
+            return Ok(None);
+        };
+
         let s: String = vec.join("|");
         Regex::new(&s)
             .map(Some)
@@ -376,4 +380,155 @@ where
         seq.serialize_element(&s)?;
     }
     seq.end()
+}
+
+mod tests {
+
+    #[test]
+    fn test_allowance() {
+        use super::*;
+
+        let allow: Allowance = serde_json::from_str(
+            r#"{
+                "allow": {
+                    "publishers": ["/tf", ".*/pose"],
+                    "subscribers": [],
+                    "service_servers": [".*"],
+                    "action_servers": [".*/rotate_absolute"],
+                    "action_clients": [ "" ]
+                }
+            }"#,
+        )
+        .unwrap();
+        println!("allow: {}", serde_json::to_string(&allow).unwrap());
+
+        assert!(matches!(
+            allow,
+            Allowance::Allow(ROS2InterfacesRegex {
+                publishers: Some(_),
+                subscribers: None,
+                service_servers: Some(_),
+                service_clients: None,
+                action_servers: Some(_),
+                action_clients: Some(_),
+            })
+        ));
+
+        assert!(allow.is_publisher_allowed("/tf"));
+        assert!(allow.is_publisher_allowed("/x/y/pose"));
+        assert!(!allow.is_publisher_allowed("/abc/rotate_absolute"));
+        assert!(!allow.is_publisher_allowed("/cmd_vel"));
+        assert!(!allow.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(!allow.is_subscriber_allowed("/tf"));
+        assert!(!allow.is_subscriber_allowed("/x/y/pose"));
+        assert!(!allow.is_publisher_allowed("/abc/rotate_absolute"));
+        assert!(!allow.is_subscriber_allowed("/cmd_vel"));
+        assert!(!allow.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(allow.is_service_srv_allowed("/tf"));
+        assert!(allow.is_service_srv_allowed("/x/y/pose"));
+        assert!(allow.is_service_srv_allowed("/abc/rotate_absolute"));
+        assert!(allow.is_service_srv_allowed("/cmd_vel"));
+        assert!(allow.is_service_srv_allowed("/some_pseudo_random_name"));
+
+        assert!(!allow.is_service_cli_allowed("/tf"));
+        assert!(!allow.is_service_cli_allowed("/x/y/pose"));
+        assert!(!allow.is_service_cli_allowed("/abc/rotate_absolute"));
+        assert!(!allow.is_service_cli_allowed("/cmd_vel"));
+        assert!(!allow.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(!allow.is_action_srv_allowed("/tf"));
+        assert!(!allow.is_action_srv_allowed("/x/y/pose"));
+        assert!(allow.is_action_srv_allowed("/abc/rotate_absolute"));
+        assert!(!allow.is_action_srv_allowed("/cmd_vel"));
+        assert!(!allow.is_action_srv_allowed("/some_pseudo_random_name"));
+
+        assert!(!allow.is_action_cli_allowed("/tf"));
+        assert!(!allow.is_action_cli_allowed("/x/y/pose"));
+        assert!(!allow.is_action_cli_allowed("/abc/rotate_absolute"));
+        assert!(!allow.is_action_cli_allowed("/cmd_vel"));
+        assert!(!allow.is_action_cli_allowed("/some_pseudo_random_name"));
+
+        let deny: Allowance = serde_json::from_str(
+            r#"{
+                "deny": {
+                    "publishers": ["/tf", ".*/pose"],
+                    "subscribers": [],
+                    "service_servers": [".*"],
+                    "action_servers": [".*/rotate_absolute"],
+                    "action_clients": [ "" ]
+                }
+            }"#,
+        )
+        .unwrap();
+        println!("deny: {}", serde_json::to_string(&allow).unwrap());
+
+        assert!(matches!(
+            deny,
+            Allowance::Deny(ROS2InterfacesRegex {
+                publishers: Some(_),
+                subscribers: None,
+                service_servers: Some(_),
+                service_clients: None,
+                action_servers: Some(_),
+                action_clients: Some(_),
+            })
+        ));
+
+        assert!(!deny.is_publisher_allowed("/tf"));
+        assert!(!deny.is_publisher_allowed("/x/y/pose"));
+        assert!(deny.is_publisher_allowed("/abc/rotate_absolute"));
+        assert!(deny.is_publisher_allowed("/cmd_vel"));
+        assert!(deny.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(deny.is_subscriber_allowed("/tf"));
+        assert!(deny.is_subscriber_allowed("/x/y/pose"));
+        assert!(deny.is_publisher_allowed("/abc/rotate_absolute"));
+        assert!(deny.is_subscriber_allowed("/cmd_vel"));
+        assert!(deny.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(!deny.is_service_srv_allowed("/tf"));
+        assert!(!deny.is_service_srv_allowed("/x/y/pose"));
+        assert!(!deny.is_service_srv_allowed("/abc/rotate_absolute"));
+        assert!(!deny.is_service_srv_allowed("/cmd_vel"));
+        assert!(!deny.is_service_srv_allowed("/some_pseudo_random_name"));
+
+        assert!(deny.is_service_cli_allowed("/tf"));
+        assert!(deny.is_service_cli_allowed("/x/y/pose"));
+        assert!(deny.is_service_cli_allowed("/abc/rotate_absolute"));
+        assert!(deny.is_service_cli_allowed("/cmd_vel"));
+        assert!(deny.is_service_cli_allowed("/some_pseudo_random_name"));
+
+        assert!(deny.is_action_srv_allowed("/tf"));
+        assert!(deny.is_action_srv_allowed("/x/y/pose"));
+        assert!(!deny.is_action_srv_allowed("/abc/rotate_absolute"));
+        assert!(deny.is_action_srv_allowed("/cmd_vel"));
+        assert!(deny.is_action_srv_allowed("/some_pseudo_random_name"));
+
+        assert!(deny.is_action_cli_allowed("/tf"));
+        assert!(deny.is_action_cli_allowed("/x/y/pose"));
+        assert!(deny.is_action_cli_allowed("/abc/rotate_absolute"));
+        assert!(deny.is_action_cli_allowed("/cmd_vel"));
+        assert!(deny.is_action_cli_allowed("/some_pseudo_random_name"));
+
+        let invalid = serde_json::from_str::<Allowance>(
+            r#"{
+                "allow": {
+                    "publishers": ["/tf", ".*/pose"],
+                    "subscribers": [],
+                    "service_servers": [".*"],
+                    "action_servers": [".*/rotate_absolute"],
+                    "action_clients": [ "" ]
+                },
+                "deny": {
+                    "subscribers": ["/tf", ".*/pose"],
+                    "service_clients": [".*"],
+                    "action_servers": [""],
+                    "action_clients": [ ".*/rotate_absolute" ]
+                },
+            }"#,
+        );
+        assert!(invalid.is_err());
+    }
 }
