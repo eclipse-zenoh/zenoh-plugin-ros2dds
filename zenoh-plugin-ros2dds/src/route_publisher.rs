@@ -224,7 +224,6 @@ impl RoutePublisher<'_> {
                                 &dds_reader,
                                 &ros2_name,
                                 &ros2_type,
-                                &zenoh_key_expr,
                                 &route_id,
                                 &context,
                                 keyless,
@@ -379,14 +378,11 @@ where
     s.serialize_u64(zpub.cache_size as u64)
 }
 
-// Return the read period if keyexpr matches one of the "pub_max_frequencies" option
-fn get_read_period(config: &Config, ke: &keyexpr) -> Option<Duration> {
-    for (re, freq) in &config.pub_max_frequencies {
-        if re.is_match(ke) {
-            return Some(Duration::from_secs_f32(1f32 / freq));
-        }
-    }
-    None
+// Return the read period if name matches one of the "pub_max_frequencies" option
+fn get_read_period(config: &Config, ros2_name: &str) -> Option<Duration> {
+    config
+        .get_pub_max_frequencies(ros2_name)
+        .map(|f| Duration::from_secs_f32(1f32 / f))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -394,7 +390,6 @@ fn activate_dds_reader(
     dds_reader: &Arc<AtomicDDSEntity>,
     ros2_name: &str,
     ros2_type: &str,
-    zenoh_key_expr: &OwnedKeyExpr,
     route_id: &str,
     context: &Context,
     keyless: bool,
@@ -404,7 +399,7 @@ fn activate_dds_reader(
 ) -> Result<(), String> {
     let topic_name: String = format!("rt{}", ros2_name);
     let type_name = ros2_message_type_to_dds_type(ros2_type);
-    let read_period = get_read_period(&context.config, zenoh_key_expr);
+    let read_period = get_read_period(&context.config, ros2_name);
 
     // create matching DDS Reader that forwards data coming from DDS to Zenoh
     let reader = create_dds_reader(

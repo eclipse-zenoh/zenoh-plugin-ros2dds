@@ -395,8 +395,8 @@ impl<'a> ROS2PluginRuntime<'a> {
                                     // New remote bridge detected
                                     (None, SampleKind::Put) => {
                                         log::info!("New ROS 2 bridge detected: {}", plugin_id);
-                                        // make all routes for a TRANSIENT_LOCAL Subscriber to query historical publications from this new plugin
-                                        routes_mgr.query_historical_all_publications(plugin_id).await;
+                                        // make each routes for a TRANSIENT_LOCAL Subscriber to query historical publications from this new plugin
+                                        routes_mgr.query_all_historical_publications(plugin_id).await;
                                     }
                                     // New remote bridge left
                                     (None, SampleKind::Delete) => log::info!("Remote ROS 2 bridge left: {}", plugin_id),

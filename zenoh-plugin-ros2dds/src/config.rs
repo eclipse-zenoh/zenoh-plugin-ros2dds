@@ -23,8 +23,11 @@ pub const DEFAULT_NODENAME: &str = "zenoh_bridge_ros2dds";
 pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
-pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
+
+lazy_static::lazy_static!(
+    pub static ref DEFAULT_QUERIES_TIMEOUT: Duration = Duration::from_secs_f32(5.0);
+);
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -43,8 +46,8 @@ pub struct Config {
     pub allowance: Option<Allowance>,
     #[serde(
         default,
-        deserialize_with = "deserialize_max_frequencies",
-        serialize_with = "serialize_max_frequencies"
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
     )]
     pub pub_max_frequencies: Vec<(Regex, f32)>,
     #[serde(default)]
@@ -52,17 +55,131 @@ pub struct Config {
     pub shm_enabled: bool,
     #[serde(default = "default_transient_local_cache_multiplier")]
     pub transient_local_cache_multiplier: usize,
-    #[serde(
-        default = "default_queries_timeout",
-        deserialize_with = "deserialize_duration"
-    )]
-    pub queries_timeout: Duration,
+    #[serde(default)]
+    pub queries_timeout: Option<QueriesTimeouts>,
     #[serde(default = "default_reliable_routes_blocking")]
     pub reliable_routes_blocking: bool,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
     __path__: Vec<String>,
+}
+
+impl Config {
+    pub fn get_pub_max_frequencies(&self, ros2_name: &str) -> Option<f32> {
+        for (re, freq) in &self.pub_max_frequencies {
+            if re.is_match(ros2_name) {
+                return Some(*freq);
+            }
+        }
+        None
+    }
+
+    pub fn get_queries_timeout_tl_sub(&self, ros2_name: &str) -> Duration {
+        if let Some(qt) = &self.queries_timeout {
+            for (re, secs) in &qt.transient_local_subscribers {
+                if re.is_match(ros2_name) {
+                    return Duration::from_secs_f32(*secs);
+                }
+            }
+        }
+        *DEFAULT_QUERIES_TIMEOUT
+    }
+
+    pub fn get_queries_timeout_service(&self, ros2_name: &str) -> Duration {
+        if let Some(qt) = &self.queries_timeout {
+            for (re, secs) in &qt.services {
+                if re.is_match(ros2_name) {
+                    return Duration::from_secs_f32(*secs);
+                }
+            }
+        }
+        *DEFAULT_QUERIES_TIMEOUT
+    }
+
+    pub fn get_queries_timeout_action_send_goal(&self, ros2_name: &str) -> Duration {
+        if let Some(QueriesTimeouts {
+            actions: Some(at), ..
+        }) = &self.queries_timeout
+        {
+            for (re, secs) in &at.send_goal {
+                if re.is_match(ros2_name) {
+                    return Duration::from_secs_f32(*secs);
+                }
+            }
+        }
+        *DEFAULT_QUERIES_TIMEOUT
+    }
+
+    pub fn get_queries_timeout_action_cancel_goal(&self, ros2_name: &str) -> Duration {
+        if let Some(QueriesTimeouts {
+            actions: Some(at), ..
+        }) = &self.queries_timeout
+        {
+            for (re, secs) in &at.cancel_goal {
+                if re.is_match(ros2_name) {
+                    return Duration::from_secs_f32(*secs);
+                }
+            }
+        }
+        *DEFAULT_QUERIES_TIMEOUT
+    }
+
+    pub fn get_queries_timeout_action_get_result(&self, ros2_name: &str) -> Duration {
+        if let Some(QueriesTimeouts {
+            actions: Some(at), ..
+        }) = &self.queries_timeout
+        {
+            for (re, secs) in &at.get_result {
+                if re.is_match(ros2_name) {
+                    return Duration::from_secs_f32(*secs);
+                }
+            }
+        }
+        *DEFAULT_QUERIES_TIMEOUT
+    }
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QueriesTimeouts {
+    #[serde(
+        default,
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
+    )]
+    transient_local_subscribers: Vec<(Regex, f32)>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
+    )]
+    services: Vec<(Regex, f32)>,
+    #[serde(default)]
+    actions: Option<ActionsTimeouts>,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionsTimeouts {
+    #[serde(
+        default,
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
+    )]
+    send_goal: Vec<(Regex, f32)>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
+    )]
+    cancel_goal: Vec<(Regex, f32)>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_vec_regex_f32",
+        serialize_with = "serialize_vec_regex_f32"
+    )]
+    get_result: Vec<(Regex, f32)>,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -279,18 +396,6 @@ fn default_transient_local_cache_multiplier() -> usize {
     DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER
 }
 
-fn default_queries_timeout() -> Duration {
-    Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
-}
-
-fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let seconds: f32 = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::from_secs_f32(seconds))
-}
-
 fn serialize_regex<S>(r: &Option<Regex>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -347,30 +452,44 @@ impl<'de> Visitor<'de> for RegexVisitor {
     }
 }
 
-fn deserialize_max_frequencies<'de, D>(deserializer: D) -> Result<Vec<(Regex, f32)>, D::Error>
+fn deserialize_vec_regex_f32<'de, D>(deserializer: D) -> Result<Vec<(Regex, f32)>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let strs: Vec<String> = Deserialize::deserialize(deserializer)?;
-    let mut result: Vec<(Regex, f32)> = Vec::with_capacity(strs.len());
-    for s in strs {
-        let i = s
-            .find('=')
-            .ok_or_else(|| de::Error::custom(format!("Invalid 'max_frequency': {s}")))?;
-        let regex = Regex::new(&s[0..i]).map_err(|e| {
-            de::Error::custom(format!("Invalid regex for 'max_frequency': '{s}': {e}"))
-        })?;
-        let frequency: f32 = s[i + 1..].parse().map_err(|e| {
-            de::Error::custom(format!(
-                "Invalid float value for 'max_frequency': '{s}': {e}"
-            ))
-        })?;
-        result.push((regex, frequency));
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum AcceptedValues {
+        Float(f32),
+        List(Vec<String>),
     }
-    Ok(result)
+
+    let values: AcceptedValues = Deserialize::deserialize(deserializer).unwrap();
+    match values {
+        AcceptedValues::Float(f) => {
+            // same float for any string (i.e. matching ".*")
+            Ok(vec![(Regex::new(".*").unwrap(), f)])
+        }
+        AcceptedValues::List(strs) => {
+            let mut result: Vec<(Regex, f32)> = Vec::with_capacity(strs.len());
+            for s in strs {
+                let i = s.find('=').ok_or_else(|| {
+                    de::Error::custom(format!(
+                        r#"Invalid list of "<regex>=<float>" elements": {s}"#
+                    ))
+                })?;
+                let regex = Regex::new(&s[0..i])
+                    .map_err(|e| de::Error::custom(format!("Invalid regex in '{s}': {e}")))?;
+                let frequency: f32 = s[i + 1..]
+                    .parse()
+                    .map_err(|e| de::Error::custom(format!("Invalid float value in '{s}': {e}")))?;
+                result.push((regex, frequency));
+            }
+            Ok(result)
+        }
+    }
 }
 
-fn serialize_max_frequencies<S>(v: &Vec<(Regex, f32)>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_vec_regex_f32<S>(v: &Vec<(Regex, f32)>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -380,6 +499,13 @@ where
         seq.serialize_element(&s)?;
     }
     seq.end()
+}
+
+pub fn serialize_duration_as_f32<S>(d: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_f32(d.as_secs_f32())
 }
 
 mod tests {
