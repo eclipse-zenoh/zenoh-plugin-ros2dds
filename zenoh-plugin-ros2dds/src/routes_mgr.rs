@@ -525,11 +525,9 @@ impl<'a> RoutesMgr<'a> {
         Ok(())
     }
 
-    pub async fn query_historical_all_publications(&mut self, plugin_id: &keyexpr) {
+    pub async fn query_all_historical_publications(&mut self, plugin_id: &keyexpr) {
         for route in self.routes_subscribers.values_mut() {
-            route
-                .query_historical_publications(plugin_id, self.context.config.queries_timeout)
-                .await;
+            route.query_historical_publications(plugin_id).await;
         }
     }
 
@@ -652,12 +650,15 @@ impl<'a> RoutesMgr<'a> {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
                 let zenoh_key_expr = ros2_name_to_key_expr(&ros2_name, &self.context.config);
+                // configured queries timeout for services calls
+                let queries_timeout = self.context.config.get_queries_timeout_service(&ros2_name);
                 // create route
                 let route = RouteServiceCli::create(
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.clone(),
                     &None,
+                    queries_timeout,
                     self.context.clone(),
                 )
                 .await?;

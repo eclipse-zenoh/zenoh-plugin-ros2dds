@@ -75,29 +75,44 @@ impl RouteActionCli<'_> {
         zenoh_key_expr_prefix: OwnedKeyExpr,
         context: Context,
     ) -> Result<RouteActionCli<'a>, String> {
+        // configured queries timeout for calls to send_goal service
+        let send_goal_queries_timeout = context
+            .config
+            .get_queries_timeout_action_send_goal(&ros2_name);
         let route_send_goal = RouteServiceCli::create(
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL,
             &None,
+            send_goal_queries_timeout,
             context.clone(),
         )
         .await?;
 
+        // configured queries timeout for calls to cancel_goal service
+        let cancel_goal_queries_timeout = context
+            .config
+            .get_queries_timeout_action_cancel_goal(&ros2_name);
         let route_cancel_goal = RouteServiceCli::create(
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_CANCEL_GOAL),
             ROS2_ACTION_CANCEL_GOAL_SRV_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL,
             &None,
+            cancel_goal_queries_timeout,
             context.clone(),
         )
         .await?;
 
+        // configured queries timeout for calls to get_result service
+        let get_result_queries_timeout = context
+            .config
+            .get_queries_timeout_action_get_result(&ros2_name);
         let route_get_result = RouteServiceCli::create(
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_GET_RESULT),
             format!("{ros2_type}_GetResult"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT,
             &None,
+            get_result_queries_timeout,
             context.clone(),
         )
         .await?;

@@ -15,6 +15,7 @@
 use cyclors::dds_entity_t;
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{collections::HashSet, fmt};
 use zenoh::buffers::{ZBuf, ZSlice};
 use zenoh::liveliness::LivelinessToken;
@@ -49,6 +50,8 @@ pub struct RouteServiceCli<'a> {
     // the context
     #[serde(skip)]
     context: Context,
+    #[serde(serialize_with = "crate::config::serialize_duration_as_f32")]
+    queries_timeout: Duration,
     is_active: bool,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
     #[serde(serialize_with = "serialize_entity_guid")]
@@ -104,6 +107,7 @@ impl RouteServiceCli<'_> {
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
+        queries_timeout: Duration,
         context: Context,
     ) -> Result<RouteServiceCli<'a>, String> {
         log::debug!(
@@ -154,7 +158,14 @@ impl RouteServiceCli<'_> {
             qos,
             None,
             move |sample| {
-                do_route_request(&route_id, sample, &zenoh_key_expr2, &zsession2, rep_writer);
+                do_route_request(
+                    &route_id,
+                    sample,
+                    &zenoh_key_expr2,
+                    &zsession2,
+                    queries_timeout,
+                    rep_writer,
+                );
             },
         )?;
         // add reader's GID in ros_discovery_info message
@@ -167,6 +178,7 @@ impl RouteServiceCli<'_> {
             ros2_type,
             zenoh_key_expr,
             context,
+            queries_timeout,
             is_active: false,
             rep_writer,
             req_reader,
@@ -268,6 +280,7 @@ fn do_route_request(
     sample: &DDSRawSample,
     zenoh_key_expr: &OwnedKeyExpr,
     zsession: &Arc<Session>,
+    queries_timeout: Duration,
     rep_writer: dds_entity_t,
 ) {
     // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
@@ -303,6 +316,7 @@ fn do_route_request(
     if let Err(e) = zsession
         .get(zenoh_key_expr)
         .with_value(zenoh_req_buf)
+        .timeout(queries_timeout)
         .callback(move |reply| do_route_reply(route_id2.clone(), reply, request_id, rep_writer))
         .res_sync()
     {

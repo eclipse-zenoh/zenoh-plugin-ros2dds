@@ -62,6 +62,8 @@ pub struct RouteSubscriber<'a> {
     dds_writer: dds_entity_t,
     // if the Writer is TRANSIENT_LOCAL
     transient_local: bool,
+    // queries timeout for historical publication (if TRANSIENT_LOCAL)
+    queries_timeout: Duration,
     // if the topic is keyless
     #[serde(skip)]
     keyless: bool,
@@ -113,6 +115,7 @@ impl RouteSubscriber<'_> {
 
         let topic_name = format!("rt{ros2_name}");
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
+        let queries_timeout = context.config.get_queries_timeout_tl_sub(&ros2_name);
 
         let dds_writer = create_dds_writer(
             context.participant,
@@ -134,6 +137,7 @@ impl RouteSubscriber<'_> {
             zenoh_subscriber: None,
             dds_writer,
             transient_local,
+            queries_timeout,
             keyless,
             liveliness_token: None,
             remote_routes: HashSet::new(),
@@ -165,7 +169,7 @@ impl RouteSubscriber<'_> {
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
                 .querying()
-                .query_timeout(self.context.config.queries_timeout)
+                .query_timeout(self.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
                 .res()
@@ -223,11 +227,7 @@ impl RouteSubscriber<'_> {
 
     /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub async fn query_historical_publications<'a>(
-        &mut self,
-        plugin_id: &keyexpr,
-        query_timeout: Duration,
-    ) {
+    pub async fn query_historical_publications<'a>(&mut self, plugin_id: &keyexpr) {
         if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<plugin_id>/<routing_keyexpr>"
             let query_selector: Selector =
@@ -240,6 +240,7 @@ impl RouteSubscriber<'_> {
                 .fetch({
                     let session = &self.context.zsession;
                     let query_selector = query_selector.clone();
+                    let queries_timeout = self.queries_timeout;
                     move |cb| {
                         use zenoh_core::SyncResolve;
                         session
@@ -247,7 +248,7 @@ impl RouteSubscriber<'_> {
                             .target(QueryTarget::All)
                             .consolidation(ConsolidationMode::None)
                             .accept_replies(ReplyKeyExpr::Any)
-                            .timeout(query_timeout)
+                            .timeout(queries_timeout)
                             .callback(cb)
                             .res_sync()
                     }
