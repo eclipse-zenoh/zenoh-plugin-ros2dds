@@ -13,16 +13,11 @@
 #
 [workspace]
 resolver = "2"
-members = [
-  "zenoh-bridge-ros2dds",
-  "zenoh-plugin-ros2dds",
-]
+members = ["zenoh-bridge-ros2dds", "zenoh-plugin-ros2dds"]
 
 [workspace.package]
 version = "0.1.0-dev"
-authors = [
-    "Julien Enoch <julien@enoch.fr>",
-]
+authors = ["Julien Enoch <julien@enoch.fr>"]
 edition = "2021"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
 homepage = "http://zenoh.io"
@@ -48,13 +43,17 @@ regex = "1.7.1"
 rustc_version = "0.4"
 serde = "1.0.154"
 serde_json = "1.0.94"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state", features = ["unstable"] }
-zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state" }
-zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state", features = ["unstable"] }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state", default-features = false }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state", default-features = false }
-zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "matching_state", default-features = false }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [
+  "unstable",
+] }
+zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
+zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
+zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [
+  "unstable",
+] }
+zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
+zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
+zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
 
 [profile.release]
 debug = false
