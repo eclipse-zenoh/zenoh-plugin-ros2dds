@@ -30,8 +30,11 @@ While a Zenoh bridge for DDS already [exists](https://github.com/eclipse-zenoh/z
 ## Plugin or bridge ?
 
 This software is built in 2 ways to choose from:
- - `zenoh-plugin-dds`: a Zenoh plugin - a dynamic library that can be loaded by a Zenoh router
- - `zenoh-bridge-dds`: a standalone executable
+ - `zenoh-plugin-ros2dds`: a Zenoh plugin - a dynamic library that can be loaded by a Zenoh router
+ - `zenoh-bridge-ros2dds`: a standalone executable
+
+The features and configurations descibed in this document applies to both.
+Meaning the *"plugin"* and *"bridge"*  words are interchangeables in the rest of this document.
 
 ## How to install it
 
@@ -39,9 +42,10 @@ No version has been released yet. Therefore only nightly built packages are avai
 
 The ["Release" action](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/actions/workflows/release.yml) builds packages for most most of OSes. You can download those from the "Artifacts" section in each build.  
 Just download the package for your OS, unzip it. You'll get 3 zips: 1 for the plugin, 1 for the plugin as debian package and 1 for the bridge.
-Unzip the `zenoh-bridge-dds-<platform>.zip` file, and you can run `./zenoh-bridge-dds`
+Unzip the `zenoh-bridge-ros2dds-<platform>.zip` file, and you can run `./zenoh-bridge-ros2dds`
 
-A nightly build Docker image is also available. Pull it with this command: `docker pull eclipse/zenoh-bridge-ros2dds:nightly`
+The **`zenoh-bridge-ros2dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-ros2dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
+  - `docker pull eclipse/zenoh-bridge-ros2dds:nightly` for the main branch version (nightly build)
 
 
 ## How to build it
@@ -87,7 +91,25 @@ $ cargo build --release -p zenoh-bridge-ros2dds
 ```
 The **`zenoh-bridge-ros2dds`** binary will be generated in the `target/release` sub-directory.
 
+## ROS 2 package
+You can also build `zenoh-bridge-ros2dds` as a ROS package running:
+```bash
+rosdep install --from-paths . --ignore-src -r -y
+colcon build --packages-select zenoh_bridge_ros2dds --cmake-args -DCMAKE_BUILD_TYPE=Release
+```
+The `rosdep` command will automatically install *Rust* and *clang* as build dependencies.
 
+If you want to cross-compile the package on x86 device for any target, you can use the following command:
+```bash
+rosdep install --from-paths . --ignore-src -r -y
+colcon build --packages-select zenoh_bridge_ros2dds --cmake-args -DCMAKE_BUILD_TYPE=Release  --cmake-args -DCROSS_ARCH=<target>
+```
+where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architechture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
+
+The cross-compilation uses `zig` as a linker. You can install it with instructions in [here](https://ziglang.org/download/). Also, the `zigbuild` package is required to be installed on the target device. You can install it with instructions in [here](https://github.com/rust-cross/cargo-zigbuild#installation).
+
+
+-------------------------------
 # Usage
 
 A typical usage is to run 1 bridge in a robot, and 1 bridge in another host monitoring and operating the robot.
@@ -118,15 +140,14 @@ To make sure of this, you can either:
   ```
 
 On the robot, run:
-  - `zenoh-bridge-dds -l tcp/0.0.0.0:7447`
+  - `zenoh-bridge-ros2dds -l tcp/0.0.0.0:7447`
 
 On the operating host run:
-  - `zenoh-bridge-dds -e tcp/<robot-ip>:7447`
+  - `zenoh-bridge-ros2dds -e tcp/<robot-ip>:7447`
   - check if the robot's ROS interfaces are accessible via:
     - `ros2 topic list`
     - `ros2 service list`
     - `ros2 action list`
-
 
 Other interconnectivity between the 2 bridges can be configured (e.g. automatic discovery via UDP multicast, interconnection via 1 or more Zenoh routers...).
 See the [Zenoh documentation](https://zenoh.io/docs/getting-started/deployment/) to learn more about the possibile deployments allowed by Zenoh.
@@ -138,8 +159,8 @@ See the [Zenoh documentation](https://zenoh.io/docs/getting-started/deployment/)
 
 The `"ros2dds"` part of this same configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zenoh-plugin_dds`) at startup and apply its configuration.
 
-`zenoh-bridge-dds` also allows some of those configuration values to be configured via command line arguments. Run this command to see which ones:  
-- `zenoh-bridge-dds -h`
+`zenoh-bridge-ros2dds` also allows some of those configuration values to be configured via command line arguments. Run this command to see which ones:  
+- `zenoh-bridge-ros2dds -h`
 
 The command line arguments overwrite the equivalent keys configured in a configuration file.
 
