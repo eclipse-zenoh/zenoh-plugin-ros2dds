@@ -1,4 +1,5 @@
 use crate::dds_types::DDSRawSample;
+use crate::ros2_utils::ros_distro_is_less_than;
 use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 //
 // Copyright (c) 2022 ZettaScale Technology
@@ -284,8 +285,8 @@ impl RosDiscoveryInfoMgr {
                         Ok(i) => Some(i),
                         Err(e) => {
                             log::warn!(
-                                "Error receiving ParticipantEntitiesInfo on ros_discovery_info: {}",
-                                e
+                                "Error receiving ParticipantEntitiesInfo on ros_discovery_info: {} - payload: {}",
+                                e, sample.hex_encode()
                             );
                             None
                         }
@@ -471,11 +472,11 @@ fn serialize_ros_gid<S>(gid: &Gid, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    if serializer.is_human_readable() {
+    if serializer.is_human_readable() || !ros_distro_is_less_than("iron") {
         gid.serialize(serializer)
     } else {
-        // Data size for gid in ROS messages in 24 bytes, while a DDS gid is 16 bytes.
-        // Rely on "impl Serialize for Gid" for the 16 bytes, and add the last 8 bytes.
+        // #21: prior to iron the Gid type in ROS messages was 'char[24] data'.
+        // Then 8 bytes shall be added since here it's defined as 16 bytes (as per DDS spec)
         Serialize::serialize(&(gid, &BYTES_8), serializer)
     }
 }
@@ -484,12 +485,12 @@ fn deserialize_ros_gid<'de, D>(deserializer: D) -> Result<Gid, D::Error>
 where
     D: Deserializer<'de>,
 {
-    if deserializer.is_human_readable() {
+    if deserializer.is_human_readable() || !ros_distro_is_less_than("iron") {
         // Rely on impl<'de> Deserialize<'de> for Gid
         Deserialize::deserialize(deserializer)
     } else {
-        // Data size for gid in ROS messages in 24 bytes, while a DDS gid is 16 bytes.
-        // Rely on "impl<'de> Deserialize<'de> for Gid" for the 16 bytes, and ignore the last 8 bytes
+        // #21: prior to iron the Gid type in ROS messages was 'char[24] data'.
+        // then 8 bytes shall be removed since here it's defined as 16 bytes (as per DDS spec)
         let (result, _ignore): (Gid, [u8; 8]) = Deserialize::deserialize(deserializer)?;
         Ok(result)
     }
@@ -502,11 +503,11 @@ where
     let is_human_readable = serializer.is_human_readable();
     let mut seq: <S as Serializer>::SerializeSeq = serializer.serialize_seq(Some(gids.len()))?;
     for gid in gids {
-        if is_human_readable {
+        if is_human_readable || !ros_distro_is_less_than("iron") {
             seq.serialize_element(gid)?;
         } else {
-            // Data size for gid in ROS messages in 24 bytes, while a DDS gid is 16 bytes.
-            // Rely on "impl Serialize for Gid" for the 16 bytes, and add the last 8 bytes.
+            // #21: prior to iron the Gid type in ROS messages was 'char[24] data'.
+            // Then 8 bytes shall be added since here it's defined as 16 bytes (as per DDS spec)
             seq.serialize_element(&(gid, &BYTES_8))?;
         }
     }
@@ -517,16 +518,16 @@ fn deserialize_ros_gids<'de, D>(deserializer: D) -> Result<HashSet<Gid>, D::Erro
 where
     D: Deserializer<'de>,
 {
-    if deserializer.is_human_readable() {
+    if deserializer.is_human_readable() || !ros_distro_is_less_than("iron") {
         Deserialize::deserialize(deserializer)
     } else {
-        // Data size for gid in ROS messages in 24 bytes, while a DDS gid is 16 bytes.
-        // Deserialize as Vec<[u8; 24]>, consider 16 bytes only for each
+        // #21: prior to iron the Gid type in ROS messages was 'char[24] data'.
+        // then 8 bytes shall be removed since here it's defined as 16 bytes (as per DDS spec)
         let ros_gids: Vec<[u8; 24]> = Deserialize::deserialize(deserializer)?;
-        // NOTE: a DDS gid is 16 bytes only. ignore the last 8 bytes
         Ok(ros_gids
             .iter()
             .map(|ros_gid| {
+                // Ignore the last 8 bytes
                 TryInto::<&[u8; 16]>::try_into(&ros_gid[..16])
                     .unwrap()
                     .into()
