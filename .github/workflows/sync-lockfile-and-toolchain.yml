@@ -1,0 +1,14 @@
+name: sync-lockfile-and-toolchain
+run-name: Sync lockfile and toolchain with Zenoh's
+on:
+  schedule:
+    - cron: "0 0 * * *" # At the end of every day
+  workflow_dispatch:
+jobs:
+  sync-lockfile-and-toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync lockfile and toolchain
+        uses: ZettaScaleLabs/zenoh-sync-lockfile-and-toolchain@main
+        with:
+          token: ${{ secrets.PAT }}
