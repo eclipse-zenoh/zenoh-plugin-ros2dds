@@ -12,7 +12,10 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    env::VarError,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use cyclors::{
     dds_entity_t,
@@ -29,7 +32,12 @@ use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
 pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
 
+// ROS_DISTRO value assumed if the environment variable is not set
+pub const ASSUMED_ROS_DISTRO: &str = "iron";
+
 lazy_static::lazy_static!(
+    pub static ref ROS_DISTRO: String = get_ros_distro();
+
     pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr = ke_for_sure!("_action/send_goal");
     pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr = ke_for_sure!("_action/cancel_goal");
     pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr = ke_for_sure!("_action/get_result");
@@ -40,6 +48,38 @@ lazy_static::lazy_static!(
     pub static ref QOS_DEFAULT_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
     pub static ref QOS_DEFAULT_ACTION_STATUS: Qos = ros2_action_status_default_qos();
 );
+
+pub fn get_ros_distro() -> String {
+    match std::env::var("ROS_DISTRO") {
+        Ok(s) if !s.is_empty() => {
+            log::debug!("ROS_DISTRO detected: {s}");
+            s
+        }
+        Ok(_) | Err(VarError::NotPresent) => {
+            log::warn!(
+                "ROS_DISTRO environment variable is not set. \
+                Assuming '{ASSUMED_ROS_DISTRO}', but this could lead to errors on 'ros_discovery_info' \
+                (see https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/21)"
+            );
+            ASSUMED_ROS_DISTRO.to_string()
+        }
+        Err(VarError::NotUnicode(s)) => {
+            log::warn!(
+                "ROS_DISTRO environment variable is invalid ('{s:?}'). \
+                Assuming '{ASSUMED_ROS_DISTRO}', but this could lead to errors on 'ros_discovery_info' \
+                (see https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/21)"
+            );
+            ASSUMED_ROS_DISTRO.to_string()
+        }
+    }
+}
+
+/// Check if the ROS_DISTRO is older than `distro`, comparing the 1st char.
+/// None is returned if ROS_DISTRO is not set.
+pub fn ros_distro_is_less_than(distro: &str) -> bool {
+    assert!(!distro.is_empty());
+    ROS_DISTRO.chars().next() < distro.chars().next()
+}
 
 /// Convert ROS2 interface name to a Zenoh key expression,
 /// prefixing with "namespace" if configured
