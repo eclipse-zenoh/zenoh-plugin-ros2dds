@@ -84,6 +84,7 @@ impl Drop for RouteSubscriber<'_> {
             Err(e) => log::warn!("{self}: {e}"),
         }
 
+        log::debug!("{self}: delete Writer");
         if let Err(e) = delete_dds_entity(self.dds_writer) {
             log::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
@@ -117,6 +118,7 @@ impl RouteSubscriber<'_> {
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
         let queries_timeout = context.config.get_queries_timeout_tl_sub(&ros2_name);
 
+        log::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): create Writer with {writer_qos:?}");
         let dds_writer = create_dds_writer(
             context.participant,
             topic_name,

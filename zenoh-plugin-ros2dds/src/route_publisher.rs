@@ -219,6 +219,7 @@ impl RoutePublisher<'_> {
                     let publisher = publisher.clone();
 
                     move |status| {
+                        log::debug!("{route_id} MatchingStatus changed: {status:?}");
                         if status.matching_subscribers() {
                             if let Err(e) = activate_dds_reader(
                                 &dds_reader,
@@ -397,6 +398,7 @@ fn activate_dds_reader(
     type_info: &Option<Arc<TypeInfo>>,
     publisher: &Arc<Publisher<'static>>,
 ) -> Result<(), String> {
+    log::debug!("{route_id}: create Reader with {reader_qos:?}");
     let topic_name: String = format!("rt{}", ros2_name);
     let type_name = ros2_message_type_to_dds_type(ros2_type);
     let read_period = get_read_period(&context.config, ros2_name);
@@ -436,6 +438,7 @@ fn deactivate_dds_reader(
     route_id: &str,
     ros_discovery_mgr: &Arc<RosDiscoveryInfoMgr>,
 ) {
+    log::debug!("{route_id}: delete Reader");
     let reader = dds_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
     if reader != DDS_ENTITY_NULL {
         // remove reader's GID from ros_discovery_info message
