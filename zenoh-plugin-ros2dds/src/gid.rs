@@ -129,20 +129,17 @@ mod tests {
             0x01, 0xc1,
         ];
 
-        assert_eq!(Gid::from(bytes1.clone()).deref(), &bytes1);
+        assert_eq!(Gid::from(bytes1).deref(), &bytes1);
         assert_eq!(Gid::from(&bytes1).deref(), &bytes1);
         assert_eq!(Gid::from_str(str1).unwrap().deref(), &bytes1);
-        assert_eq!(Gid::from(bytes1.clone()).to_string(), str1);
+        assert_eq!(Gid::from(bytes1).to_string(), str1);
         assert_eq!(Gid::from(&bytes1).to_string(), str1);
         assert_eq!(Gid::from_str(str1).unwrap().to_string(), str1);
 
         let str2: &str = "01106c8324a780d1b9e62c8f00000e04";
         assert!(Gid::from_str(str2).unwrap() > Gid::from_str(str1).unwrap());
 
-        assert!(matches!(
-            Gid::from_str("01106c8324a780d1b9e62c8f00000e04aaaaaaaa"),
-            Err(_)
-        ));
+        assert!(Gid::from_str("01106c8324a780d1b9e62c8f00000e04aaaaaaaa").is_err());
     }
 
     #[test]
