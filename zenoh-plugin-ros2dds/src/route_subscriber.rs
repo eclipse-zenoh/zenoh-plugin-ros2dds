@@ -108,7 +108,7 @@ impl RouteSubscriber<'_> {
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
         keyless: bool,
-        writer_qos: Qos,
+        mut writer_qos: Qos,
         context: Context,
     ) -> Result<RouteSubscriber<'a>, String> {
         let transient_local = is_transient_local(&writer_qos);
@@ -117,6 +117,17 @@ impl RouteSubscriber<'_> {
         let topic_name = format!("rt{ros2_name}");
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
         let queries_timeout = context.config.get_queries_timeout_tl_sub(&ros2_name);
+
+        // force RELIABLE QoS for Writers (#23)
+        if let Some(cyclors::qos::Reliability {
+            kind: cyclors::qos::ReliabilityKind::BEST_EFFORT,
+            ..
+        }) = &mut writer_qos.reliability
+        {
+            // Per DDS specification, the default Reliability value for DataWriters is RELIABLE with max_blocking_time=100ms
+            // Thus just use default value.
+            writer_qos.reliability = None;
+        }
 
         log::debug!(
             "Route Subscriber ({zenoh_key_expr} -> {ros2_name}): create Writer with {writer_qos:?}"
