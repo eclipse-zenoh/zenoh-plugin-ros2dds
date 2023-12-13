@@ -341,23 +341,25 @@ impl RoutePublisher<'_> {
 
     #[inline]
     pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
-        self.local_nodes.insert(node);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, announce the route
-        if self.local_nodes.len() == 1 {
-            if let Err(e) = self.announce_route(discovered_writer_qos).await {
-                log::error!("{self} announcement failed: {e}");
+        if self.local_nodes.insert(node) {
+            log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            // if 1st local node added, announce the route
+            if self.local_nodes.len() == 1 {
+                if let Err(e) = self.announce_route(discovered_writer_qos).await {
+                    log::error!("{self} announcement failed: {e}");
+                }
             }
         }
     }
 
     #[inline]
     pub fn remove_local_node(&mut self, node: &str) {
-        self.local_nodes.remove(node);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, retire the route
-        if self.local_nodes.is_empty() {
-            self.retire_route();
+        if self.local_nodes.remove(node) {
+            log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            // if last local node removed, retire the route
+            if self.local_nodes.is_empty() {
+                self.retire_route();
+            }
         }
     }
 

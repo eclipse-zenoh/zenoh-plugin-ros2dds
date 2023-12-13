@@ -333,11 +333,15 @@ impl DiscoveredEntities {
         // For each declared Reader
         for rgid in &ros_node_info.reader_gid_seq {
             if let Some(entity) = readers.get(rgid) {
-                log::debug!(
-                    "ROS Node {ros_node_info} declares Reader on {}",
+                log::trace!(
+                    "ROS Node {ros_node_info} declares a Reader on {}",
                     entity.topic_name
                 );
                 if let Some(e) = node.update_with_reader(entity) {
+                    log::debug!(
+                        "ROS Node {ros_node_info} declares a new Reader on {}",
+                        entity.topic_name
+                    );
                     events.push(e)
                 };
             } else {
@@ -350,11 +354,15 @@ impl DiscoveredEntities {
         // For each declared Writer
         for wgid in &ros_node_info.writer_gid_seq {
             if let Some(entity) = writers.get(wgid) {
-                log::debug!(
+                log::trace!(
                     "ROS Node {ros_node_info} declares Writer on {}",
                     entity.topic_name
                 );
                 if let Some(e) = node.update_with_writer(entity) {
+                    log::debug!(
+                        "ROS Node {ros_node_info} declares a new Writer on {}",
+                        entity.topic_name
+                    );
                     events.push(e)
                 };
             } else {
