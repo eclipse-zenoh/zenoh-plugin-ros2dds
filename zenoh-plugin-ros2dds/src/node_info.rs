@@ -14,7 +14,7 @@
 use serde::ser::SerializeSeq;
 use serde::{Serialize, Serializer};
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use zenoh::prelude::{keyexpr, KeyExpr};
 
@@ -29,14 +29,24 @@ pub struct MsgPub {
     pub name: String,
     #[serde(rename = "type")]
     pub typ: String,
+    // List of DDS Writers declared by 1 Node for a same topic
+    // Issue #27: usually only 1 Writer, but may happen that 1 Node declares several Publishers
+    //            on the same topic. In this case `ros2 node info <node_id>` still shows only 1 Publisher,
+    //            but all the writers can be seen with `ros2 topic info <topic_name> -v`.
+    //            Hence the choice here to aggregate all the Writers in 1 Publisher representation.
+    //            The Publisher is declared undiscovered only when all its Writers are undiscovered.
     #[serde(skip)]
-    pub writer: Gid,
+    pub writers: HashSet<Gid>,
 }
 
 impl MsgPub {
     pub fn create(name: String, typ: String, writer: Gid) -> Result<MsgPub, String> {
         check_ros_name(&name)?;
-        Ok(MsgPub { name, typ, writer })
+        Ok(MsgPub {
+            name,
+            typ,
+            writers: HashSet::from([writer]),
+        })
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
@@ -56,14 +66,24 @@ pub struct MsgSub {
     pub name: String,
     #[serde(rename = "type")]
     pub typ: String,
+    // List of DDS Readers declared by 1 Node for a same topic
+    // Issue #27: usually only 1 Reader, but may happen that 1 Node declares several Subscribers
+    //            on the same topic. In this case `ros2 node info <node_id>` still shows only 1 Subscriber,
+    //            but all the writers can be seen with `ros2 topic info <topic_name> -v`.
+    //            Hence the choice here to aggregate all the Readers in 1 Subscriber representation.
+    //            The Subscriber is declared undiscovered only when all its Readers are undiscovered.
     #[serde(skip)]
-    pub reader: Gid,
+    pub readers: HashSet<Gid>,
 }
 
 impl MsgSub {
     pub fn create(name: String, typ: String, reader: Gid) -> Result<MsgSub, String> {
         check_ros_name(&name)?;
-        Ok(MsgSub { name, typ, reader })
+        Ok(MsgSub {
+            name,
+            typ,
+            readers: HashSet::from([reader]),
+        })
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
@@ -632,7 +652,7 @@ impl NodeInfo {
                 }
                 Err(e) => {
                     log::error!(
-                        "ROS Node {self} declared an incompatible Publisher: {e} - ignored"
+                        "ROS Node {node_fullname} declared an incompatible Publisher: {e} - ignored"
                     );
                     None
                 }
@@ -641,18 +661,12 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result: Option<ROS2DiscoveryEvent> = None;
                 if v.typ != typ {
-                    log::warn!(
-                        r#"ROS declaration of Publisher "{v}" changed it's type to "{typ}""#
+                    log::error!(
+                        r#"ROS Node {node_fullname} declares 2 Publishers on same topic {name} but with different types: {} vs {typ} - Publisher with 2nd type ignored""#,
+                        v.typ
                     );
-                    v.typ = typ;
-                    result = Some(DiscoveredMsgPub(node_fullname.clone(), v.clone()));
-                }
-                if v.writer != *writer {
-                    log::debug!(
-                        r#"ROS declaration of Publisher "{v}" changed it's DDS Writer's GID from {} to {writer}"#,
-                        v.writer
-                    );
-                    v.writer = *writer;
+                } else if v.writers.insert(*writer) && v.writers.len() == 1 {
+                    // Send DiscoveredMsgPub event only for the 1st discovered Writer
                     result = Some(DiscoveredMsgPub(node_fullname, v.clone()));
                 }
                 result
@@ -677,7 +691,7 @@ impl NodeInfo {
                 }
                 Err(e) => {
                     log::error!(
-                        "ROS Node {self} declared an incompatible Subscriber: {e} - ignored"
+                        "ROS Node {node_fullname} declared an incompatible Subscriber: {e} - ignored"
                     );
                     None
                 }
@@ -686,18 +700,12 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result: Option<ROS2DiscoveryEvent> = None;
                 if v.typ != typ {
-                    log::warn!(
-                        r#"ROS declaration of Subscriber "{v}" changed it's type to "{typ}""#
+                    log::error!(
+                        r#"ROS Node {node_fullname} declares 2 Subscriber on same topic {name} but with different types: {} vs {typ} - Publisher with 2nd type ignored""#,
+                        v.typ
                     );
-                    v.typ = typ;
-                    result = Some(DiscoveredMsgSub(node_fullname.clone(), v.clone()));
-                }
-                if v.reader != *reader {
-                    log::debug!(
-                        r#"ROS declaration of Subscriber "{v}" changed it's DDS Writer's GID from {} to {reader}"#,
-                        v.reader
-                    );
-                    v.reader = *reader;
+                } else if v.readers.insert(*reader) && v.readers.len() == 1 {
+                    // Send DiscoveredMsgSub event only for the 1st discovered Reader
                     result = Some(DiscoveredMsgSub(node_fullname, v.clone()));
                 }
                 result
@@ -1732,10 +1740,20 @@ impl NodeInfo {
     pub fn remove_reader(&mut self, reader: &Gid) -> Option<ROS2DiscoveryEvent> {
         use ROS2DiscoveryEvent::*;
         let node_fullname = self.fullname().to_string();
-        if let Some((name, _)) = self.msg_sub.iter().find(|(_, v)| v.reader == *reader) {
+        // Search in Subscribers list if one is using the writer
+        if let Some(name) = self.msg_sub.iter_mut().find_map(|(name, sub)| {
+            if sub.readers.remove(reader) && sub.readers.is_empty() {
+                // found Subscriber using the reader: remove the reader from list
+                // and if the list is empty return the Subscriber name to "undiscover" it
+                Some(name.clone())
+            } else {
+                None
+            }
+        }) {
+            // Return undiscovery event for this Subscriber, since all its DDS Writer have been undiscovered
             return Some(UndiscoveredMsgSub(
                 node_fullname,
-                self.msg_sub.remove(&name.clone()).unwrap(),
+                self.msg_sub.remove(&name).unwrap(),
             ));
         }
         if let Some((name, _)) = self
@@ -1785,14 +1803,24 @@ impl NodeInfo {
     }
 
     // Remove a DDS Writer possibly used by this node, and returns an UndiscoveredX event if
-    // this Writer was used by some Subscription, Service or Action
+    // this Writer was used by some Publication, Service or Action
     pub fn remove_writer(&mut self, writer: &Gid) -> Option<ROS2DiscoveryEvent> {
         use ROS2DiscoveryEvent::*;
         let node_fullname = self.fullname().to_string();
-        if let Some((name, _)) = self.msg_pub.iter().find(|(_, v)| v.writer == *writer) {
+        // Search in Publishers list if one is using the writer
+        if let Some(name) = self.msg_pub.iter_mut().find_map(|(name, publ)| {
+            if publ.writers.remove(writer) && publ.writers.is_empty() {
+                // found Publisher using the writer: remove the writer from list
+                // and if the list is empty return the Publisher name to "undiscover" it
+                Some(name.clone())
+            } else {
+                None
+            }
+        }) {
+            // Return undiscovery event for this Publisher, since all its DDS Writer have been undiscovered
             return Some(UndiscoveredMsgPub(
                 node_fullname,
-                self.msg_pub.remove(&name.clone()).unwrap(),
+                self.msg_pub.remove(&name).unwrap(),
             ));
         }
         if let Some((name, _)) = self

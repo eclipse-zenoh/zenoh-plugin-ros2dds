@@ -137,28 +137,36 @@ impl<'a> RoutesMgr<'a> {
         use ROS2DiscoveryEvent::*;
         match event {
             DiscoveredMsgPub(node, iface) => {
-                // Retrieve info on DDS Writer
+                // Pick 1 discovered Writer amongst the possibly multiple ones listed in MsgPub
                 let entity = {
                     let entities = zread!(self.context.discovered_entities);
-                    entities
-                        .get_writer(&iface.writer)
-                        .ok_or(format!(
-                            "Failed to get DDS info for {iface} Writer {}. Already deleted ?",
-                            iface.writer
-                        ))?
-                        .clone()
+                    iface
+                        .writers
+                        .iter()
+                        .find_map(|w| entities.get_writer(w))
+                        .map(Clone::clone)
                 };
-                // Get route (create it if not yet exists)
-                let route = self
-                    .get_or_create_route_publisher(
-                        iface.name,
-                        iface.typ,
-                        entity.keyless,
-                        adapt_writer_qos_for_reader(&entity.qos),
-                        true,
-                    )
-                    .await?;
-                route.add_local_node(node, &entity.qos).await;
+                match entity {
+                    Some(entity) => {
+                        // Get route (create it if not yet exists)
+                        let route = self
+                            .get_or_create_route_publisher(
+                                iface.name,
+                                iface.typ,
+                                entity.keyless,
+                                adapt_writer_qos_for_reader(&entity.qos),
+                                true,
+                            )
+                            .await?;
+                        route.add_local_node(node, &entity.qos).await;
+                    }
+                    None => {
+                        return Err(format!(
+                            "Failed to get DDS info for any Writer of {iface} ({:?})",
+                            iface.writers
+                        ))
+                    }
+                }
             }
 
             UndiscoveredMsgPub(node, iface) => {
@@ -176,28 +184,36 @@ impl<'a> RoutesMgr<'a> {
             }
 
             DiscoveredMsgSub(node, iface) => {
-                // Retrieve info on DDS Reader
+                // Pick 1 discovered Reader amongst the possibly multiple ones listed in MsgSub
                 let entity = {
                     let entities = zread!(self.context.discovered_entities);
-                    entities
-                        .get_reader(&iface.reader)
-                        .ok_or(format!(
-                            "Failed to get DDS info for {iface} Reader {}. Already deleted ?",
-                            iface.reader
-                        ))?
-                        .clone()
+                    iface
+                        .readers
+                        .iter()
+                        .find_map(|r| entities.get_reader(r))
+                        .map(Clone::clone)
                 };
-                // Get route (create it if not yet exists)
-                let route = self
-                    .get_or_create_route_subscriber(
-                        iface.name,
-                        iface.typ,
-                        entity.keyless,
-                        adapt_reader_qos_for_writer(&entity.qos),
-                        true,
-                    )
-                    .await?;
-                route.add_local_node(node, &entity.qos).await;
+                match entity {
+                    Some(entity) => {
+                        // Get route (create it if not yet exists)
+                        let route = self
+                            .get_or_create_route_subscriber(
+                                iface.name,
+                                iface.typ,
+                                entity.keyless,
+                                adapt_reader_qos_for_writer(&entity.qos),
+                                true,
+                            )
+                            .await?;
+                        route.add_local_node(node, &entity.qos).await;
+                    }
+                    None => {
+                        return Err(format!(
+                            "Failed to get DDS info for any Reader of {iface} ({:?})",
+                            iface.readers
+                        ))
+                    }
+                }
             }
 
             UndiscoveredMsgSub(node, iface) => {
