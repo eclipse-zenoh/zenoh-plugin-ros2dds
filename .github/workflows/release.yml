@@ -249,7 +249,7 @@ jobs:
           esac
 
       - name: "Upload packages"
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.job.target }}
           path: |
@@ -269,7 +269,7 @@ jobs:
         shell: bash
         run: git fetch --tags --force
       - name: Download packages from previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           path: PACKAGES
       - name: Unzip PACKAGES
@@ -309,7 +309,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download result of previous builds
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           path: ARTIFACTS
       - name: Publish as github release
