@@ -44,43 +44,22 @@ jobs:
           rustup component add rustfmt clippy
 
       - name: Code format check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
+        run: cargo fmt --check
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all --examples -- -D warnings
+        run: cargo clippy --all --examples -- -D warnings
 
       - name: Build zenoh-plugin-ros2dds
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p zenoh-plugin-ros2dds --verbose --all-targets
+        run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
 
       - name: Build zenoh-plugin-ros2dds (with dds_shm)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
+        run: cargo build -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p zenoh-bridge-ros2dds  --verbose --all-targets
+        run: cargo build -p zenoh-bridge-ros2dds  --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds (with dds_shm)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
+        run: cargo build -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
 
       - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --verbose
+        run: cargo test --verbose
