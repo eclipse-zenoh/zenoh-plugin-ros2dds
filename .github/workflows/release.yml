@@ -25,21 +25,15 @@ jobs:
     name: Code checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install Rust toolchain
         run: |
           rustup show
           rustup component add rustfmt clippy
       - name: Code format check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
+        run: cargo fmt --check
       - name: Clippy check
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+        run: cargo clippy -- -D warnings
       - name: Environment setup
         id: env
         shell: bash
@@ -90,53 +84,78 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - { target: x86_64-unknown-linux-gnu, arch: amd64, os: ubuntu-22.04 }
-          - { target: x86_64-apple-darwin, arch: darwin, os: macos-12 }
-          - { target: aarch64-apple-darwin, arch: darwin, os: macos-12 }
+          - {
+              target: x86_64-unknown-linux-gnu,
+              arch: amd64,
+              os: ubuntu-22.04,
+              build-cmd: "cargo",
+            }
+          - {
+              target: x86_64-apple-darwin,
+              arch: darwin,
+              os: macos-12,
+              build-cmd: "cargo",
+            }
+          - {
+              target: aarch64-apple-darwin,
+              arch: darwin,
+              os: macos-12,
+              build-cmd: "cargo",
+            }
           - {
               target: x86_64-unknown-linux-musl,
               arch: amd64,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
           - {
               target: arm-unknown-linux-gnueabi,
               arch: armel,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
           - {
               target: arm-unknown-linux-gnueabihf,
               arch: armhf,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
           - {
               target: armv7-unknown-linux-gnueabihf,
               arch: armhf,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
           - {
               target: aarch64-unknown-linux-gnu,
               arch: arm64,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
           - {
               target: aarch64-unknown-linux-musl,
               arch: arm64,
               os: ubuntu-22.04,
-              use-cross: true,
+              build-cmd: "cross",
             }
-          - { target: x86_64-pc-windows-msvc, arch: win64, os: windows-2022 }
+          - {
+              target: x86_64-pc-windows-msvc,
+              arch: win64,
+              os: windows-2022,
+              build-cmd: "cargo",
+            }
           ##
           ## NOTE: cannon build for Windows GNU as not supported by cyclors
           ##
-          # - { target: x86_64-pc-windows-gnu, arch: win64 , os: windows-2022 }
+          # - {
+          #     target: x86_64-pc-windows-gnu,
+          #     arch: win64,
+          #     os: windows-2022,
+          #     build-cmd: "cargo",
+          #   }
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
       - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
@@ -164,38 +183,26 @@ jobs:
               ;;
           esac
 
+          cargo install cross --git https://github.com/cross-rs/cross
+
       - name: Install Rust toolchain
         run: |
           rustup show
           rustup target add ${{ matrix.job.target }}
 
       - name: zenoh-plugin-ros2dds > Build
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: ${{ matrix.job.use-cross }}
-          command: build
-          args: --release --target=${{ matrix.job.target }} -p zenoh-plugin-ros2dds
+        run: ${{ matrix.job.build-cmd }} build --release --target=${{ matrix.job.target }} -p zenoh-plugin-ros2dds
 
       - name: zenoh-bridge-ros2dds > Build
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: ${{ matrix.job.use-cross }}
-          command: build
-          args: --release --target=${{ matrix.job.target }} -p zenoh-bridge-ros2dds
+        run: ${{ matrix.job.build-cmd }} build --release --target=${{ matrix.job.target }} -p zenoh-bridge-ros2dds
 
       - name: zenoh-plugin-ros2dds > Debian package
         if: contains(matrix.job.target, '-linux-gnu')
-        uses: actions-rs/cargo@v1
-        with:
-          command: deb
-          args: --no-build --target=${{ matrix.job.target }} -p zenoh-plugin-ros2dds
+        run: cargo deb --no-build --target=${{ matrix.job.target }} -p zenoh-plugin-ros2dds
 
       - name: zenoh-bridge-ros2dds > Debian package
         if: contains(matrix.job.target, '-linux-gnu')
-        uses: actions-rs/cargo@v1
-        with:
-          command: deb
-          args: --no-build --target=${{ matrix.job.target }} -p zenoh-bridge-ros2dds
+        run: cargo deb --no-build --target=${{ matrix.job.target }} -p zenoh-bridge-ros2dds
 
       - name: Packaging
         id: package
@@ -262,7 +269,7 @@ jobs:
     needs: [checks, builds]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
       - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
@@ -281,19 +288,19 @@ jobs:
           unzip PACKAGES/aarch64-unknown-linux-musl/zenoh-bridge-ros2dds-${{ needs.checks.outputs.PKG_VERSION }}-aarch64-unknown-linux-musl.zip -d docker/linux/arm64/
           tree docker
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
       - name: Docker meta - set tags and labels
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
         with:
           images: eclipse/zenoh-bridge-ros2dds
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_COM_USERNAME }}
           password: ${{ secrets.DOCKER_COM_PASSWORD }}
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -339,7 +346,7 @@ jobs:
           scp -o "StrictHostKeyChecking=no" -r * ${SSH_TARGET}:${DOWNLOAD_DIR}/
           echo "---- cleanup identity"
           ssh-add -D
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install Rust toolchain
         run: rustup show
       - name: Publish to crates.io
