@@ -25,7 +25,7 @@ jobs:
     name: Code checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install Rust toolchain
         run: |
           rustup show
@@ -136,7 +136,7 @@ jobs:
           # - { target: x86_64-pc-windows-gnu, arch: win64 , os: windows-2022 }
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
       - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
@@ -262,7 +262,7 @@ jobs:
     needs: [checks, builds]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
       - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
@@ -339,7 +339,7 @@ jobs:
           scp -o "StrictHostKeyChecking=no" -r * ${SSH_TARGET}:${DOWNLOAD_DIR}/
           echo "---- cleanup identity"
           ssh-add -D
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install Rust toolchain
         run: rustup show
       - name: Publish to crates.io
