@@ -24,10 +24,7 @@ pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
-
-lazy_static::lazy_static!(
-    pub static ref DEFAULT_QUERIES_TIMEOUT: Duration = Duration::from_secs_f32(5.0);
-);
+pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -81,8 +78,9 @@ impl Config {
                     return Duration::from_secs_f32(*secs);
                 }
             }
+            return Duration::from_secs_f32(qt.default);
         }
-        *DEFAULT_QUERIES_TIMEOUT
+        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_service(&self, ros2_name: &str) -> Duration {
@@ -92,13 +90,16 @@ impl Config {
                     return Duration::from_secs_f32(*secs);
                 }
             }
+            return Duration::from_secs_f32(qt.default);
         }
-        *DEFAULT_QUERIES_TIMEOUT
+        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_action_send_goal(&self, ros2_name: &str) -> Duration {
         if let Some(QueriesTimeouts {
-            actions: Some(at), ..
+            default,
+            actions: Some(at),
+            ..
         }) = &self.queries_timeout
         {
             for (re, secs) in &at.send_goal {
@@ -106,13 +107,16 @@ impl Config {
                     return Duration::from_secs_f32(*secs);
                 }
             }
+            return Duration::from_secs_f32(*default);
         }
-        *DEFAULT_QUERIES_TIMEOUT
+        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_action_cancel_goal(&self, ros2_name: &str) -> Duration {
         if let Some(QueriesTimeouts {
-            actions: Some(at), ..
+            default,
+            actions: Some(at),
+            ..
         }) = &self.queries_timeout
         {
             for (re, secs) in &at.cancel_goal {
@@ -120,13 +124,16 @@ impl Config {
                     return Duration::from_secs_f32(*secs);
                 }
             }
+            return Duration::from_secs_f32(*default);
         }
-        *DEFAULT_QUERIES_TIMEOUT
+        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_action_get_result(&self, ros2_name: &str) -> Duration {
         if let Some(QueriesTimeouts {
-            actions: Some(at), ..
+            default,
+            actions: Some(at),
+            ..
         }) = &self.queries_timeout
         {
             for (re, secs) in &at.get_result {
@@ -134,14 +141,17 @@ impl Config {
                     return Duration::from_secs_f32(*secs);
                 }
             }
+            return Duration::from_secs_f32(*default);
         }
-        *DEFAULT_QUERIES_TIMEOUT
+        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 }
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueriesTimeouts {
+    #[serde(default = "default_queries_timeout")]
+    default: f32,
     #[serde(
         default,
         deserialize_with = "deserialize_vec_regex_f32",
@@ -347,6 +357,10 @@ fn default_domain() -> u32 {
     } else {
         DEFAULT_DOMAIN
     }
+}
+
+fn default_queries_timeout() -> f32 {
+    DEFAULT_QUERIES_TIMEOUT
 }
 
 fn deserialize_path<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>

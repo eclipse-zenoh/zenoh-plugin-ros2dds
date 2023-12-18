@@ -118,9 +118,10 @@ r#"--pub-max-frequency=[String]...   'Specifies a maximum frequency of publicati
 Repeat this option to configure several topics expressions with a max frequency.'"#
         ))
         .arg(Arg::from_usage(
-r#"--queries-timeout=[float]... 'A float in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+r#"--queries-timeout-default=[float]... 'A float in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
 queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
-(i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers, but the route will not be blocked forever)."#
+(i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers, but the route will not be blocked forever).
+This value overwrites the value possibly set in configuration file under 'plugins/ros2dds/queries_timeout/default' key."#
         ))
         .arg(Arg::from_usage(
 r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the bridge's async executor and reports as error log any stalled status during the specified period (default: 1.0 second)'"#
@@ -180,7 +181,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         insert_json5!(config, args, "plugins/ros2dds/shm_enabled", if "dds-enable-shm");
     }
     insert_json5!(config, args, "plugins/ros2dds/pub_max_frequencies", for "pub-max-frequency", .collect::<Vec<_>>());
-    insert_json5!(config, args, "plugins/ros2dds/queries_timeout", if "queries-timeout", .parse::<f64>().unwrap());
+    insert_json5!(config, args, "plugins/ros2dds/queries_timeout/default", if "queries-timeout-default", .parse::<f32>().unwrap());
 
     let watchdog_period = if args.is_present("watchdog") {
         args.value_of("watchdog").map(|s| s.parse::<f32>().unwrap())
