@@ -98,12 +98,15 @@
 
       ////
       //// queries_timeout: Timeouts configuration for various Zenoh queries.
-      ////                  Each field is optional. If not set, A default value of 5.0 seconds applies.
+      ////                  Each field is optional. If not set, the 'default' timeout (5.0 seconds by default) applies to all queries.
       ////                  Each value can be either a float in seconds that will apply as a timeout to all queries,
       ////                  either a list of strings with format "<regex>=<float>" where:
       ////                      - "regex" is a regular expression matching an interface name
       ////                      - "float" is the timeout in seconds
       // queries_timeout: {
+      //   //// default timeout that will apply to all query, except the ones specified below
+      //   //// in 'transient_local_subscribers', 'services' and 'actions'
+      //   default: 5.0,
       //   //// timeouts for TRANSIENT_LOCAL subscriber when querying publishers for historical publications
       //   transient_local_subscribers: 1.0,
       //   //// timeouts for Service clients calling a Service server
