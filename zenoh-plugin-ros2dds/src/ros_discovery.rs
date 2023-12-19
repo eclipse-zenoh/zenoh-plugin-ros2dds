@@ -1,5 +1,5 @@
 use crate::dds_types::DDSRawSample;
-use crate::ros2_utils::ros_distro_is_less_than;
+use crate::ros2_utils::{ros_distro_is_less_than, ROS_DISTRO};
 use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 //
 // Copyright (c) 2022 ZettaScale Technology
@@ -282,7 +282,22 @@ impl RosDiscoveryInfoMgr {
                         ZBuf::from(sample).reader(),
                         cdr::size::Infinite,
                     ) {
-                        Ok(i) => Some(i),
+                        Ok(i) => {
+                            // Check if ParticipantEntitiesInfo has corectly been deserialized:
+                            // Following #21, it might happen that the ROS Nodes are using Humble with 24 bytes GIDs,
+                            // but that this bridge is misconfigured and assumes Iron with 16 bytes GID.
+                            // In such case, the deserializer reads the 16 bytes GID and thinks the 8 remaning 0-bytes is the
+                            // length of the node_entities_info_seq list, leading to an empty list and the end of deserialzation.
+                            // This can be detected checking if list is empty but the size of the buffer is greater than
+                            // CDR_header + GID + seq_len = 4 + 16 + 8 = 28
+                            if !ros_distro_is_less_than("iron") && i.node_entities_info_seq.is_empty() && sample.len() > 28 {
+                                log::warn!("Received invalid message on `ros_discovery_info` topic: {sample:?} \
+                                This bridge is configured with 'ROS_DISTRO={}' and expects GIDs to be 16 bytes. \
+                                Here it seems the message comes from a ROS nodes with version older than 'iron' and using 24 bytes GIDs. \
+                                If yes, please set 'ROS_DISTRO' environment variable to the same version than your ROS nodes", *ROS_DISTRO);
+                            }
+                            Some(i)
+                        },
                         Err(e) => {
                             log::warn!(
                                 "Error receiving ParticipantEntitiesInfo on ros_discovery_info: {} - payload: {}",
