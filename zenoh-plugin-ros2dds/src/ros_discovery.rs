@@ -289,8 +289,8 @@ impl RosDiscoveryInfoMgr {
                             // In such case, the deserializer reads the 16 bytes GID and thinks the 8 remaning 0-bytes is the
                             // length of the node_entities_info_seq list, leading to an empty list and the end of deserialzation.
                             // This can be detected checking if list is empty but the size of the buffer is greater than
-                            // CDR_header + GID + len = 4 + 16 + 4 = 24
-                            if !ros_distro_is_less_than("iron") && i.node_entities_info_seq.is_empty() && sample.len() > 24 {
+                            // CDR_header + GID + seq_len = 4 + 16 + 8 = 28
+                            if !ros_distro_is_less_than("iron") && i.node_entities_info_seq.is_empty() && sample.len() > 28 {
                                 log::warn!("Received invalid message on `ros_discovery_info` topic: {sample:?} \
                                 This bridge is configured with 'ROS_DISTRO={}' and expects GIDs to be 16 bytes. \
                                 Here it seems the message comes from a ROS nodes with version older than 'iron' and using 24 bytes GIDs. \
