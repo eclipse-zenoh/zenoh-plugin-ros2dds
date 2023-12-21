@@ -16,7 +16,7 @@ resolver = "2"
 members = ["zenoh-bridge-ros2dds", "zenoh-plugin-ros2dds"]
 
 [workspace.package]
-version = "0.1.0-dev"
+version = "0.10.1-rc"
 authors = ["Julien Enoch <julien@enoch.fr>"]
 edition = "2021"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
@@ -43,14 +43,10 @@ regex = "1.7.1"
 rustc_version = "0.4"
 serde = "1.0.154"
 serde_json = "1.0.94"
-zenoh = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", features = [
-  "unstable",
-] }
+zenoh = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", features = ["unstable"] }
 zenoh-collections = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc" }
 zenoh-core = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc" }
-zenoh-ext = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", features = [
-  "unstable",
-] }
+zenoh-ext = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", features = ["unstable"] }
 zenoh-plugin-rest = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", default-features = false }
 zenoh-plugin-trait = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", default-features = false }
 zenoh-util = { version = "0.10.1-rc", git = "https://github.com/eclipse-zenoh/zenoh", branch = "release-0.10.1-rc", default-features = false }
