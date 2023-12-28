@@ -418,7 +418,7 @@ fn activate_dds_reader(
             let route_id = route_id.to_string();
             let publisher = publisher.clone();
             move |sample: &DDSRawSample| {
-                do_route_message(sample, &publisher, &route_id);
+                route_dds_message_to_zenoh(sample, &publisher, &route_id);
             }
         },
     )?;
@@ -454,7 +454,7 @@ fn deactivate_dds_reader(
     }
 }
 
-fn do_route_message(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
+fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
     if *LOG_PAYLOAD {
         log::debug!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {

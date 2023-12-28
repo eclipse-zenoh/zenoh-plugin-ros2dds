@@ -166,7 +166,7 @@ impl RouteSubscriber<'_> {
         let ros2_name = self.ros2_name.clone();
         let dds_writer = self.dds_writer;
         let subscriber_callback = move |s: Sample| {
-            do_route_message(s, &ros2_name, dds_writer);
+            route_zenoh_message_to_dds(s, &ros2_name, dds_writer);
         };
 
         // create zenoh subscriber
@@ -333,7 +333,7 @@ impl RouteSubscriber<'_> {
     }
 }
 
-fn do_route_message(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
+fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::debug!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - payload: {:02x?}",
