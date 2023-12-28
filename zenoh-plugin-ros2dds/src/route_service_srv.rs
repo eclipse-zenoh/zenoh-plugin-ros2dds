@@ -132,10 +132,6 @@ impl RouteServiceSrv<'_> {
         let client_id_str = new_service_id(&context.participant)?;
         let user_data = format!("clientid= {client_id_str};");
         qos.user_data = Some(user_data.into_bytes());
-        log::debug!(
-            "{route_id}: using id '{client_id_str}' => USER_DATA={:?}",
-            qos.user_data.as_ref().unwrap()
-        );
 
         // create DDS Writer to send requests coming from Zenoh to the Service
         let req_topic_name = format!("rq{ros2_name}Request");
@@ -155,6 +151,11 @@ impl RouteServiceSrv<'_> {
         // client_guid used in requests; use dds_instance_handle of writer as rmw_cyclonedds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4848
         let client_guid = get_instance_handle(req_writer)?;
+
+        log::debug!(
+            "{route_id}: (local client_guid={client_guid})  id='{client_id_str}' => USER_DATA={:?}",
+            qos.user_data.as_ref().unwrap()
+        );
 
         // map of queries in progress
         let queries_in_progress: Arc<RwLock<HashMap<u64, Query>>> =
@@ -434,7 +435,10 @@ fn do_route_reply(
     };
 
     if guid != client_guid {
-        log::warn!(
+        // The reply is for another client than this bridge...
+        // Could happen since the same topic is used for this service replies to all clients!
+        // Just drop it.
+        log::trace!(
             "{route_id}: received response for another client: {guid:0x?} (me: {client_guid:0x?})"
         );
         return;
