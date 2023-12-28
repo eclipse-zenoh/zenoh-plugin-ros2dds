@@ -53,11 +53,11 @@ pub struct RouteSubscriber<'a> {
     // the context
     #[serde(skip)]
     context: Context,
-    // the zenoh subscriber receiving data to be re-published by the DDS Writer
+    // the zenoh subscriber receiving messages to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
     zenoh_subscriber: Option<ZSubscriber<'a>>,
-    // the local DDS Writer created to serve the route (i.e. re-publish to DDS data coming from zenoh)
+    // the local DDS Writer created to serve the route (i.e. re-publish to DDS message coming from zenoh)
     #[serde(serialize_with = "serialize_entity_guid")]
     dds_writer: dds_entity_t,
     // if the Writer is TRANSIENT_LOCAL
@@ -162,20 +162,20 @@ impl RouteSubscriber<'_> {
 
     async fn activate(&mut self, discovered_reader_qos: &Qos) -> Result<(), String> {
         log::debug!("{self} activate");
-        // Callback routing data received by Zenoh subscriber to DDS Writer (if set)
+        // Callback routing message received by Zenoh subscriber to DDS Writer (if set)
         let ros2_name = self.ros2_name.clone();
         let dds_writer = self.dds_writer;
         let subscriber_callback = move |s: Sample| {
-            do_route_data(s, &ros2_name, dds_writer);
+            do_route_message(s, &ros2_name, dds_writer);
         };
 
         // create zenoh subscriber
-        // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical data to write
+        // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical messages to write
         self.zenoh_subscriber = if self.transient_local {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr).into();
-            log::debug!("{self}: query historical data from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
+            log::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .context
                 .zsession
@@ -247,7 +247,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<plugin_id>/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / plugin_id / &self.zenoh_key_expr).into();
-            log::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical data from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
+            log::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
                 self.zenoh_key_expr, self.ros2_name
             );
 
@@ -333,17 +333,17 @@ impl RouteSubscriber<'_> {
     }
 }
 
-fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
+fn do_route_message(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::debug!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - payload: {:02x?}",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - payload: {:02x?}",
             s.key_expr,
             &ros2_name,
             s.value.payload
         );
     } else {
         log::trace!(
-            "Route Subscriber (Zenoh:{} -> ROS:{}): routing data - {} bytes",
+            "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - {} bytes",
             s.key_expr,
             &ros2_name,
             s.value.payload.len()
@@ -363,7 +363,7 @@ fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
             Ok(s) => s,
             Err(_) => {
                 log::warn!(
-                    "Route Subscriber (Zenoh:{} -> ROS:{}): can't route data; excessive payload size ({})",
+                    "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; excessive payload size ({})",
                     s.key_expr,
                     ros2_name,
                     len
@@ -381,7 +381,7 @@ fn do_route_data(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
         let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);
         if ret < 0 {
             log::warn!(
-                "Route Subscriber (Zenoh:{} -> ROS:{}): can't route data; sertype lookup failed ({})",
+                "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; sertype lookup failed ({})",
                 s.key_expr,
                 ros2_name,
                 CStr::from_ptr(dds_strretcode(ret))
