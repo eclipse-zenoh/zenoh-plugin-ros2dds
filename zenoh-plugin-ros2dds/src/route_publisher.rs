@@ -67,14 +67,14 @@ pub struct RoutePublisher<'a> {
     // the context
     #[serde(skip)]
     context: Context,
-    // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
+    // the zenoh publisher used to re-publish to zenoh the message received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(
         rename = "publication_cache_size",
         serialize_with = "serialize_pub_cache"
     )]
     zenoh_publisher: ZPublisher,
-    // the local DDS Reader created to serve the route (i.e. re-publish to zenoh data coming from DDS)
+    // the local DDS Reader created to serve the route (i.e. re-publish to zenoh message coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     dds_reader: Arc<AtomicDDSEntity>,
     // TypeInfo for Reader creation (if available)
@@ -129,7 +129,7 @@ impl RoutePublisher<'_> {
         );
 
         // create the zenoh Publisher
-        // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical data
+        // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical messages
         let transient_local = is_transient_local(&reader_qos);
         let (cache, cache_size): (Option<PublicationCache>, usize) = if transient_local {
             #[allow(non_upper_case_globals)]
@@ -405,7 +405,7 @@ fn activate_dds_reader(
     let type_name = ros2_message_type_to_dds_type(ros2_type);
     let read_period = get_read_period(&context.config, ros2_name);
 
-    // create matching DDS Reader that forwards data coming from DDS to Zenoh
+    // create matching DDS Reader that forwards message coming from DDS to Zenoh
     let reader = create_dds_reader(
         context.participant,
         topic_name.clone(),
@@ -418,7 +418,7 @@ fn activate_dds_reader(
             let route_id = route_id.to_string();
             let publisher = publisher.clone();
             move |sample: &DDSRawSample| {
-                do_route_message(sample, &publisher, &route_id);
+                route_dds_message_to_zenoh(sample, &publisher, &route_id);
             }
         },
     )?;
@@ -454,7 +454,7 @@ fn deactivate_dds_reader(
     }
 }
 
-fn do_route_message(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
+fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
     if *LOG_PAYLOAD {
         log::debug!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {

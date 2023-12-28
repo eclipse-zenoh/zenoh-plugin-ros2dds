@@ -27,6 +27,7 @@ use crate::route_service_cli::RouteServiceCli;
 use crate::route_service_srv::RouteServiceSrv;
 use crate::route_subscriber::RouteSubscriber;
 use cyclors::dds_entity_t;
+use cyclors::qos::IgnoreLocal;
 use cyclors::qos::Qos;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
@@ -329,6 +330,10 @@ impl<'a> RoutesMgr<'a> {
                 keyless,
                 writer_qos,
             } => {
+                let mut qos = writer_qos.clone();
+                qos.ignore_local = Some(IgnoreLocal {
+                    kind: cyclors::qos::IgnoreLocalKind::PARTICIPANT,
+                });
                 // On remote Publisher route announcement, prepare a Subscriber route
                 // with an associated DDS Writer allowing local ROS2 Nodes to discover it
                 let route = self
@@ -336,7 +341,7 @@ impl<'a> RoutesMgr<'a> {
                         key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
                         ros2_type,
                         keyless,
-                        writer_qos,
+                        qos,
                         true,
                     )
                     .await?;
@@ -368,6 +373,10 @@ impl<'a> RoutesMgr<'a> {
                 keyless,
                 reader_qos,
             } => {
+                let mut qos = reader_qos.clone();
+                qos.ignore_local = Some(IgnoreLocal {
+                    kind: cyclors::qos::IgnoreLocalKind::PARTICIPANT,
+                });
                 // On remote Subscriber route announcement, prepare a Publisher route
                 // with an associated DDS Reader allowing local ROS2 Nodes to discover it
                 let route = self
@@ -375,7 +384,7 @@ impl<'a> RoutesMgr<'a> {
                         key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config),
                         ros2_type,
                         keyless,
-                        reader_qos,
+                        qos,
                         true,
                     )
                     .await?;
