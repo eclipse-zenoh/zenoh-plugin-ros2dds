@@ -176,7 +176,7 @@ impl RouteServiceSrv<'_> {
                 let queries_in_progress = queries_in_progress.clone();
                 let zenoh_key_expr = zenoh_key_expr.clone();
                 move |sample| {
-                    do_route_reply(
+                    route_dds_reply_to_zenoh(
                         sample,
                         zenoh_key_expr.clone(),
                         &mut zwrite!(queries_in_progress),
@@ -236,7 +236,7 @@ impl RouteServiceSrv<'_> {
                 .zsession
                 .declare_queryable(&self.zenoh_key_expr)
                 .callback(move |query| {
-                    do_route_request(
+                    route_zenoh_request_to_dds(
                         query,
                         &mut zwrite!(queries_in_progress),
                         &sequence_number,
@@ -341,7 +341,7 @@ impl RouteServiceSrv<'_> {
 
 const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
 
-fn do_route_request(
+fn route_zenoh_request_to_dds(
     query: Query,
     queries_in_progress: &mut HashMap<u64, Query>,
     sequence_number: &AtomicU64,
@@ -389,22 +389,24 @@ fn do_route_request(
     };
 
     if *LOG_PAYLOAD {
-        log::debug!("{route_id}: routing request #{n} to Service - payload: {dds_req_buf:02x?}");
+        log::debug!(
+            "{route_id}: routing request #{n} from Zenoh to DDS - payload: {dds_req_buf:02x?}"
+        );
     } else {
         log::trace!(
-            "{route_id}: routing request #{n} to Service - {} bytes",
+            "{route_id}: routing request #{n} from Zenoh to DDS - {} bytes",
             dds_req_buf.len()
         );
     }
 
     queries_in_progress.insert(n, query);
     if let Err(e) = dds_write(req_writer, dds_req_buf) {
-        log::warn!("{route_id}: routing request failed: {e}");
+        log::warn!("{route_id}: routing request from Zenoh to DDS failed: {e}");
         queries_in_progress.remove(&n);
     }
 }
 
-fn do_route_reply(
+fn route_dds_reply_to_zenoh(
     sample: &DDSRawSample,
     zenoh_key_expr: OwnedKeyExpr,
     queries_in_progress: &mut HashMap<u64, Query>,
@@ -415,7 +417,7 @@ fn do_route_reply(
     // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     if sample.len() < 20 {
-        log::warn!("{route_id}: received invalid response: {sample:0x?}");
+        log::warn!("{route_id}: received invalid response from DDS: {sample:0x?}");
         return;
     }
 
@@ -452,10 +454,10 @@ fn do_route_reply(
             zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
             if *LOG_PAYLOAD {
-                log::debug!("{route_id}: routing reply #{seq_num} to Client - payload: {zenoh_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply #{seq_num} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");
             } else {
                 log::trace!(
-                    "{route_id}: routing reply #{seq_num} to Client - {} bytes",
+                    "{route_id}: routing reply #{seq_num} from DDS to Zenoh - {} bytes",
                     zenoh_rep_buf.len()
                 );
             }
@@ -464,11 +466,11 @@ fn do_route_reply(
                 .reply(Ok(Sample::new(zenoh_key_expr, zenoh_rep_buf)))
                 .res_sync()
             {
-                log::warn!("{route_id}: routing reply for request #{seq_num} failed: {e}");
+                log::warn!("{route_id}: routing reply for request #{seq_num} from DDS to Zenoh failed: {e}");
             }
         }
         None => log::warn!(
-            "{route_id}: received response an unknown query (already dropped?): #{seq_num}"
+            "{route_id}: received response from DDS an unknown query (already timed out ?): #{seq_num}"
         ),
     }
 }
