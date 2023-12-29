@@ -158,7 +158,7 @@ impl RouteServiceCli<'_> {
             qos,
             None,
             move |sample| {
-                do_route_request(
+                route_dds_request_to_zenoh(
                     &route_id,
                     sample,
                     &zenoh_key_expr2,
@@ -275,7 +275,7 @@ impl RouteServiceCli<'_> {
     }
 }
 
-fn do_route_request(
+fn route_dds_request_to_zenoh(
     route_id: &str,
     sample: &DDSRawSample,
     zenoh_key_expr: &OwnedKeyExpr,
@@ -304,10 +304,10 @@ fn do_route_request(
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {
-        log::debug!("{route_id}: routing request {request_id:02x?} to Zenoh - payload: {zenoh_req_buf:02x?}");
+        log::debug!("{route_id}: routing request {request_id:02x?} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
     } else {
         log::trace!(
-            "{route_id}: routing request {request_id:02x?} to Zenoh - {} bytes",
+            "{route_id}: routing request {request_id:02x?} from DDS to Zenoh - {} bytes",
             zenoh_req_buf.len()
         );
     }
@@ -316,21 +316,29 @@ fn do_route_request(
     if let Err(e) = zsession
         .get(zenoh_key_expr)
         .with_value(zenoh_req_buf)
+        .allowed_destination(Locality::Remote)
         .timeout(queries_timeout)
-        .callback(move |reply| do_route_reply(route_id2.clone(), reply, request_id, rep_writer))
+        .callback(move |reply| {
+            route_zenoh_reply_to_dds(route_id2.clone(), reply, request_id, rep_writer)
+        })
         .res_sync()
     {
-        log::warn!("{route_id}: routing request {request_id:02x?} to Zenoh failed: {e}");
+        log::warn!("{route_id}: routing request {request_id:02x?} from DDS to Zenoh failed: {e}");
     }
 }
 
-fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writer: dds_entity_t) {
+fn route_zenoh_reply_to_dds(
+    route_id: String,
+    reply: Reply,
+    request_id: [u8; 16],
+    rep_writer: dds_entity_t,
+) {
     match reply.sample {
         Ok(sample) => {
             let zenoh_rep_buf = sample.payload.contiguous();
             if zenoh_rep_buf.len() < 4 || zenoh_rep_buf[1] > 1 {
                 log::warn!(
-                    "{route_id}: received invalid reply for {request_id:02x?}: {zenoh_rep_buf:0x?}"
+                    "{route_id}: received invalid reply from Zenoh for {request_id:02x?}: {zenoh_rep_buf:0x?}"
                 );
                 return;
             }
@@ -344,16 +352,18 @@ fn do_route_reply(route_id: String, reply: Reply, request_id: [u8; 16], rep_writ
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[4..]);
 
             if *LOG_PAYLOAD {
-                log::debug!("{route_id}: routing reply for {request_id:02x?} to Client - payload: {dds_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS - payload: {dds_rep_buf:02x?}");
             } else {
                 log::trace!(
-                    "{route_id}: routing reply for {request_id:02x?} to Client - {} bytes",
+                    "{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS - {} bytes",
                     dds_rep_buf.len()
                 );
             }
 
             if let Err(e) = dds_write(rep_writer, dds_rep_buf) {
-                log::warn!("{route_id}: routing reply for {request_id:02x?}  failed: {e}");
+                log::warn!(
+                    "{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS failed: {e}"
+                );
             }
         }
         Err(val) => {
