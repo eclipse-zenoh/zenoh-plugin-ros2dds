@@ -27,15 +27,15 @@ use zenoh::queryable::{Query, Queryable};
 use zenoh_core::zwrite;
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::serialize_entity_guid;
 use crate::dds_utils::{
     create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-    get_instance_handle,
+    get_instance_handle, CDR_HEADER_BE, CDR_HEADER_LE,
 };
+use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, QOS_DEFAULT_SERVICE,
+    ros2_service_type_to_request_dds_type, RosRequestId, QOS_DEFAULT_SERVICE,
 };
 use crate::routes_mgr::Context;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
@@ -62,7 +62,7 @@ pub struct RouteServiceSrv<'a> {
     // the local DDS Reader receiving replies from the service server
     #[serde(serialize_with = "serialize_entity_guid")]
     rep_reader: dds_entity_t,
-    // the client GUID used in eacch request
+    // the client GUID used in each request
     #[serde(skip)]
     client_guid: u64,
     // the ROS sequence number for requests
@@ -70,7 +70,7 @@ pub struct RouteServiceSrv<'a> {
     sequence_number: Arc<AtomicU64>,
     // queries waiting for a reply
     #[serde(skip)]
-    queries_in_progress: Arc<RwLock<HashMap<u64, Query>>>,
+    queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>>,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
@@ -153,12 +153,12 @@ impl RouteServiceSrv<'_> {
         let client_guid = get_instance_handle(req_writer)?;
 
         log::debug!(
-            "{route_id}: (local client_guid={client_guid})  id='{client_id_str}' => USER_DATA={:?}",
+            "{route_id}: (local client_guid={client_guid:02x?})  id='{client_id_str}' => USER_DATA={:?}",
             qos.user_data.as_ref().unwrap()
         );
 
         // map of queries in progress
-        let queries_in_progress: Arc<RwLock<HashMap<u64, Query>>> =
+        let queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>> =
             Arc::new(RwLock::new(HashMap::new()));
 
         // create DDS Reader to receive replies and route them to Zenoh
@@ -181,7 +181,6 @@ impl RouteServiceSrv<'_> {
                         zenoh_key_expr.clone(),
                         &mut zwrite!(queries_in_progress),
                         &route_id,
-                        client_guid,
                     );
                 }
             },
@@ -225,7 +224,7 @@ impl RouteServiceSrv<'_> {
 
         // create the zenoh Queryable
         // if Reader is TRANSIENT_LOCAL, use a PublicationCache to store historical data
-        let queries_in_progress: Arc<RwLock<HashMap<u64, Query>>> =
+        let queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>> =
             self.queries_in_progress.clone();
         let sequence_number: Arc<AtomicU64> = self.sequence_number.clone();
         let route_id: String = self.to_string();
@@ -339,82 +338,96 @@ impl RouteServiceSrv<'_> {
     }
 }
 
-const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
-
 fn route_zenoh_request_to_dds(
     query: Query,
-    queries_in_progress: &mut HashMap<u64, Query>,
+    queries_in_progress: &mut HashMap<RosRequestId, Query>,
     sequence_number: &AtomicU64,
     route_id: &str,
     client_guid: u64,
     req_writer: i32,
 ) {
-    let n = sequence_number.fetch_add(1, Ordering::Relaxed);
+    // Get expected endianness from the query value:
+    // if any and if long enoough it shall be the Request type encoded as CDR (including 4 bytes header)
+    let is_little_endian = match query.value() {
+        Some(Value { payload, .. }) if payload.len() > 4 => {
+            is_cdr_little_endian(payload.contiguous().as_ref()).unwrap_or(true)
+        }
+        _ => true,
+    };
+
+    // Try to get request_id from Query attachment (in case it comes from another bridge).
+    // Otherwise, create one using client_guid + sequence_number
+    let request_id = query
+        .attachment()
+        .and_then(|a| RosRequestId::try_from(a).ok())
+        .unwrap_or_else(|| {
+            RosRequestId::create(
+                client_guid,
+                sequence_number.fetch_add(1, Ordering::Relaxed),
+                is_little_endian,
+            )
+        });
 
     // prepend request payload with a (client_guid, sequence_number) header as per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     let dds_req_buf = if let Some(value) = query.value() {
-        // query payload is expected to be the Request type encoded as CDR (including 4 bytes header)
+        // The query comes with some payload. It's expected to be the Request type encoded as CDR (including 4 bytes header)
         let zenoh_req_buf = &*(value.payload.contiguous());
         if zenoh_req_buf.len() < 4 || zenoh_req_buf[1] > 1 {
             log::warn!("{route_id}: received invalid request: {zenoh_req_buf:0x?}");
             return;
         }
-        let client_guid_bytes = if zenoh_req_buf[1] == 0 {
-            client_guid.to_be_bytes()
-        } else {
-            client_guid.to_le_bytes()
-        };
 
+        // Send to DDS a buffer made of
+        //  - the same CDR header coming with the query
+        //  - the request_id as request header as per rmw_cyclonedds here:
+        //    https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
+        //  - the remaining of query payload
         let mut dds_req_buf: Vec<u8> = Vec::new();
-        // copy CDR header
         dds_req_buf.extend_from_slice(&zenoh_req_buf[..4]);
-        // add client_id
-        dds_req_buf.extend_from_slice(&client_guid_bytes);
-        // add sequence_number (endianness depending on header)
-        if zenoh_req_buf[1] == 0 {
-            dds_req_buf.extend_from_slice(&n.to_be_bytes());
-        } else {
-            dds_req_buf.extend_from_slice(&n.to_le_bytes());
-        }
-        // add query payoad
+        dds_req_buf.extend_from_slice(request_id.as_slice());
         dds_req_buf.extend_from_slice(&zenoh_req_buf[4..]);
         dds_req_buf
     } else {
         // No query payload - send a request containing just client_guid + sequence_number
-        let mut dds_req_buf: Vec<u8> = CDR_HEADER_LE.into();
-        dds_req_buf.extend_from_slice(&client_guid.to_le_bytes());
-        dds_req_buf.extend_from_slice(&n.to_le_bytes());
+        // Send to DDS a buffer made of
+        //  - a CDR header
+        //  - the request_id as request header
+        let mut dds_req_buf: Vec<u8> = if request_id.is_little_endian() {
+            CDR_HEADER_LE.into()
+        } else {
+            CDR_HEADER_BE.into()
+        };
+        dds_req_buf.extend_from_slice(request_id.as_slice());
         dds_req_buf
     };
 
     if *LOG_PAYLOAD {
         log::debug!(
-            "{route_id}: routing request #{n} from Zenoh to DDS - payload: {dds_req_buf:02x?}"
+            "{route_id}: routing request {request_id} from Zenoh to DDS - payload: {dds_req_buf:02x?}"
         );
     } else {
         log::trace!(
-            "{route_id}: routing request #{n} from Zenoh to DDS - {} bytes",
+            "{route_id}: routing request {request_id} from Zenoh to DDS - {} bytes",
             dds_req_buf.len()
         );
     }
 
-    queries_in_progress.insert(n, query);
+    queries_in_progress.insert(request_id, query);
     if let Err(e) = dds_write(req_writer, dds_req_buf) {
         log::warn!("{route_id}: routing request from Zenoh to DDS failed: {e}");
-        queries_in_progress.remove(&n);
+        queries_in_progress.remove(&request_id);
     }
 }
 
 fn route_dds_reply_to_zenoh(
     sample: &DDSRawSample,
     zenoh_key_expr: OwnedKeyExpr,
-    queries_in_progress: &mut HashMap<u64, Query>,
+    queries_in_progress: &mut HashMap<RosRequestId, Query>,
     route_id: &str,
-    client_guid: u64,
 ) {
     // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
-    // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
+    // the request id as header (16 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     if sample.len() < 20 {
         log::warn!("{route_id}: received invalid response from DDS: {sample:0x?}");
@@ -424,28 +437,17 @@ fn route_dds_reply_to_zenoh(
     let zbuf: ZBuf = sample.into();
     let dds_rep_buf = zbuf.contiguous();
     let cdr_header = &dds_rep_buf[..4];
-    let guid = if dds_rep_buf[1] == 0 {
-        u64::from_be_bytes(dds_rep_buf[4..12].try_into().unwrap())
-    } else {
-        u64::from_le_bytes(dds_rep_buf[4..12].try_into().unwrap())
-    };
+    let is_little_endian =
+        is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
+    let request_id = RosRequestId::from_slice(
+        dds_rep_buf[4..20]
+            .try_into()
+            .expect("Shouldn't happen: slice is 16 bytes"),
+        is_little_endian,
+    );
 
-    let seq_num = if cdr_header[1] == 0 {
-        u64::from_be_bytes(dds_rep_buf[12..20].try_into().unwrap())
-    } else {
-        u64::from_le_bytes(dds_rep_buf[12..20].try_into().unwrap())
-    };
-
-    if guid != client_guid {
-        // The reply is for another client than this bridge...
-        // Could happen since the same topic is used for this service replies to all clients!
-        // Just drop it.
-        log::trace!(
-            "{route_id}: received response for another client: {guid:0x?} (me: {client_guid:0x?})"
-        );
-        return;
-    }
-    match queries_in_progress.remove(&seq_num) {
+    // Check if it's one of my queries in progress. Drop otherwise
+    match queries_in_progress.remove(&request_id) {
         Some(query) => {
             use zenoh_core::SyncResolve;
             let slice: ZSlice = dds_rep_buf.into_owned().into();
@@ -454,10 +456,10 @@ fn route_dds_reply_to_zenoh(
             zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
             if *LOG_PAYLOAD {
-                log::debug!("{route_id}: routing reply #{seq_num} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply {request_id} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");
             } else {
                 log::trace!(
-                    "{route_id}: routing reply #{seq_num} from DDS to Zenoh - {} bytes",
+                    "{route_id}: routing reply {request_id} from DDS to Zenoh - {} bytes",
                     zenoh_rep_buf.len()
                 );
             }
@@ -466,11 +468,11 @@ fn route_dds_reply_to_zenoh(
                 .reply(Ok(Sample::new(zenoh_key_expr, zenoh_rep_buf)))
                 .res_sync()
             {
-                log::warn!("{route_id}: routing reply for request #{seq_num} from DDS to Zenoh failed: {e}");
+                log::warn!("{route_id}: routing reply for request {request_id} from DDS to Zenoh failed: {e}");
             }
         }
-        None => log::warn!(
-            "{route_id}: received response from DDS an unknown query (already timed out ?): #{seq_num}"
+        None => log::trace!(
+            "{route_id}: received response from DDS an unknown query: {request_id} - ignore it"
         ),
     }
 }
