@@ -25,14 +25,14 @@ use zenoh::query::Reply;
 use zenoh_core::SyncResolve;
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::serialize_entity_guid;
 use crate::dds_utils::{
     create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
 };
+use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, QOS_DEFAULT_SERVICE,
+    ros2_service_type_to_request_dds_type, RosRequestId, QOS_DEFAULT_SERVICE,
 };
 use crate::routes_mgr::Context;
 use crate::LOG_PAYLOAD;
@@ -293,7 +293,14 @@ fn route_dds_request_to_zenoh(
 
     let zbuf: ZBuf = sample.into();
     let dds_req_buf = zbuf.contiguous();
-    let request_id: [u8; 16] = dds_req_buf[4..20].try_into().unwrap();
+    let is_little_endian =
+        is_cdr_little_endian(&dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
+    let request_id = RosRequestId::from_slice(
+        dds_req_buf[4..20]
+            .try_into()
+            .expect("Shouldn't happen: sample.len >= 20"),
+        is_little_endian,
+    );
 
     // route request buffer stripped from request_id (client_id + sequence_number)
     let mut zenoh_req_buf = ZBuf::empty();
@@ -304,10 +311,10 @@ fn route_dds_request_to_zenoh(
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {
-        log::debug!("{route_id}: routing request {request_id:02x?} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
+        log::debug!("{route_id}: routing request {request_id} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
     } else {
         log::trace!(
-            "{route_id}: routing request {request_id:02x?} from DDS to Zenoh - {} bytes",
+            "{route_id}: routing request {request_id} from DDS to Zenoh - {} bytes",
             zenoh_req_buf.len()
         );
     }
@@ -316,6 +323,7 @@ fn route_dds_request_to_zenoh(
     if let Err(e) = zsession
         .get(zenoh_key_expr)
         .with_value(zenoh_req_buf)
+        .with_attachment(request_id.as_attachment())
         .allowed_destination(Locality::Remote)
         .timeout(queries_timeout)
         .callback(move |reply| {
@@ -323,14 +331,14 @@ fn route_dds_request_to_zenoh(
         })
         .res_sync()
     {
-        log::warn!("{route_id}: routing request {request_id:02x?} from DDS to Zenoh failed: {e}");
+        log::warn!("{route_id}: routing request {request_id} from DDS to Zenoh failed: {e}");
     }
 }
 
 fn route_zenoh_reply_to_dds(
     route_id: String,
     reply: Reply,
-    request_id: [u8; 16],
+    request_id: RosRequestId,
     rep_writer: dds_entity_t,
 ) {
     match reply.sample {
@@ -338,7 +346,7 @@ fn route_zenoh_reply_to_dds(
             let zenoh_rep_buf = sample.payload.contiguous();
             if zenoh_rep_buf.len() < 4 || zenoh_rep_buf[1] > 1 {
                 log::warn!(
-                    "{route_id}: received invalid reply from Zenoh for {request_id:02x?}: {zenoh_rep_buf:0x?}"
+                    "{route_id}: received invalid reply from Zenoh for {request_id}: {zenoh_rep_buf:0x?}"
                 );
                 return;
             }
@@ -347,27 +355,27 @@ fn route_zenoh_reply_to_dds(
             // copy CDR header
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[..4]);
             // add request_id
-            dds_rep_buf.extend_from_slice(&request_id);
+            dds_rep_buf.extend_from_slice(request_id.as_slice());
             // add query payoad
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[4..]);
 
             if *LOG_PAYLOAD {
-                log::debug!("{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS - payload: {dds_rep_buf:02x?}");
+                log::debug!("{route_id}: routing reply for {request_id} from Zenoh to DDS - payload: {dds_rep_buf:02x?}");
             } else {
                 log::trace!(
-                    "{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS - {} bytes",
+                    "{route_id}: routing reply for {request_id} from Zenoh to DDS - {} bytes",
                     dds_rep_buf.len()
                 );
             }
 
             if let Err(e) = dds_write(rep_writer, dds_rep_buf) {
                 log::warn!(
-                    "{route_id}: routing reply for {request_id:02x?} from Zenoh to DDS failed: {e}"
+                    "{route_id}: routing reply for {request_id} from Zenoh to DDS failed: {e}"
                 );
             }
         }
         Err(val) => {
-            log::warn!("{route_id}: received error as reply for {request_id:02x?}: {val}");
+            log::warn!("{route_id}: received error as reply for {request_id}: {val}");
         }
     }
 }
