@@ -38,14 +38,44 @@ Meaning the *"plugin"* and *"bridge"*  words are interchangeables in the rest of
 
 ## How to install it
 
-No version has been released yet. Therefore only nightly built packages are available.
+To install the latest release of either the DDS plugin for the Zenoh router, either the `zenoh-bridge-ros2dds` standalone executable, you can do as follows:
 
-The ["Release" action](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/actions/workflows/release.yml) builds packages for most most of OSes. You can download those from the "Artifacts" section in each build.  
-Just download the package for your OS, unzip it. You'll get 3 zips: 1 for the plugin, 1 for the plugin as debian package and 1 for the bridge.
-Unzip the `zenoh-bridge-ros2dds-<platform>.zip` file, and you can run `./zenoh-bridge-ros2dds`
+### Manual installation (all platforms)
+
+All release packages can be downloaded from:  
+ - https://download.eclipse.org/zenoh/zenoh-plugin-ros2dds/latest/   
+
+Each subdirectory has the name of the Rust target. See the platforms each target corresponds to on https://doc.rust-lang.org/stable/rustc/platform-support.html
+
+Choose your platform and download:
+ - the `zenoh-plugin-ros2dds-<version>-<platform>.zip` file for the plugin.  
+   Then unzip it in the same directory than `zenohd` or to any directory where it can find the plugin library (e.g. /usr/lib)
+ - the `zenoh-bridge-ros2dds-<version>-<platform>.zip` file for the standalone executable.  
+   Then unzip it where you want, and run the extracted `zenoh-bridge-ros2dds` binary.
+
+### Linux Debian
+
+Add Eclipse Zenoh private repository to the sources list:
+
+```bash
+echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee -a /etc/apt/sources.list > /dev/null
+sudo apt update
+```
+Then either:
+  - install the plugin with: `sudo apt install zenoh-plugin-ros2dds`.
+  - install the standalone executable with: `sudo apt install zenoh-bridge-ros2dds`.
+
+### Docker images
 
 The **`zenoh-bridge-ros2dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-ros2dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
+  - `docker pull eclipse/zenoh-bridge-ros2dds:latest` for the latest release
   - `docker pull eclipse/zenoh-bridge-ros2dds:nightly` for the main branch version (nightly build)
+
+### Nightly builds
+
+The ["Release" action](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/actions/workflows/release.yml) builds packages for most most of OSes. You can download those from the "Artifacts" section in each build.  
+Just download the package for your OS and unzip it. You'll get 3 zips: 1 for the plugin, 1 for the plugin as debian package and 1 for the bridge.
+Unzip the `zenoh-bridge-ros2dds-<platform>.zip` file, and you can run `./zenoh-bridge-ros2dds`
 
 
 ## How to build it
