@@ -32,10 +32,24 @@ use crate::{
     vec_into_raw_parts,
 };
 
-pub const DDS_ENTITY_NULL: dds_entity_t = 0;
-
 // An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
 pub type AtomicDDSEntity = AtomicI32;
+
+pub const DDS_ENTITY_NULL: dds_entity_t = 0;
+pub const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
+pub const CDR_HEADER_BE: [u8; 4] = [0, 0, 0, 0];
+
+/// Return None if the buffer is shorter than a CDR header (4 bytes).
+/// Otherwise, return true if the encoding flag (last bit of 2nd byte) corresponds little endian
+pub fn is_cdr_little_endian(cdr_buffer: &[u8]) -> Option<bool> {
+    // Per DDSI spec §10.2 (https://www.omg.org/spec/DDSI-RTPS/2.5/PDF),
+    // the endianness flag is the last bit of the RepresentationOptions (2 last octets)
+    if cdr_buffer.len() > 3 {
+        Some(cdr_buffer[1] & 1 > 0)
+    } else {
+        None
+    }
+}
 
 pub fn ddsrt_iov_len_to_usize(len: ddsrt_iov_len_t) -> Result<usize, String> {
     // Depending the platform ddsrt_iov_len_t can have different typedef
