@@ -32,7 +32,7 @@ use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
 use crate::liveliness_mgt::new_ke_liveliness_service_cli;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, RosRequestId, QOS_DEFAULT_SERVICE,
+    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
 };
 use crate::routes_mgr::Context;
 use crate::LOG_PAYLOAD;
@@ -280,7 +280,7 @@ fn route_dds_request_to_zenoh(
     sample: &DDSRawSample,
     zenoh_key_expr: &OwnedKeyExpr,
     zsession: &Arc<Session>,
-    queries_timeout: Duration,
+    query_timeout: Duration,
     rep_writer: dds_entity_t,
 ) {
     // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
@@ -295,7 +295,7 @@ fn route_dds_request_to_zenoh(
     let dds_req_buf = zbuf.contiguous();
     let is_little_endian =
         is_cdr_little_endian(&dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
-    let request_id = RosRequestId::from_slice(
+    let request_id = CddsRequestHeader::from_slice(
         dds_req_buf[4..20]
             .try_into()
             .expect("Shouldn't happen: sample.len >= 20"),
@@ -325,7 +325,7 @@ fn route_dds_request_to_zenoh(
         .with_value(zenoh_req_buf)
         .with_attachment(request_id.as_attachment())
         .allowed_destination(Locality::Remote)
-        .timeout(queries_timeout)
+        .timeout(query_timeout)
         .callback(move |reply| {
             route_zenoh_reply_to_dds(route_id2.clone(), reply, request_id, rep_writer)
         })
@@ -338,7 +338,7 @@ fn route_dds_request_to_zenoh(
 fn route_zenoh_reply_to_dds(
     route_id: String,
     reply: Reply,
-    request_id: RosRequestId,
+    request_id: CddsRequestHeader,
     rep_writer: dds_entity_t,
 ) {
     match reply.sample {
