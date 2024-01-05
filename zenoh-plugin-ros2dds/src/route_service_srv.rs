@@ -35,7 +35,7 @@ use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
 use crate::liveliness_mgt::new_ke_liveliness_service_srv;
 use crate::ros2_utils::{
     is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, RosRequestId, QOS_DEFAULT_SERVICE,
+    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
 };
 use crate::routes_mgr::Context;
 use crate::{serialize_option_as_bool, LOG_PAYLOAD};
@@ -70,7 +70,7 @@ pub struct RouteServiceSrv<'a> {
     sequence_number: Arc<AtomicU64>,
     // queries waiting for a reply
     #[serde(skip)]
-    queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>>,
+    queries_in_progress: Arc<RwLock<HashMap<CddsRequestHeader, Query>>>,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
@@ -158,7 +158,7 @@ impl RouteServiceSrv<'_> {
         );
 
         // map of queries in progress
-        let queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>> =
+        let queries_in_progress: Arc<RwLock<HashMap<CddsRequestHeader, Query>>> =
             Arc::new(RwLock::new(HashMap::new()));
 
         // create DDS Reader to receive replies and route them to Zenoh
@@ -224,7 +224,7 @@ impl RouteServiceSrv<'_> {
 
         // create the zenoh Queryable
         // if Reader is TRANSIENT_LOCAL, use a PublicationCache to store historical data
-        let queries_in_progress: Arc<RwLock<HashMap<RosRequestId, Query>>> =
+        let queries_in_progress: Arc<RwLock<HashMap<CddsRequestHeader, Query>>> =
             self.queries_in_progress.clone();
         let sequence_number: Arc<AtomicU64> = self.sequence_number.clone();
         let route_id: String = self.to_string();
@@ -340,7 +340,7 @@ impl RouteServiceSrv<'_> {
 
 fn route_zenoh_request_to_dds(
     query: Query,
-    queries_in_progress: &mut HashMap<RosRequestId, Query>,
+    queries_in_progress: &mut HashMap<CddsRequestHeader, Query>,
     sequence_number: &AtomicU64,
     route_id: &str,
     client_guid: u64,
@@ -359,9 +359,9 @@ fn route_zenoh_request_to_dds(
     // Otherwise, create one using client_guid + sequence_number
     let request_id = query
         .attachment()
-        .and_then(|a| RosRequestId::try_from(a).ok())
+        .and_then(|a| CddsRequestHeader::try_from(a).ok())
         .unwrap_or_else(|| {
-            RosRequestId::create(
+            CddsRequestHeader::create(
                 client_guid,
                 sequence_number.fetch_add(1, Ordering::Relaxed),
                 is_little_endian,
@@ -423,7 +423,7 @@ fn route_zenoh_request_to_dds(
 fn route_dds_reply_to_zenoh(
     sample: &DDSRawSample,
     zenoh_key_expr: OwnedKeyExpr,
-    queries_in_progress: &mut HashMap<RosRequestId, Query>,
+    queries_in_progress: &mut HashMap<CddsRequestHeader, Query>,
     route_id: &str,
 ) {
     // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
@@ -439,7 +439,7 @@ fn route_dds_reply_to_zenoh(
     let cdr_header = &dds_rep_buf[..4];
     let is_little_endian =
         is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
-    let request_id = RosRequestId::from_slice(
+    let request_id = CddsRequestHeader::from_slice(
         dds_rep_buf[4..20]
             .try_into()
             .expect("Shouldn't happen: slice is 16 bytes"),
