@@ -21,7 +21,6 @@ use zenoh::config::Config;
 pub enum Wai {
     Peer,
     Client,
-    Router,
 }
 impl core::fmt::Display for Wai {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -64,7 +63,6 @@ impl From<&CommonArgs> for Config {
         match value.mode {
             Wai::Peer => config.set_mode(Some(zenoh::scouting::WhatAmI::Peer)),
             Wai::Client => config.set_mode(Some(zenoh::scouting::WhatAmI::Client)),
-            Wai::Router => config.set_mode(Some(zenoh::scouting::WhatAmI::Router)),
         }
         .unwrap();
         if !value.connect.is_empty() {
