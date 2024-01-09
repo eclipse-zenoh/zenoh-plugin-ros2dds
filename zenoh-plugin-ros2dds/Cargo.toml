@@ -29,7 +29,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["no_mangle"]
 stats = ["zenoh/stats"]
-no_mangle = ["zenoh-plugin-trait/no_mangle"]
+no_mangle = []
 dds_shm = ["cyclors/iceoryx"]
 
 [dependencies]

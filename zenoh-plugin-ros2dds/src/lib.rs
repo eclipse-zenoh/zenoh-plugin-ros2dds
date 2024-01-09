@@ -23,14 +23,16 @@ use std::env;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
+use zenoh::plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::queryable::Query;
+use zenoh::runtime::Runtime;
 use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::SubscriberBuilderExt;
+use zenoh_plugin_trait::{Plugin, PluginControl};
 use zenoh_util::Timed;
 
 pub mod config;
@@ -112,9 +114,10 @@ pub struct ROS2Plugin;
 impl ZenohPlugin for ROS2Plugin {}
 impl Plugin for ROS2Plugin {
     type StartArgs = Runtime;
-    type RunningPlugin = zenoh::plugins::RunningPlugin;
+    type Instance = RunningPlugin;
 
-    const STATIC_NAME: &'static str = "zenoh-plugin-ros2dds";
+    const PLUGIN_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const DEFAULT_NAME: &'static str = "zenoh-plugin-ros2dds";
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
         // Try to initiate login.
@@ -122,7 +125,7 @@ impl Plugin for ROS2Plugin {
         // But cannot be done twice in case of static link.
         let _ = env_logger::try_init();
 
-        let runtime_conf = runtime.config.lock();
+        let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
             .plugin(name)
             .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
@@ -132,10 +135,15 @@ impl Plugin for ROS2Plugin {
         Ok(Box::new(ROS2Plugin))
     }
 }
-
+impl PluginControl for ROS2Plugin {}
 impl RunningPluginTrait for ROS2Plugin {
-    fn config_checker(&self) -> zenoh::plugins::ValidationFunction {
-        Arc::new(|_, _, _| bail!("ROS2Plugin does not support hot configuration changes."))
+    fn config_checker(
+        &self,
+        _path: &str,
+        _current: &serde_json::Map<String, serde_json::Value>,
+        _new: &serde_json::Map<String, serde_json::Value>,
+    ) -> ZResult<Option<serde_json::Map<String, serde_json::Value>>> {
+        bail!("ROS2Plugin does not support hot configuration changes.")
     }
 
     fn adminspace_getter<'a>(
