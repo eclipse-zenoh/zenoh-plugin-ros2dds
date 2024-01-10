@@ -16,7 +16,6 @@ use cyclors::*;
 use events::ROS2AnnouncementEvent;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
-use git_version::git_version;
 use serde::Serializer;
 use std::collections::HashMap;
 use std::env;
@@ -32,7 +31,7 @@ use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::SubscriberBuilderExt;
-use zenoh_plugin_trait::{Plugin, PluginControl};
+use zenoh_plugin_trait::{plugin_version, Plugin, PluginControl};
 use zenoh_util::Timed;
 
 pub mod config;
@@ -64,8 +63,6 @@ use crate::liveliness_mgt::*;
 use crate::ros_discovery::RosDiscoveryInfoMgr;
 use crate::routes_mgr::RoutesMgr;
 
-pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
-
 #[macro_export]
 macro_rules! ke_for_sure {
     ($val:expr) => {
@@ -74,9 +71,6 @@ macro_rules! ke_for_sure {
 }
 
 lazy_static::lazy_static!(
-    pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
-    pub static ref VERSION_JSON_VALUE: Value =
-        serde_json::Value::String(LONG_VERSION.clone()).into();
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
@@ -116,7 +110,7 @@ impl Plugin for ROS2Plugin {
     type StartArgs = Runtime;
     type Instance = RunningPlugin;
 
-    const PLUGIN_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const PLUGIN_VERSION: &'static str = plugin_version!();
     const DEFAULT_NAME: &'static str = "zenoh-plugin-ros2dds";
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
@@ -156,7 +150,7 @@ impl RunningPluginTrait for ROS2Plugin {
         if selector.key_expr.intersects(ke_for_sure!(&version_key)) {
             responses.push(zenoh::plugins::Response::new(
                 version_key,
-                GIT_VERSION.into(),
+                Self::PLUGIN_VERSION.into(),
             ));
         }
         Ok(responses)
@@ -168,7 +162,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
     let _ = env_logger::try_init();
-    log::debug!("ROS2 plugin {}", LONG_VERSION.as_str());
+    log::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
     log::info!("ROS2 plugin {:?}", config);
 
     // Check config validity
