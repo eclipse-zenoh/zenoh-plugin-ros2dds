@@ -43,17 +43,17 @@ regex = "1.7.1"
 rustc_version = "0.4"
 serde = "1.0.154"
 serde_json = "1.0.94"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [
+zenoh = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master", features = [
   "unstable",
 ] }
-zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
-zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [
+zenoh-collections = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master" }
+zenoh-core = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master" }
+zenoh-ext = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master", features = [
   "unstable",
 ] }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
-zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
+zenoh-plugin-rest = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master", default-features = false }
+zenoh-plugin-trait = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master", default-features = false }
+zenoh-util = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "master", default-features = false }
 
 [profile.release]
 debug = false
