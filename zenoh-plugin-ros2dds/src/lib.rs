@@ -31,7 +31,7 @@ use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::SubscriberBuilderExt;
-use zenoh_plugin_trait::{plugin_version, Plugin, PluginControl};
+use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
 use zenoh_util::Timed;
 
 pub mod config;
@@ -71,6 +71,9 @@ macro_rules! ke_for_sure {
 }
 
 lazy_static::lazy_static!(
+    pub static ref VERSION_JSON_VALUE: Value =
+        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned()).into();
+
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
@@ -111,6 +114,7 @@ impl Plugin for ROS2Plugin {
     type Instance = RunningPlugin;
 
     const PLUGIN_VERSION: &'static str = plugin_version!();
+    const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
     const DEFAULT_NAME: &'static str = "zenoh-plugin-ros2dds";
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
