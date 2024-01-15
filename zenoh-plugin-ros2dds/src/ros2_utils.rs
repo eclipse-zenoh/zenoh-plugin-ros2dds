@@ -12,11 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::{
-    env::VarError,
-    sync::atomic::{AtomicU32, Ordering},
-};
-
 use cyclors::{
     dds_entity_t,
     qos::{
@@ -25,7 +20,13 @@ use cyclors::{
         DDS_INFINITE_TIME,
     },
 };
+use std::{
+    env::VarError,
+    sync::atomic::{AtomicU32, Ordering},
+};
 use zenoh::prelude::{keyexpr, KeyExpr, OwnedKeyExpr};
+use zenoh::sample::Attachment;
+use zenoh_core::{bail, zresult::ZError};
 
 use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
 
@@ -162,6 +163,112 @@ pub fn dds_type_to_ros2_action_type(dds_topic: &str) -> String {
             .or(dds_topic.strip_suffix("_FeedbackMessage_"))
             .unwrap_or(dds_topic),
     )
+}
+
+const ATTACHMENT_KEY_REQUEST_HEADER: [u8; 3] = [0x72, 0x71, 0x68]; // "rqh" in ASCII
+
+/// In rmw_cyclonedds_cpp a cdds_request_header sent within each request and reply payload.
+/// See https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
+/// Note that it's different from the rmw_request_id_t defined in RMW interfaces in
+/// https://github.com/ros2/rmw/blob/9b3d9d0e3021b7a6e75d8886e3e061a53c36c789/rmw/include/rmw/types.h#L360
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+pub struct CddsRequestHeader {
+    // The header contains a u64 GUID (Client's) and a i64 sequence number.
+    // Keep those as a single buffer, as it's transfered as such between DDS and Zenoh.
+    header: [u8; 16],
+    // the sequence number is subject to endianness, we need to keep a flag for it
+    is_little_endian: bool,
+}
+
+impl CddsRequestHeader {
+    pub fn create(client_id: u64, seq_num: u64, is_little_endian: bool) -> CddsRequestHeader {
+        let mut header = [0u8; 16];
+        if is_little_endian {
+            header[..8].copy_from_slice(&client_id.to_le_bytes());
+            header[8..].copy_from_slice(&seq_num.to_le_bytes())
+        } else {
+            header[..8].copy_from_slice(&client_id.to_be_bytes());
+            header[8..].copy_from_slice(&seq_num.to_be_bytes())
+        }
+        CddsRequestHeader {
+            header,
+            is_little_endian,
+        }
+    }
+
+    pub fn from_slice(header: [u8; 16], is_little_endian: bool) -> CddsRequestHeader {
+        CddsRequestHeader {
+            header,
+            is_little_endian,
+        }
+    }
+
+    pub fn is_little_endian(&self) -> bool {
+        self.is_little_endian
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.header
+    }
+
+    pub fn as_attachment(&self) -> Attachment {
+        let mut attach = Attachment::new();
+
+        // concat header + endianness flag
+        let mut buf = [0u8; 17];
+        buf[0..16].copy_from_slice(&self.header);
+        buf[16] = self.is_little_endian as u8;
+
+        attach.insert(&ATTACHMENT_KEY_REQUEST_HEADER, &buf);
+        attach
+    }
+}
+
+impl TryFrom<&Attachment> for CddsRequestHeader {
+    type Error = ZError;
+    fn try_from(value: &Attachment) -> Result<Self, Self::Error> {
+        match value.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
+            Some(buf) => {
+                if buf.len() == 17 {
+                    let header: [u8; 16] = buf[0..16]
+                        .try_into()
+                        .expect("Shouldn't happen: buf is 17 bytes");
+                    Ok(CddsRequestHeader {
+                        header,
+                        is_little_endian: buf[16] != 0,
+                    })
+                } else {
+                    bail!("Attachment 'header' is not 16 bytes: {buf:02x?}")
+                }
+            }
+            None => bail!("No 'header' key found in Attachment"),
+        }
+    }
+}
+
+impl std::fmt::Display for CddsRequestHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // a request header is made of 8 bytes client guid + 8 bytes sequence number
+        // display as such for easier understanding
+        write!(f, "(")?;
+        for i in &self.header[0..8] {
+            write!(f, "{i:02x}")?;
+        }
+        let seq_num = if self.is_little_endian {
+            u64::from_le_bytes(
+                self.header[8..]
+                    .try_into()
+                    .expect("Shouldn't happen: self.header is 16 bytes"),
+            )
+        } else {
+            u64::from_be_bytes(
+                self.header[8..]
+                    .try_into()
+                    .expect("Shouldn't happen: self.header is 16 bytes"),
+            )
+        };
+        write!(f, ",{seq_num})",)
+    }
 }
 
 fn ros2_service_default_qos() -> Qos {
