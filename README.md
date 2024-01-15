@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/master/zenoh-dragon.png" height="150">
+<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/main/zenoh-dragon.png" height="150">
 
 [![CI](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/workflows/Release/badge.svg)](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/actions/workflows/release.yml)
 [![Discussion](https://img.shields.io/badge/discussion-on%20github-blue)](https://github.com/eclipse-zenoh/roadmap/discussions)
