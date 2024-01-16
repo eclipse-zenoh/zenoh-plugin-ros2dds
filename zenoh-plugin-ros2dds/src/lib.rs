@@ -29,7 +29,7 @@ use zenoh::queryable::Query;
 use zenoh::runtime::Runtime;
 use zenoh::Result as ZResult;
 use zenoh::Session;
-use zenoh_core::{bail, zerror};
+use zenoh_core::zerror;
 use zenoh_ext::SubscriberBuilderExt;
 use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
 use zenoh_util::Timed;
@@ -134,32 +134,7 @@ impl Plugin for ROS2Plugin {
     }
 }
 impl PluginControl for ROS2Plugin {}
-impl RunningPluginTrait for ROS2Plugin {
-    fn config_checker(
-        &self,
-        _path: &str,
-        _current: &serde_json::Map<String, serde_json::Value>,
-        _new: &serde_json::Map<String, serde_json::Value>,
-    ) -> ZResult<Option<serde_json::Map<String, serde_json::Value>>> {
-        bail!("ROS2Plugin does not support hot configuration changes.")
-    }
-
-    fn adminspace_getter<'a>(
-        &'a self,
-        selector: &'a Selector<'a>,
-        plugin_status_key: &str,
-    ) -> ZResult<Vec<zenoh::plugins::Response>> {
-        let mut responses = Vec::new();
-        let version_key = [plugin_status_key, "/__version__"].concat();
-        if selector.key_expr.intersects(ke_for_sure!(&version_key)) {
-            responses.push(zenoh::plugins::Response::new(
-                version_key,
-                Self::PLUGIN_VERSION.into(),
-            ));
-        }
-        Ok(responses)
-    }
-}
+impl RunningPluginTrait for ROS2Plugin {}
 
 pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
