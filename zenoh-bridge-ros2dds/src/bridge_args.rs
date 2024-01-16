@@ -74,6 +74,16 @@ pub struct BridgeArgs {
     /// reports as error log any stalled status during the specified period [default: 1.0 second]
     #[arg(short, long, value_name = "FLOAT", default_missing_value = "1.0")]
     pub watchdog: Option<Option<f32>>,
+
+    /// ROS command line arguments as specified in https://design.ros2.org/articles/ros_command_line_arguments.html
+    /// Supported capabilities:
+    ///   -r, --remap <from:=to> : remapping is supported only for '__ns' and '__node'
+    #[arg(
+        long,
+        value_name = " list of ROS args until '--' ",
+        verbatim_doc_comment
+    )]
+    pub ros_args: (),
 }
 
 impl From<BridgeArgs> for Config {
@@ -119,7 +129,7 @@ impl From<&BridgeArgs> for Config {
     }
 }
 
-fn insert_json5<T>(config: &mut Config, key: &str, value: &T)
+pub(crate) fn insert_json5<T>(config: &mut Config, key: &str, value: &T)
 where
     T: Sized + serde::Serialize,
 {
@@ -128,7 +138,7 @@ where
         .unwrap();
 }
 
-fn insert_json5_option<T>(config: &mut Config, key: &str, value: &Option<T>)
+pub(crate) fn insert_json5_option<T>(config: &mut Config, key: &str, value: &Option<T>)
 where
     T: Sized + serde::Serialize,
 {
@@ -139,7 +149,7 @@ where
     }
 }
 
-fn insert_json5_list<T>(config: &mut Config, key: &str, values: &Vec<T>)
+pub(crate) fn insert_json5_list<T>(config: &mut Config, key: &str, values: &Vec<T>)
 where
     T: Sized + serde::Serialize,
 {
