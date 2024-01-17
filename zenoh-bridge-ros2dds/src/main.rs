@@ -14,15 +14,42 @@
 use async_liveliness_monitor::LivelinessMonitor;
 use bridge_args::BridgeArgs;
 use clap::Parser;
+use ros_args::RosArgs;
 use std::time::{Duration, SystemTime};
 use zenoh::config::Config;
 
 mod bridge_args;
+mod ros_args;
 mod zenoh_args;
 
+const ROS_ARG_START_FLAG: &str = "--ros-args";
+const ROS_ARG_END_FLAG: &str = "--";
+
 fn parse_args() -> (Option<f32>, Config) {
-    let args = BridgeArgs::parse();
-    (args.watchdog.flatten(), args.into())
+    // Split arguments between "ROS-defined" ones and the "user-defined" ones
+    // (as per https://design.ros2.org/articles/ros_command_line_arguments.html)
+    let mut ros_args = vec!["ros-args".to_string()];
+    let mut user_args = Vec::new();
+    let mut in_ros_args_section = false;
+    for arg in std::env::args() {
+        match arg.as_str() {
+            ROS_ARG_START_FLAG => in_ros_args_section = true,
+            ROS_ARG_END_FLAG => in_ros_args_section = false,
+            _ if in_ros_args_section => ros_args.push(arg),
+            _ => user_args.push(arg),
+        }
+    }
+
+    // Create config parsing user-defined args
+    let bridge_args = BridgeArgs::parse_from(user_args);
+    let watchdog_opt = bridge_args.watchdog.flatten();
+    let mut config = bridge_args.into();
+
+    // Amend config with "ROS-define" args
+    let ros_args = RosArgs::parse_from(ros_args);
+    ros_args.update_config(&mut config);
+
+    (watchdog_opt, config)
 }
 
 #[async_std::main]
