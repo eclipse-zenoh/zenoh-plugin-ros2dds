@@ -16,7 +16,7 @@ use bridge_args::BridgeArgs;
 use clap::Parser;
 use ros_args::RosArgs;
 use std::time::{Duration, SystemTime};
-use zenoh::config::Config;
+use zenoh::config::{Config, ModeDependentValue};
 
 mod bridge_args;
 mod ros_args;
@@ -48,6 +48,12 @@ fn parse_args() -> (Option<f32>, Config) {
     // Amend config with "ROS-define" args
     let ros_args = RosArgs::parse_from(ros_args);
     ros_args.update_config(&mut config);
+
+    // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
+    config
+        .timestamping
+        .set_enabled(Some(ModeDependentValue::Unique(true)))
+        .unwrap();
 
     (watchdog_opt, config)
 }
