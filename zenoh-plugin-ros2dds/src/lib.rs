@@ -103,6 +103,7 @@ const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory>
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 100;
 const ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS: u64 = 100;
 
+#[cfg(feature = "no_mangle")]
 zenoh_plugin_trait::declare_plugin!(ROS2Plugin);
 
 #[allow(clippy::upper_case_acronyms)]
