@@ -160,7 +160,8 @@ impl RouteSubscriber<'_> {
         })
     }
 
-    async fn activate(&mut self, discovered_reader_qos: &Qos) -> Result<(), String> {
+    // Announce the route over Zenoh via a LivelinessToken
+    async fn announce_route(&mut self, discovered_reader_qos: &Qos) -> Result<(), String> {
         log::debug!("{self} activate");
         // Callback routing message received by Zenoh subscriber to DDS Writer (if set)
         let ros2_name = self.ros2_name.clone();
@@ -232,7 +233,8 @@ impl RouteSubscriber<'_> {
         Ok(())
     }
 
-    fn deactivate(&mut self) {
+    // Retire the route over Zenoh removing the LivelinessToken
+    fn retire_route(&mut self) {
         log::debug!("{self} deactivate");
         // Drop Zenoh Subscriber and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
@@ -306,7 +308,7 @@ impl RouteSubscriber<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate(discovered_reader_qos).await {
+            if let Err(e) = self.announce_route(discovered_reader_qos).await {
                 log::error!("{self} activation failed: {e}");
             }
         }
@@ -318,7 +320,7 @@ impl RouteSubscriber<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if last local node removed, deactivate the route
         if self.local_nodes.is_empty() {
-            self.deactivate();
+            self.retire_route();
         }
     }
 

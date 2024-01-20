@@ -190,7 +190,8 @@ impl RouteServiceCli<'_> {
         })
     }
 
-    async fn activate(&mut self) -> Result<(), String> {
+    // Announce the route over Zenoh via a LivelinessToken
+    async fn announce_route(&mut self) -> Result<(), String> {
         self.is_active = true;
 
         // if not for an Action (since actions declare their own liveliness)
@@ -201,6 +202,7 @@ impl RouteServiceCli<'_> {
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
+            log::debug!("{self} announce via token {liveliness_ke}");
             let ros2_name = self.ros2_name.clone();
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
@@ -217,8 +219,9 @@ impl RouteServiceCli<'_> {
         Ok(())
     }
 
-    fn deactivate(&mut self) {
-        log::debug!("{self} deactivate");
+    // Retire the route over Zenoh removing the LivelinessToken
+    fn retire_route(&mut self) {
+        log::debug!("{self} retire");
         // Drop Zenoh Publisher and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
         self.is_active = false;
@@ -250,7 +253,7 @@ impl RouteServiceCli<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
-            if let Err(e) = self.activate().await {
+            if let Err(e) = self.announce_route().await {
                 log::error!("{self} activation failed: {e}");
             }
         }
@@ -262,7 +265,7 @@ impl RouteServiceCli<'_> {
         log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if last local node removed, deactivate the route
         if self.local_nodes.is_empty() {
-            self.deactivate();
+            self.retire_route();
         }
     }
 

@@ -248,8 +248,6 @@ impl RoutePublisher<'_> {
                 .map_err(|e| format!("Failed to lisetn of matchibng status changes: {e}",))?
         };
 
-        // Ok(route)
-
         Ok(RoutePublisher {
             ros2_name,
             ros2_type,
