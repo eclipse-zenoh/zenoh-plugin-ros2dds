@@ -273,6 +273,8 @@ impl RouteServiceCli<'_> {
         // NOTE: The route shall not be active if a remote Service Server have not been detected.
         //       Otherwise, the Client will send a request to this route that will get no reply
         //       and will drop it, leading the Client to hang (see #62).
+        // TODO: rather rely on a Querier MatchingStatus (in the same way that it's done for RoutePublisher)
+        //       when available in zenoh...
         if self.remote_routes.len() == 1 {
             if let Err(e) = self.activate() {
                 log::error!("{self}: activation failed: {e}");
