@@ -682,7 +682,7 @@ impl<'a> RoutesMgr<'a> {
                     ros2_name.clone(),
                     ros2_type,
                     zenoh_key_expr.clone(),
-                    &None,
+                    None,
                     queries_timeout,
                     self.context.clone(),
                 )

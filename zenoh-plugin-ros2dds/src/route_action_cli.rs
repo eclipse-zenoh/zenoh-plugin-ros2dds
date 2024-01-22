@@ -83,7 +83,7 @@ impl RouteActionCli<'_> {
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL,
-            &None,
+            None,
             send_goal_queries_timeout,
             context.clone(),
         )
@@ -97,7 +97,7 @@ impl RouteActionCli<'_> {
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_CANCEL_GOAL),
             ROS2_ACTION_CANCEL_GOAL_SRV_TYPE.to_string(),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL,
-            &None,
+            None,
             cancel_goal_queries_timeout,
             context.clone(),
         )
@@ -111,7 +111,7 @@ impl RouteActionCli<'_> {
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_GET_RESULT),
             format!("{ros2_type}_GetResult"),
             &zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT,
-            &None,
+            None,
             get_result_queries_timeout,
             context.clone(),
         )
