@@ -248,8 +248,6 @@ impl RoutePublisher<'_> {
                 .map_err(|e| format!("Failed to lisetn of matchibng status changes: {e}",))?
         };
 
-        // Ok(route)
-
         Ok(RoutePublisher {
             ros2_name,
             ros2_type,
@@ -427,6 +425,7 @@ fn activate_dds_reader(
     context.ros_discovery_mgr.add_dds_reader(get_guid(&reader)?);
 
     if old != DDS_ENTITY_NULL {
+        log::warn!("{route_id}: on activation their was already a DDS Reader - overwrite it");
         if let Err(e) = delete_dds_entity(old) {
             log::warn!("{route_id}: failed to delete overwritten DDS Reader: {e}");
         }

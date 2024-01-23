@@ -548,13 +548,24 @@ impl<'a> ROS2PluginRuntime<'a> {
         if let Some(allowance) = &self.config.allowance {
             use ROS2DiscoveryEvent::*;
             match evt {
-                DiscoveredMsgPub(_, iface) => allowance.is_publisher_allowed(&iface.name),
-                DiscoveredMsgSub(_, iface) => allowance.is_subscriber_allowed(&iface.name),
-                DiscoveredServiceSrv(_, iface) => allowance.is_service_srv_allowed(&iface.name),
-                DiscoveredServiceCli(_, iface) => allowance.is_service_cli_allowed(&iface.name),
-                DiscoveredActionSrv(_, iface) => allowance.is_action_srv_allowed(&iface.name),
-                DiscoveredActionCli(_, iface) => allowance.is_action_cli_allowed(&iface.name),
-                _ => true, // only Undiscovered events remain - always allow them (in case dynamic change of config is supported)
+                DiscoveredMsgPub(_, iface) | UndiscoveredMsgPub(_, iface) => {
+                    allowance.is_publisher_allowed(&iface.name)
+                }
+                DiscoveredMsgSub(_, iface) | UndiscoveredMsgSub(_, iface) => {
+                    allowance.is_subscriber_allowed(&iface.name)
+                }
+                DiscoveredServiceSrv(_, iface) | UndiscoveredServiceSrv(_, iface) => {
+                    allowance.is_service_srv_allowed(&iface.name)
+                }
+                DiscoveredServiceCli(_, iface) | UndiscoveredServiceCli(_, iface) => {
+                    allowance.is_service_cli_allowed(&iface.name)
+                }
+                DiscoveredActionSrv(_, iface) | UndiscoveredActionSrv(_, iface) => {
+                    allowance.is_action_srv_allowed(&iface.name)
+                }
+                DiscoveredActionCli(_, iface) | UndiscoveredActionCli(_, iface) => {
+                    allowance.is_action_cli_allowed(&iface.name)
+                }
             }
         } else {
             // no allow/deny configured => allow all
