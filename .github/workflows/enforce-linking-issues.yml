@@ -1,0 +1,9 @@
+name: Enforce linking issues
+
+on:
+  pull_request_target:
+    types: [opened, edited, labeled]
+
+jobs:
+  main:
+    uses: eclipse-zenoh/zenoh/.github/workflows/enforce-linking-issues.yml@main
