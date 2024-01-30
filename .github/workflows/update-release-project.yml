@@ -1,0 +1,14 @@
+name: Update release project
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  pull_request_target:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  main:
+    uses: eclipse-zenoh/zenoh/.github/workflows/update-release-project.yml@main
+    secrets: inherit
