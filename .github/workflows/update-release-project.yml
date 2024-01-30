@@ -11,3 +11,4 @@ on:
 jobs:
   main:
     uses: eclipse-zenoh/zenoh/.github/workflows/update-release-project.yml@main
+    secrets: inherit
