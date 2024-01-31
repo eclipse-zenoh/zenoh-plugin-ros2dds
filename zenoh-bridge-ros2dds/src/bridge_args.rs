@@ -36,8 +36,8 @@ pub struct BridgeArgs {
     #[arg(short, long)]
     pub namespace: Option<String>,
     /// The DDS Domain ID. Default to $ROS_DOMAIN_ID environment variable if defined, or to 0 otherwise.
-    #[arg(short, long, default_value("0"), env("ROS_DOMAIN_ID"))]
-    pub domain: u32,
+    #[arg(short, long, env("ROS_DOMAIN_ID"))]
+    pub domain: Option<u32>,
     /// Configure CycloneDDS to use only the localhost interface. If not set, a $ROS_LOCALHOST_ONLY=1 environment variable activates this option.
     /// When this flag is not active, CycloneDDS will pick the interface defined in "$CYCLONEDDS_URI" configuration, or automatically choose one.
     #[arg(
@@ -98,7 +98,9 @@ impl From<&BridgeArgs> for Config {
 
         insert_json5_option(&mut config, "plugins/ros2dds/id", &args.id);
         insert_json5_option(&mut config, "plugins/ros2dds/namespace", &args.namespace);
-        insert_json5(&mut config, "plugins/ros2dds/domain", &args.domain);
+        if let Some(domain) = args.domain {
+            insert_json5(&mut config, "plugins/ros2dds/domain", &domain);
+        }
         insert_json5(
             &mut config,
             "plugins/ros2dds/ros_localhost_only",
