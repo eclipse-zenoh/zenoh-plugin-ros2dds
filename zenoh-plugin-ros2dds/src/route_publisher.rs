@@ -77,6 +77,9 @@ pub struct RoutePublisher<'a> {
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh message coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     dds_reader: Arc<AtomicDDSEntity>,
+    // the Zenoh Priority for publications
+    #[serde(serialize_with = "serialize_priority")]
+    priority: Priority,
     // TypeInfo for Reader creation (if available)
     #[serde(skip)]
     _type_info: Option<Arc<TypeInfo>>,
@@ -189,11 +192,18 @@ impl RoutePublisher<'_> {
             _ => CongestionControl::Drop,
         };
 
+        // Priority if configured for this topic
+        let priority = context
+            .config
+            .get_pub_priorities(&ros2_name)
+            .unwrap_or_default();
+
         let publisher: Arc<Publisher<'static>> = context
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .allowed_destination(Locality::Remote)
             .congestion_control(congestion_ctrl)
+            .priority(priority)
             .res_async()
             .await
             .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
@@ -260,6 +270,7 @@ impl RoutePublisher<'_> {
                 cache_size,
             },
             dds_reader,
+            priority,
             _type_info: type_info.clone(),
             _reader_qos: reader_qos,
             keyless,
@@ -377,6 +388,13 @@ where
     S: Serializer,
 {
     s.serialize_u64(zpub.cache_size as u64)
+}
+
+fn serialize_priority<S>(p: &Priority, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_u8(*p as u8)
 }
 
 // Return the read period if name matches one of the "pub_max_frequencies" option

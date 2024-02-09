@@ -85,6 +85,16 @@
       ////                        if publication rate is higher, downsampling will occur when routing.
       // pub_max_frequencies: [".*/laser_scan=5", "/tf=10"],
 
+      ////
+      //// pub_priorities: Specify a list of priorities of publications routing over zenoh for a set of Publishers.
+      ////                 In case of high traffic, the publications with higher priorities will overtake
+      ////                 the publications with lower priorities in Zenoh publication queues.
+      ////                 The strings must have the format "<regex>=<integer>":
+      ////                 - "regex" is a regular expression matching a Publisher interface name
+      ////                 - "integer" is a priority value in the range [1-7]. Highest priority is 1, lowest is 7 and default is 5.
+      ////                   (see Zenoh Priority definition here: https://docs.rs/zenoh/latest/zenoh/publication/enum.Priority.html)
+      ////
+      // pub_priorities: ["/pose=2", "/rosout=7"],
 
       ////
       //// reliable_routes_blocking: When true, the publications from a RELIABLE DDS Writer will be
