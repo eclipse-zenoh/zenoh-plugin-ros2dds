@@ -19,3 +19,6 @@
 
 .vscode
 
+# cmake default build directory
+build
+

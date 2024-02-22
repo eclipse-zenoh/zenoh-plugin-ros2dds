@@ -15,13 +15,14 @@ use crate::zenoh_args::CommonArgs;
 use clap::builder::FalseyValueParser;
 use zenoh::config::Config;
 use zenoh::prelude::*;
+use zenoh_plugin_trait::Plugin;
 
 //
 // All Bridge arguments
 //
 #[derive(clap::Parser, Clone, Debug)]
-#[command(version=zenoh_plugin_ros2dds::GIT_VERSION,
-    long_version=zenoh_plugin_ros2dds::LONG_VERSION.as_str(),
+#[command(version=zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_VERSION,
+    long_version=zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_LONG_VERSION,
     about="Zenoh bridge for ROS 2 with a DDS RMW",
 )]
 pub struct BridgeArgs {

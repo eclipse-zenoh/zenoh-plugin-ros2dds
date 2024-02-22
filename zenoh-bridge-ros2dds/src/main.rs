@@ -63,7 +63,7 @@ async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
     log::info!(
         "zenoh-bridge-ros2dds {}",
-        *zenoh_plugin_ros2dds::LONG_VERSION
+        zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_LONG_VERSION
     );
 
     let (watchdog_period, config) = parse_args();
