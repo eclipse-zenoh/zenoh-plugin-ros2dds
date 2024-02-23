@@ -25,7 +25,7 @@ use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::Publisher;
 use zenoh_core::SyncResolve;
-use zenoh_ext::{ArcSessionExt, PublicationCache};
+use zenoh_ext::{PublicationCache, SessionExt};
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
 use crate::dds_utils::{
