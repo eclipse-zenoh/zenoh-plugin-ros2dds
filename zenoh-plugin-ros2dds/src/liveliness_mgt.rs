@@ -51,22 +51,10 @@ pub(crate) fn parse_ke_liveliness_pub(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String, bool, Qos), String> {
     let parsed = ke_liveliness_pub::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
-    let (keyless, qos) = parsed
-        .qos_ke()
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))
-        .and_then(key_expr_to_qos)
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
+    let (keyless, qos) = key_expr_to_qos(parsed.qos_ke())
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
     Ok((
         plugin_id,
@@ -96,22 +84,10 @@ pub(crate) fn parse_ke_liveliness_sub(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String, bool, Qos), String> {
     let parsed = ke_liveliness_sub::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
-    let (keyless, qos) = parsed
-        .qos_ke()
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))
-        .and_then(key_expr_to_qos)
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
+    let (keyless, qos) = key_expr_to_qos(parsed.qos_ke())
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
     Ok((
         plugin_id,
@@ -138,18 +114,9 @@ pub(crate) fn parse_ke_liveliness_service_srv(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
     let parsed = ke_liveliness_service_srv::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 
@@ -169,18 +136,9 @@ pub(crate) fn parse_ke_liveliness_service_cli(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
     let parsed = ke_liveliness_service_cli::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 
@@ -200,18 +158,9 @@ pub(crate) fn parse_ke_liveliness_action_srv(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
     let parsed = ke_liveliness_action_srv::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 
@@ -231,18 +180,9 @@ pub(crate) fn parse_ke_liveliness_action_cli(
 ) -> Result<(OwnedKeyExpr, OwnedKeyExpr, String), String> {
     let parsed = ke_liveliness_action_cli::parse(ke)
         .map_err(|e| format!("failed to parse liveliness keyexpr {ke}: {e}"))?;
-    let plugin_id = parsed
-        .plugin_id()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no plugin_id"))?;
-    let zenoh_key_expr = parsed
-        .ke()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no ke"))?;
-    let ros2_type = parsed
-        .typ()
-        .map(unescape_slashes)
-        .ok_or_else(|| format!("failed to parse liveliness keyexpr {ke}: no typ"))?;
+    let plugin_id = parsed.plugin_id().to_owned();
+    let zenoh_key_expr = unescape_slashes(parsed.ke());
+    let ros2_type = unescape_slashes(parsed.typ());
     Ok((plugin_id, zenoh_key_expr, ros2_type.to_string()))
 }
 

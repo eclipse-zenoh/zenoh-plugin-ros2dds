@@ -368,7 +368,7 @@ impl<'a> ROS2PluginRuntime<'a> {
                         Ok(evt) => {
                             let ke = evt.key_expr.as_keyexpr();
                             if let Ok(parsed) = ke_liveliness_all::parse(ke) {
-                                let plugin_id = parsed.plugin_id().unwrap();
+                                let plugin_id = parsed.plugin_id();
                                 if plugin_id == self.plugin_id.as_ref() {
                                     // ignore own announcements
                                     continue;
