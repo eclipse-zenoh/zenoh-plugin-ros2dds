@@ -179,7 +179,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -227,7 +227,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -248,7 +248,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -269,7 +269,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -289,7 +289,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_SRV / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -309,7 +309,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_CLI / iface.name_as_keyexpr()));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -361,7 +361,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -404,7 +404,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -439,7 +439,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -474,7 +474,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -508,7 +508,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -542,7 +542,7 @@ impl<'a> RoutesMgr<'a> {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
                         let route = entry.remove();
-                        log::info!("{route} removed");
+                        tracing::info!("{route} removed");
                     }
                 }
             }
@@ -579,7 +579,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -616,7 +616,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -650,7 +650,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -687,7 +687,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 if admin_space_ref {
                     // insert reference in admin_space
@@ -719,7 +719,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_SRV / &zenoh_key_expr;
@@ -749,7 +749,7 @@ impl<'a> RoutesMgr<'a> {
                     self.context.clone(),
                 )
                 .await?;
-                log::info!("{route} created");
+                tracing::info!("{route} created");
 
                 // insert reference in admin_space
                 let admin_ke = *KE_PREFIX_ROUTE_ACTION_CLI / &zenoh_key_expr;
@@ -769,7 +769,7 @@ impl<'a> RoutesMgr<'a> {
         // the selector, if those keys had the admin_keyexpr_prefix.
         let sub_kes = selector.key_expr.strip_prefix(&self.admin_prefix);
         if sub_kes.is_empty() {
-            log::error!("Received query for admin space: '{}' - but it's not prefixed by admin_keyexpr_prefix='{}'", selector, &self.admin_prefix);
+            tracing::error!("Received query for admin space: '{}' - but it's not prefixed by admin_keyexpr_prefix='{}'", selector, &self.admin_prefix);
             return;
         }
 
@@ -800,12 +800,12 @@ impl<'a> RoutesMgr<'a> {
                     .res_async()
                     .await
                 {
-                    log::warn!("Error replying to admin query {:?}: {}", query, e);
+                    tracing::warn!("Error replying to admin query {:?}: {}", query, e);
                 }
             }
-            Ok(None) => log::error!("INTERNAL ERROR: Dangling {:?} for {}", route_ref, key_expr),
+            Ok(None) => tracing::error!("INTERNAL ERROR: Dangling {:?} for {}", route_ref, key_expr),
             Err(e) => {
-                log::error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
+                tracing::error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
             }
         }
     }

@@ -60,8 +60,8 @@ fn parse_args() -> (Option<f32>, Config) {
 
 #[async_std::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
-    log::info!(
+    zenoh_util::init_log();
+    tracing::info!(
         "zenoh-bridge-ros2dds {}",
         zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_LONG_VERSION
     );
@@ -106,7 +106,7 @@ fn run_watchdog(period: f32) {
     // Start a Liveliness Monitor thread for async_std Runtime
     let (_task, monitor) = LivelinessMonitor::start(async_std::task::spawn);
     std::thread::spawn(move || {
-        log::debug!(
+        tracing::debug!(
             "Watchdog started with period {} sec",
             sleep_time.as_secs_f32()
         );
@@ -117,7 +117,7 @@ fn run_watchdog(period: f32) {
 
             // Monitor watchdog thread itself
             if elapsed > sleep_time + max_sleep_delta {
-                log::warn!(
+                tracing::warn!(
                     "Watchdog thread slept more than configured: {} seconds",
                     elapsed.as_secs_f32()
                 );
@@ -126,11 +126,11 @@ fn run_watchdog(period: f32) {
             let report = monitor.latest_report();
             if report.elapsed() > report_threshold_1 {
                 if report.elapsed() > sleep_time {
-                    log::error!("Watchdog detecting async_std is stalled! No task scheduling since {} seconds", report.elapsed().as_secs_f32());
+                    tracing::error!("Watchdog detecting async_std is stalled! No task scheduling since {} seconds", report.elapsed().as_secs_f32());
                 } else if report.elapsed() > report_threshold_2 {
-                    log::warn!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::warn!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
                 } else {
-                    log::info!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::info!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
                 }
             }
         }

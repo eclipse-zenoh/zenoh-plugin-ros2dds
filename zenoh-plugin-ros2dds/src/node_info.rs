@@ -552,7 +552,7 @@ impl NodeInfo {
                 &entity.key,
             ),
             _ => {
-                log::warn!(
+                tracing::warn!(
                     r#"ROS Node {self} uses unexpected DDS topic "{}" - ignored"#,
                     entity.topic_name
                 );
@@ -626,7 +626,7 @@ impl NodeInfo {
                 &entity.key,
             ),
             _ => {
-                log::warn!(
+                tracing::warn!(
                     r#"ROS Node {self} uses unexpected DDS topic "{}" - ignored"#,
                     entity.topic_name
                 );
@@ -651,7 +651,7 @@ impl NodeInfo {
                     Some(DiscoveredMsgPub(node_fullname, t))
                 }
                 Err(e) => {
-                    log::error!(
+                    tracing::error!(
                         "ROS Node {node_fullname} declared an incompatible Publisher: {e} - ignored"
                     );
                     None
@@ -661,7 +661,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result: Option<ROS2DiscoveryEvent> = None;
                 if v.typ != typ {
-                    log::error!(
+                    tracing::error!(
                         r#"ROS Node {node_fullname} declares 2 Publishers on same topic {name} but with different types: {} vs {typ} - Publisher with 2nd type ignored""#,
                         v.typ
                     );
@@ -690,7 +690,7 @@ impl NodeInfo {
                     Some(DiscoveredMsgSub(node_fullname, t))
                 }
                 Err(e) => {
-                    log::error!(
+                    tracing::error!(
                         "ROS Node {node_fullname} declared an incompatible Subscriber: {e} - ignored"
                     );
                     None
@@ -700,7 +700,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result: Option<ROS2DiscoveryEvent> = None;
                 if v.typ != typ {
-                    log::error!(
+                    tracing::error!(
                         r#"ROS Node {node_fullname} declares 2 Subscriber on same topic {name} but with different types: {} vs {typ} - Publisher with 2nd type ignored""#,
                         v.typ
                     );
@@ -729,7 +729,7 @@ impl NodeInfo {
                         s.entities.req_reader = *reader;
                         e.insert(s);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Service Server: {e} - ignored"
                     ),
                 }
@@ -739,7 +739,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result = None;
                 if v.typ != typ {
-                    log::warn!(
+                    tracing::warn!(
                         r#"ROS declaration of Service Server "{v}" changed it's type to "{typ}""#
                     );
                     v.typ = typ;
@@ -749,7 +749,7 @@ impl NodeInfo {
                 }
                 if v.entities.req_reader != *reader {
                     if v.entities.req_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Service Server "{v}" changed it's Request DDS Reader's GID from {} to {reader}"#,
                             v.entities.req_reader
                         );
@@ -780,7 +780,7 @@ impl NodeInfo {
                         s.entities.rep_writer = *writer;
                         e.insert(s);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Service Server: {e} - ignored"
                     ),
                 }
@@ -790,7 +790,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result = None;
                 if v.typ != typ {
-                    log::warn!(
+                    tracing::warn!(
                         r#"ROS declaration of Service Server "{v}" changed it's type to "{typ}""#
                     );
                     v.typ = typ;
@@ -800,7 +800,7 @@ impl NodeInfo {
                 }
                 if v.entities.rep_writer != *writer {
                     if v.entities.rep_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Service Server "{v}" changed it's Reply DDS Writer's GID from {} to {writer}"#,
                             v.entities.rep_writer
                         );
@@ -831,7 +831,7 @@ impl NodeInfo {
                         s.entities.rep_reader = *reader;
                         e.insert(s);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Service Client: {e} - ignored"
                     ),
                 }
@@ -841,7 +841,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result = None;
                 if v.typ != typ {
-                    log::warn!(
+                    tracing::warn!(
                         r#"ROS declaration of Service Client "{v}" changed it's type to "{typ}""#
                     );
                     v.typ = typ;
@@ -851,7 +851,7 @@ impl NodeInfo {
                 }
                 if v.entities.rep_reader != *reader {
                     if v.entities.rep_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Service Client "{v}" changed it's Request DDS Reader's GID from {} to {reader}"#,
                             v.entities.rep_reader
                         );
@@ -882,7 +882,7 @@ impl NodeInfo {
                         s.entities.req_writer = *writer;
                         e.insert(s);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Service Client: {e} - ignored"
                     ),
                 }
@@ -892,7 +892,7 @@ impl NodeInfo {
                 let v = e.get_mut();
                 let mut result = None;
                 if v.typ != typ {
-                    log::warn!(
+                    tracing::warn!(
                         r#"ROS declaration of Service Server "{v}" changed it's type to "{typ}""#
                     );
                     v.typ = typ;
@@ -902,7 +902,7 @@ impl NodeInfo {
                 }
                 if v.entities.req_writer != *writer {
                     if v.entities.req_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Service Server "{v}" changed it's Reply DDS Writer's GID from {} to {writer}"#,
                             v.entities.req_writer
                         );
@@ -933,7 +933,7 @@ impl NodeInfo {
                         a.entities.send_goal.req_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -944,7 +944,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Server "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -955,7 +955,7 @@ impl NodeInfo {
                 }
                 if v.entities.send_goal.req_reader != *reader {
                     if v.entities.send_goal.req_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's send_goal Request DDS Reader's GID from {} to {reader}"#,
                             v.entities.send_goal.req_reader
                         );
@@ -986,7 +986,7 @@ impl NodeInfo {
                         a.entities.send_goal.rep_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -997,7 +997,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Server "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1008,7 +1008,7 @@ impl NodeInfo {
                 }
                 if v.entities.send_goal.rep_writer != *writer {
                     if v.entities.send_goal.rep_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's send_goal Reply DDS Writer's GID from {} to {writer}"#,
                             v.entities.send_goal.rep_writer
                         );
@@ -1040,7 +1040,7 @@ impl NodeInfo {
                         a.entities.cancel_goal.req_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1051,7 +1051,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.cancel_goal.req_reader != *reader {
                     if v.entities.cancel_goal.req_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's cancel_goal Request DDS Reader's GID from {} to {reader}"#,
                             v.entities.cancel_goal.req_reader
                         );
@@ -1083,7 +1083,7 @@ impl NodeInfo {
                         a.entities.cancel_goal.rep_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1094,7 +1094,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.cancel_goal.rep_writer != *writer {
                     if v.entities.cancel_goal.rep_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's cancel_goal Reply DDS Writer's GID from {} to {writer}"#,
                             v.entities.cancel_goal.rep_writer
                         );
@@ -1125,7 +1125,7 @@ impl NodeInfo {
                         a.entities.get_result.req_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1136,7 +1136,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Server "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1147,7 +1147,7 @@ impl NodeInfo {
                 }
                 if v.entities.get_result.req_reader != *reader {
                     if v.entities.get_result.req_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's get_result Request DDS Reader's GID from {} to {reader}"#,
                             v.entities.get_result.req_reader
                         );
@@ -1178,7 +1178,7 @@ impl NodeInfo {
                         a.entities.get_result.rep_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1189,7 +1189,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Server "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1200,7 +1200,7 @@ impl NodeInfo {
                 }
                 if v.entities.get_result.rep_writer != *writer {
                     if v.entities.get_result.rep_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's get_result Reply DDS Writer's GID from {} to {writer}"#,
                             v.entities.get_result.rep_writer
                         );
@@ -1232,7 +1232,7 @@ impl NodeInfo {
                         a.entities.status_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1243,7 +1243,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.status_writer != *writer {
                     if v.entities.status_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's status DDS Writer's GID from {} to {writer}"#,
                             v.entities.status_writer
                         );
@@ -1274,7 +1274,7 @@ impl NodeInfo {
                         a.entities.feedback_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Server: {e} - ignored"
                     ),
                 }
@@ -1285,7 +1285,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Server "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1296,7 +1296,7 @@ impl NodeInfo {
                 }
                 if v.entities.feedback_writer != *writer {
                     if v.entities.feedback_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Server "{v}" changed it's status DDS Writer's GID from {} to {writer}"#,
                             v.entities.feedback_writer
                         );
@@ -1327,7 +1327,7 @@ impl NodeInfo {
                         a.entities.send_goal.rep_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1338,7 +1338,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Client "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1349,7 +1349,7 @@ impl NodeInfo {
                 }
                 if v.entities.send_goal.rep_reader != *reader {
                     if v.entities.send_goal.rep_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's send_goal Reply DDS Reader's GID from {} to {reader}"#,
                             v.entities.send_goal.rep_reader
                         );
@@ -1380,7 +1380,7 @@ impl NodeInfo {
                         a.entities.send_goal.req_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1391,7 +1391,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Client "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1402,7 +1402,7 @@ impl NodeInfo {
                 }
                 if v.entities.send_goal.req_writer != *writer {
                     if v.entities.send_goal.req_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's send_goal Request DDS Writer's GID from {} to {writer}"#,
                             v.entities.send_goal.req_writer
                         );
@@ -1434,7 +1434,7 @@ impl NodeInfo {
                         a.entities.cancel_goal.rep_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1445,7 +1445,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.cancel_goal.rep_reader != *reader {
                     if v.entities.cancel_goal.rep_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's cancel_goal Reply DDS Reader's GID from {} to {reader}"#,
                             v.entities.cancel_goal.rep_reader
                         );
@@ -1477,7 +1477,7 @@ impl NodeInfo {
                         a.entities.cancel_goal.req_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1488,7 +1488,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.cancel_goal.req_writer != *writer {
                     if v.entities.cancel_goal.req_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's cancel_goal Request DDS Writer's GID from {} to {writer}"#,
                             v.entities.cancel_goal.req_writer
                         );
@@ -1519,7 +1519,7 @@ impl NodeInfo {
                         a.entities.get_result.rep_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1530,7 +1530,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Client "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1541,7 +1541,7 @@ impl NodeInfo {
                 }
                 if v.entities.get_result.rep_reader != *reader {
                     if v.entities.get_result.rep_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's get_result Reply DDS Reader's GID from {} to {reader}"#,
                             v.entities.get_result.rep_reader
                         );
@@ -1572,7 +1572,7 @@ impl NodeInfo {
                         a.entities.get_result.req_writer = *writer;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1583,7 +1583,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Client "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1594,7 +1594,7 @@ impl NodeInfo {
                 }
                 if v.entities.get_result.req_writer != *writer {
                     if v.entities.get_result.req_writer != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's get_result Request DDS Writer's GID from {} to {writer}"#,
                             v.entities.get_result.req_writer
                         );
@@ -1626,7 +1626,7 @@ impl NodeInfo {
                         a.entities.status_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1637,7 +1637,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.entities.status_reader != *reader {
                     if v.entities.status_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's status DDS Reader's GID from {} to {reader}"#,
                             v.entities.status_reader
                         );
@@ -1668,7 +1668,7 @@ impl NodeInfo {
                         a.entities.feedback_reader = *reader;
                         e.insert(a);
                     }
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "ROS Node {self} declared an incompatible Action Client: {e} - ignored"
                     ),
                 }
@@ -1679,7 +1679,7 @@ impl NodeInfo {
                 let mut result = None;
                 if v.typ != typ {
                     if !v.typ.is_empty() {
-                        log::warn!(
+                        tracing::warn!(
                             r#"ROS declaration of Action Client "{v}" changed it's type to "{typ}""#
                         );
                     }
@@ -1690,7 +1690,7 @@ impl NodeInfo {
                 }
                 if v.entities.feedback_reader != *reader {
                     if v.entities.feedback_reader != Gid::NOT_DISCOVERED {
-                        log::debug!(
+                        tracing::debug!(
                             r#"ROS declaration of Action Client "{v}" changed it's status DDS Reader's GID from {} to {reader}"#,
                             v.entities.feedback_reader
                         );

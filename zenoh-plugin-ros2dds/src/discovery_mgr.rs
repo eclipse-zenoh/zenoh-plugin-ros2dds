@@ -81,7 +81,7 @@ impl DiscoveryMgr {
                                 let evts = zwrite!(discovered_entities).remove_participant(&key);
                                 for e in evts {
                                     if let Err(err) = evt_sender.try_send(e) {
-                                        log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                        tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
@@ -89,7 +89,7 @@ impl DiscoveryMgr {
                                 let e = zwrite!(discovered_entities).add_writer(entity);
                                 if let Some(e) = e {
                                     if let Err(err) = evt_sender.try_send(e) {
-                                        log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                        tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
@@ -97,7 +97,7 @@ impl DiscoveryMgr {
                                 let e = zwrite!(discovered_entities).remove_writer(&key);
                                 if let Some(e) = e {
                                     if let Err(err) = evt_sender.try_send(e) {
-                                        log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                        tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
@@ -105,7 +105,7 @@ impl DiscoveryMgr {
                                 let e = zwrite!(discovered_entities).add_reader(entity);
                                 if let Some(e) = e {
                                     if let Err(err) = evt_sender.try_send(e) {
-                                        log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                        tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
@@ -113,7 +113,7 @@ impl DiscoveryMgr {
                                 let e = zwrite!(discovered_entities).remove_reader(&key);
                                 if let Some(e) = e {
                                     if let Err(err) = evt_sender.try_send(e) {
-                                        log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                        tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
@@ -123,11 +123,11 @@ impl DiscoveryMgr {
                     _ = ros_disco_timer_rcv.recv_async() => {
                         let infos = ros_discovery_mgr.read();
                         for part_info in infos {
-                            log::debug!("Received ros_discovery_info from {}", part_info);
+                            tracing::debug!("Received ros_discovery_info from {}", part_info);
                             let evts = zwrite!(discovered_entities).update_participant_info(part_info);
                             for e in evts {
                                 if let Err(err) = evt_sender.try_send(e) {
-                                    log::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
+                                    tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                 }
                             }
                         }

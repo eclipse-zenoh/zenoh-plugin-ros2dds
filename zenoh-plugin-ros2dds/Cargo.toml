@@ -39,16 +39,15 @@ bincode = { workspace = true }
 cdr = { workspace = true }
 cyclors = { workspace = true }
 derivative = { workspace = true }
-env_logger = { workspace = true }
 flume = { workspace = true }
 futures = { workspace = true }
 git-version = { workspace = true }
 hex = { workspace = true }
 lazy_static = { workspace = true }
-log = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tracing = { workspace = true }
 zenoh = { workspace = true }
 zenoh-collections = { workspace = true }
 zenoh-core = { workspace = true }

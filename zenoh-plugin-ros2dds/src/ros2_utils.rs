@@ -53,11 +53,11 @@ lazy_static::lazy_static!(
 pub fn get_ros_distro() -> String {
     match std::env::var("ROS_DISTRO") {
         Ok(s) if !s.is_empty() => {
-            log::debug!("ROS_DISTRO detected: {s}");
+            tracing::debug!("ROS_DISTRO detected: {s}");
             s
         }
         Ok(_) | Err(VarError::NotPresent) => {
-            log::warn!(
+            tracing::warn!(
                 "ROS_DISTRO environment variable is not set. \
                 Assuming '{ASSUMED_ROS_DISTRO}', but this could lead to errors on 'ros_discovery_info' \
                 (see https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/21)"
@@ -65,7 +65,7 @@ pub fn get_ros_distro() -> String {
             ASSUMED_ROS_DISTRO.to_string()
         }
         Err(VarError::NotUnicode(s)) => {
-            log::warn!(
+            tracing::warn!(
                 "ROS_DISTRO environment variable is invalid ('{s:?}'). \
                 Assuming '{ASSUMED_ROS_DISTRO}', but this could lead to errors on 'ros_discovery_info' \
                 (see https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/21)"

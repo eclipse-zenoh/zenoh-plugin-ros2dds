@@ -58,14 +58,14 @@ impl RosArgs {
         for r in &self.remap {
             match r.from {
                 RemapFrom::Namespace => {
-                    log::info!(
+                    tracing::info!(
                         "Remapping namespace to '{}' as per ROS command line argument",
                         r.to
                     );
                     insert_json5(config, "plugins/ros2dds/namespace", &r.to);
                 }
                 RemapFrom::Node => {
-                    log::info!(
+                    tracing::info!(
                         "Remapping node name to '{}' as per ROS command line argument",
                         r.to
                     );

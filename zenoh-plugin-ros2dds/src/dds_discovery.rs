@@ -108,12 +108,12 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     let topic_name = match CStr::from_ptr((*sample).topic_name).to_str() {
                         Ok(s) => s,
                         Err(e) => {
-                            log::warn!("Discovery of an invalid topic name: {}", e);
+                            tracing::warn!("Discovery of an invalid topic name: {}", e);
                             continue;
                         }
                     };
                     if topic_name.starts_with("DCPS") {
-                        log::debug!(
+                        tracing::debug!(
                             "Ignoring discovery of {} ({} is a builtin topic)",
                             key,
                             topic_name
@@ -124,14 +124,14 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     let type_name = match CStr::from_ptr((*sample).type_name).to_str() {
                         Ok(s) => s,
                         Err(e) => {
-                            log::warn!("Discovery of an invalid topic type: {}", e);
+                            tracing::warn!("Discovery of an invalid topic type: {}", e);
                             continue;
                         }
                     };
                     let participant_key = (*sample).participant_key.v.into();
                     let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
 
-                    log::debug!(
+                    tracing::debug!(
                         "Discovered DDS {} {} from Participant {} on {} with type {} (keyless: {})",
                         discovery_type,
                         key,
@@ -148,7 +148,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         0 => match type_info.is_null() {
                             false => Some(Arc::new(TypeInfo::new(type_info))),
                             true => {
-                                log::trace!(
+                                tracing::trace!(
                                     "Type information not available for type {}",
                                     type_name
                                 );
@@ -156,7 +156,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                             }
                         },
                         _ => {
-                            log::warn!(
+                            tracing::warn!(
                                 "Failed to lookup type information({})",
                                 CStr::from_ptr(dds_strretcode(ret))
                                     .to_str()
@@ -215,7 +215,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 }
 
                 if is_alive {
-                    log::debug!("Discovered DDS Participant {})", key,);
+                    tracing::debug!("Discovered DDS Participant {})", key,);
 
                     // Send a DDSDiscoveryEvent
                     let entity = DdsParticipant {
@@ -242,7 +242,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
 
 fn send_discovery_event(sender: &Sender<DDSDiscoveryEvent>, event: DDSDiscoveryEvent) {
     if let Err(e) = sender.try_send(event) {
-        log::error!(
+        tracing::error!(
             "INTERNAL ERROR sending DDSDiscoveryEvent to internal channel: {:?}",
             e
         );

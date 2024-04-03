@@ -57,14 +57,14 @@ pub struct RosDiscoveryInfoMgr {
 impl Drop for RosDiscoveryInfoMgr {
     fn drop(&mut self) {
         if let Err(e) = delete_dds_entity(self.reader) {
-            log::warn!(
+            tracing::warn!(
                 "Error dropping DDS reader on {}: {}",
                 ROS_DISCOVERY_INFO_TOPIC_NAME,
                 e
             );
         }
         if let Err(e) = delete_dds_entity(self.writer) {
-            log::warn!(
+            tracing::warn!(
                 "Error dropping DDS writer on {}: {}",
                 ROS_DISCOVERY_INFO_TOPIC_NAME,
                 e
@@ -190,13 +190,13 @@ impl RosDiscoveryInfoMgr {
                     _ = ros_disco_timer_rcv.recv_async() => {
                         let (ref msg, ref mut has_changed) = *zwrite!(participant_entities_state);
                         if *has_changed {
-                            log::debug!("Publish update on 'ros_discovery_info' with {} writers and {} readers",
+                            tracing::debug!("Publish update on 'ros_discovery_info' with {} writers and {} readers",
                                 msg.node_entities_info_seq.values().next().map_or(0, |n| n.writer_gid_seq.len()),
                                 msg.node_entities_info_seq.values().next().map_or(0, |n| n.reader_gid_seq.len())
                             );
-                            log::trace!("Publish update on 'ros_discovery_info': {msg:?}");
+                            tracing::trace!("Publish update on 'ros_discovery_info': {msg:?}");
                             Self::write(writer, msg).unwrap_or_else(|e|
-                                log::error!("Failed to publish update on 'ros_discovery_info' topic: {e}")
+                                tracing::error!("Failed to publish update on 'ros_discovery_info' topic: {e}")
                             );
                             *has_changed = false;
                         }
@@ -277,7 +277,7 @@ impl RosDiscoveryInfoMgr {
 
             map.values()
                 .filter_map(|sample| {
-                    log::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
+                    tracing::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
                     match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
                         ZBuf::from(sample).reader(),
                         cdr::size::Infinite,
@@ -291,7 +291,7 @@ impl RosDiscoveryInfoMgr {
                             // This can be detected checking if list is empty but the size of the buffer is greater than
                             // CDR_header + GID + seq_len = 4 + 16 + 8 = 28
                             if !ros_distro_is_less_than("iron") && i.node_entities_info_seq.is_empty() && sample.len() > 28 {
-                                log::warn!("Received invalid message on `ros_discovery_info` topic: {sample:?} \
+                                tracing::warn!("Received invalid message on `ros_discovery_info` topic: {sample:?} \
                                 This bridge is configured with 'ROS_DISTRO={}' and expects GIDs to be 16 bytes. \
                                 Here it seems the message comes from a ROS nodes with version older than 'iron' and using 24 bytes GIDs. \
                                 If yes, please set 'ROS_DISTRO' environment variable to the same version than your ROS nodes", *ROS_DISTRO);
@@ -299,7 +299,7 @@ impl RosDiscoveryInfoMgr {
                             Some(i)
                         },
                         Err(e) => {
-                            log::warn!(
+                            tracing::warn!(
                                 "Error receiving ParticipantEntitiesInfo on ros_discovery_info: {} - payload: {}",
                                 e, sample.hex_encode()
                             );

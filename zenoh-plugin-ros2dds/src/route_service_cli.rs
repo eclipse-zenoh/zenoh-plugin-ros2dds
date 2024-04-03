@@ -100,7 +100,7 @@ impl RouteServiceCli<'_> {
         queries_timeout: Duration,
         context: Context,
     ) -> Result<RouteServiceCli<'a>, String> {
-        log::debug!(
+        tracing::debug!(
             "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
         );
         Ok(RouteServiceCli {
@@ -129,7 +129,7 @@ impl RouteServiceCli<'_> {
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
-            log::debug!("{self}: announce via token {liveliness_ke}");
+            tracing::debug!("{self}: announce via token {liveliness_ke}");
             let ros2_name = self.ros2_name.clone();
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
@@ -148,14 +148,14 @@ impl RouteServiceCli<'_> {
 
     // Retire the route over Zenoh removing the LivelinessToken
     fn retire_route(&mut self) {
-        log::debug!("{self}: retire");
+        tracing::debug!("{self}: retire");
         // Drop Zenoh Publisher and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
         self.liveliness_token = None;
     }
 
     fn activate(&mut self) -> Result<(), String> {
-        log::debug!("{self}: activate");
+        tracing::debug!("{self}: activate");
         // Default Service QoS
         let mut qos = QOS_DEFAULT_SERVICE.clone();
 
@@ -164,7 +164,7 @@ impl RouteServiceCli<'_> {
         let server_id_str = new_service_id(&self.context.participant)?;
         let user_data = format!("serviceid= {server_id_str};");
         qos.user_data = Some(user_data.into_bytes());
-        log::debug!(
+        tracing::debug!(
             "{self}: using id '{server_id_str}' => USER_DATA={:?}",
             qos.user_data.as_ref().unwrap()
         );
@@ -181,9 +181,9 @@ impl RouteServiceCli<'_> {
         )?;
         let old = self.rep_writer.swap(rep_writer, Ordering::Relaxed);
         if old != DDS_ENTITY_NULL {
-            log::warn!("{self}: on activation their was already a DDS Reply Writer - overwrite it");
+            tracing::warn!("{self}: on activation their was already a DDS Reply Writer - overwrite it");
             if let Err(e) = delete_dds_entity(old) {
-                log::warn!("{self}: failed to delete overwritten DDS Reply Writer: {e}");
+                tracing::warn!("{self}: failed to delete overwritten DDS Reply Writer: {e}");
             }
         }
 
@@ -220,11 +220,11 @@ impl RouteServiceCli<'_> {
         )?;
         let old = self.req_reader.swap(req_reader, Ordering::Relaxed);
         if old != DDS_ENTITY_NULL {
-            log::warn!(
+            tracing::warn!(
                 "{self}: on activation their was already a DDS Request Reader - overwrite it"
             );
             if let Err(e) = delete_dds_entity(old) {
-                log::warn!("{self}: failed to delete overwritten DDS Request Reader: {e}");
+                tracing::warn!("{self}: failed to delete overwritten DDS Request Reader: {e}");
             }
         }
 
@@ -238,16 +238,16 @@ impl RouteServiceCli<'_> {
     }
 
     fn deactivate(&mut self) {
-        log::debug!("{self}: Deactivate");
+        tracing::debug!("{self}: Deactivate");
         let req_reader = self.req_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
         if req_reader != DDS_ENTITY_NULL {
             // remove reader's GID from ros_discovery_info message
             match get_guid(&req_reader) {
                 Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
-                Err(e) => log::warn!("{self}: {e}"),
+                Err(e) => tracing::warn!("{self}: {e}"),
             }
             if let Err(e) = delete_dds_entity(req_reader) {
-                log::warn!("{}: error deleting DDS Reader:  {}", self, e);
+                tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
             }
         }
         let rep_writer = self.rep_writer.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
@@ -255,10 +255,10 @@ impl RouteServiceCli<'_> {
             // remove writer's GID from ros_discovery_info message
             match get_guid(&req_reader) {
                 Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
-                Err(e) => log::warn!("{self}: {e}"),
+                Err(e) => tracing::warn!("{self}: {e}"),
             }
             if let Err(e) = delete_dds_entity(rep_writer) {
-                log::warn!("{}: error deleting DDS Writer:  {}", self, e);
+                tracing::warn!("{}: error deleting DDS Writer:  {}", self, e);
             }
         }
         self.is_active = false;
@@ -268,7 +268,7 @@ impl RouteServiceCli<'_> {
     pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .insert(format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if 1st remote node added (i.e. a Server has been announced), activate the route
         // NOTE: The route shall not be active if a remote Service Server have not been detected.
         //       Otherwise, the Client will send a request to this route that will get no reply
@@ -277,7 +277,7 @@ impl RouteServiceCli<'_> {
         //       when available in zenoh...
         if self.remote_routes.len() == 1 {
             if let Err(e) = self.activate() {
-                log::error!("{self}: activation failed: {e}");
+                tracing::error!("{self}: activation failed: {e}");
             }
         }
     }
@@ -286,7 +286,7 @@ impl RouteServiceCli<'_> {
     pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if last remote node removed, deactivate the route
         if self.remote_routes.is_empty() {
             self.deactivate();
@@ -301,11 +301,11 @@ impl RouteServiceCli<'_> {
     #[inline]
     pub async fn add_local_node(&mut self, node: String) {
         self.local_nodes.insert(node);
-        log::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, announce the route
         if self.local_nodes.len() == 1 {
             if let Err(e) = self.announce_route().await {
-                log::error!("{self}: announcement failed: {e}");
+                tracing::error!("{self}: announcement failed: {e}");
             }
         }
     }
@@ -313,7 +313,7 @@ impl RouteServiceCli<'_> {
     #[inline]
     pub fn remove_local_node(&mut self, node: &str) {
         self.local_nodes.remove(node);
-        log::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
         // if last local node removed, retire the route
         if self.local_nodes.is_empty() {
             self.retire_route();
@@ -343,7 +343,7 @@ fn route_dds_request_to_zenoh(
     // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     if sample.len() < 20 {
-        log::warn!("{route_id}: received invalid request: {sample:0x?}");
+        tracing::warn!("{route_id}: received invalid request: {sample:0x?}");
         return;
     }
 
@@ -367,9 +367,9 @@ fn route_dds_request_to_zenoh(
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {
-        log::debug!("{route_id}: routing request {request_id} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
+        tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
     } else {
-        log::trace!(
+        tracing::trace!(
             "{route_id}: routing request {request_id} from DDS to Zenoh - {} bytes",
             zenoh_req_buf.len()
         );
@@ -391,7 +391,7 @@ fn route_dds_request_to_zenoh(
                         if !reply_received1.swap(true, std::sync::atomic::Ordering::Relaxed) {
                             route_zenoh_reply_to_dds(&route_id1, reply, request_id, rep_writer)
                         } else {
-                            log::warn!("{route_id1}: received more than 1 reply for request {request_id} - dropping the extra replies");
+                            tracing::warn!("{route_id1}: received more than 1 reply for request {request_id} - dropping the extra replies");
                         }
                     },
                 drop: move || {
@@ -399,14 +399,14 @@ fn route_dds_request_to_zenoh(
                         // There is no way to send an error message as a reply to a ROS Service Client !
                         // (sending an invalid message will make it crash...)
                         // We have no choice but to log the error and let the client hanging without reply, until a timeout (if set by the client)
-                        log::warn!("{route_id2}: received NO reply for request {request_id} - cannot reply to client, it will hang until timeout");
+                        tracing::warn!("{route_id2}: received NO reply for request {request_id} - cannot reply to client, it will hang until timeout");
                     }
                 },
             }
         })
         .res_sync()
     {
-        log::warn!("{route_id}: routing request {request_id} from DDS to Zenoh failed: {e}");
+        tracing::warn!("{route_id}: routing request {request_id} from DDS to Zenoh failed: {e}");
     }
 }
 
@@ -450,7 +450,7 @@ fn route_zenoh_reply_to_dds(
         Ok(sample) => {
             let zenoh_rep_buf = sample.payload.contiguous();
             if zenoh_rep_buf.len() < 4 || zenoh_rep_buf[1] > 1 {
-                log::warn!(
+                tracing::warn!(
                     "{route_id}: received invalid reply from Zenoh for {request_id}: {zenoh_rep_buf:0x?}"
                 );
                 return;
@@ -465,22 +465,22 @@ fn route_zenoh_reply_to_dds(
             dds_rep_buf.extend_from_slice(&zenoh_rep_buf[4..]);
 
             if *LOG_PAYLOAD {
-                log::debug!("{route_id}: routing reply for {request_id} from Zenoh to DDS - payload: {dds_rep_buf:02x?}");
+                tracing::debug!("{route_id}: routing reply for {request_id} from Zenoh to DDS - payload: {dds_rep_buf:02x?}");
             } else {
-                log::trace!(
+                tracing::trace!(
                     "{route_id}: routing reply for {request_id} from Zenoh to DDS - {} bytes",
                     dds_rep_buf.len()
                 );
             }
 
             if let Err(e) = dds_write(rep_writer, dds_rep_buf) {
-                log::warn!(
+                tracing::warn!(
                     "{route_id}: routing reply for {request_id} from Zenoh to DDS failed: {e}"
                 );
             }
         }
         Err(val) => {
-            log::warn!("{route_id}: received error as reply for {request_id}: {val}");
+            tracing::warn!("{route_id}: received error as reply for {request_id}: {val}");
         }
     }
 }

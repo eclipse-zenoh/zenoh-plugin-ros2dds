@@ -164,7 +164,7 @@ impl RouteActionCli<'_> {
             &self.zenoh_key_expr_prefix,
             &self.ros2_type,
         )?;
-        log::debug!("{self} announce via token {liveliness_ke}");
+        tracing::debug!("{self} announce via token {liveliness_ke}");
         let ros2_name = self.ros2_name.clone();
         self.liveliness_token = Some(self.context.zsession
             .liveliness()
@@ -182,7 +182,7 @@ impl RouteActionCli<'_> {
 
     // Retire the route over Zenoh removing the LivelinessToken
     fn retire_route(&mut self) {
-        log::debug!("{self} retire");
+        tracing::debug!("{self} retire");
         // Drop Zenoh Publisher and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
         self.is_active = false;
@@ -213,7 +213,7 @@ impl RouteActionCli<'_> {
         );
         self.remote_routes
             .insert(format!("{plugin_id}:{zenoh_key_expr_prefix}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
@@ -240,7 +240,7 @@ impl RouteActionCli<'_> {
         );
         self.remote_routes
             .remove(&format!("{plugin_id}:{zenoh_key_expr_prefix}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
@@ -256,11 +256,11 @@ impl RouteActionCli<'_> {
         );
 
         self.local_nodes.insert(node);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
             if let Err(e) = self.announce_route().await {
-                log::error!("{self} activation failed: {e}");
+                tracing::error!("{self} activation failed: {e}");
             }
         }
     }
@@ -274,7 +274,7 @@ impl RouteActionCli<'_> {
         self.route_status.remove_local_node(node);
 
         self.local_nodes.remove(node);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if last local node removed, deactivate the route
         if self.local_nodes.is_empty() {
             self.retire_route();
