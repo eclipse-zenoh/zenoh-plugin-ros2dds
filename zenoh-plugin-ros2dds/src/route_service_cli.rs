@@ -181,7 +181,9 @@ impl RouteServiceCli<'_> {
         )?;
         let old = self.rep_writer.swap(rep_writer, Ordering::Relaxed);
         if old != DDS_ENTITY_NULL {
-            tracing::warn!("{self}: on activation their was already a DDS Reply Writer - overwrite it");
+            tracing::warn!(
+                "{self}: on activation their was already a DDS Reply Writer - overwrite it"
+            );
             if let Err(e) = delete_dds_entity(old) {
                 tracing::warn!("{self}: failed to delete overwritten DDS Reply Writer: {e}");
             }

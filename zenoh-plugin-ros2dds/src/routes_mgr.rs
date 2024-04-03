@@ -803,7 +803,9 @@ impl<'a> RoutesMgr<'a> {
                     tracing::warn!("Error replying to admin query {:?}: {}", query, e);
                 }
             }
-            Ok(None) => tracing::error!("INTERNAL ERROR: Dangling {:?} for {}", route_ref, key_expr),
+            Ok(None) => {
+                tracing::error!("INTERNAL ERROR: Dangling {:?} for {}", route_ref, key_expr)
+            }
             Err(e) => {
                 tracing::error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
             }
