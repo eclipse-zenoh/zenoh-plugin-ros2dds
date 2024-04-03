@@ -28,7 +28,7 @@ class AddTwoInts_Request(IdlStruct, typename="AddTwoInts_Request"):
 
 # Equivalent to AddTwoInts.Response class, but serializable by pycdr2
 @dataclass
-class AddTwoInts_Response(IdlStruct, typename="AddTwoInts_Request"):
+class AddTwoInts_Response(IdlStruct, typename="AddTwoInts_Response"):
     sum: pycdr2.types.int64
 
 def main():
