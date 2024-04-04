@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 async-std = { version = "1.12.0" }
 futures = { version = "0.3.28" }
-zenoh = { version = "0.10.0-rc" }
+zenoh = { version = "0.10.1-rc" }
 clap = { version = "3.2.23" }
 env_logger = { version = "0.10.0" }
 serde = {version = "1" }

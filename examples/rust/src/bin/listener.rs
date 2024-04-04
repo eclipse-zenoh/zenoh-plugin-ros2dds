@@ -30,9 +30,7 @@ async fn main() {
     println!("Opening session...");
     let session = zenoh::open(config).res().await.unwrap();
 
-    let key_expr = "chatter";
-    println!("Declaring Subscriber on '{}'...", &key_expr);
-    let subscriber = session.declare_subscriber(key_expr).res().await.unwrap();
+    let subscriber = session.declare_subscriber("chatter").res().await.unwrap();
 
     while let Ok(sample) = subscriber.recv_async().await {
         match cdr::deserialize_from::<_, Message, _>(

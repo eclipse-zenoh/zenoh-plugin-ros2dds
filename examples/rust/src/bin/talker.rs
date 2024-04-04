@@ -34,10 +34,7 @@ async fn main() {
     println!("Opening session...");
     let session = zenoh::open(config).res().await.unwrap();
 
-    let key_expr = "chatter";    
-
-    println!("Declaring Publisher on '{key_expr}'...");
-    let publisher = session.declare_publisher(key_expr).res().await.unwrap();
+    let publisher = session.declare_publisher("chatter").res().await.unwrap();
 
     for idx in 0..u32::MAX {
         sleep(Duration::from_secs(1)).await;
@@ -45,7 +42,7 @@ async fn main() {
             data: format!("Hello World:{idx:4}"),
         };
         let buf = cdr::serialize::<_, _, CdrLe>(&message, Infinite).unwrap();
-        println!("Putting Data ('{}': '{}')...", &key_expr, message.data);
+        println!("Publishing: '{}')...", message.data);
         publisher.put(buf).res().await.unwrap();
     }
 }
