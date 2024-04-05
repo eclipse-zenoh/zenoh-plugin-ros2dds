@@ -5,8 +5,7 @@
 #include <ctype.h>
 
 #include <zenoh-pico.h>
-#include "AddTwoInts.h"
-
+#include "example_interfaces/srv/AddTwoInts.h"
 // CycloneDDS CDR Deserializer
 #include <dds/cdr/dds_cdrstream.h>
 

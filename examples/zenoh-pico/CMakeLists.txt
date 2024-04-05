@@ -28,7 +28,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/idlc)
 
 add_executable(add_two_ints_client
   add_two_ints_client.c
-  idlc/AddTwoInts.c
+  idlc/example_interfaces/srv/AddTwoInts.c
 )
 target_link_libraries(add_two_ints_client
   zenohpico
@@ -37,8 +37,8 @@ target_link_libraries(add_two_ints_client
 
 add_executable(listener
   listener.c
-  idlc/Log.c
-  idlc/Time.c
+  idlc/rcl_interfaces/msg/Log.c
+  idlc/builtin_interfaces/msg/Time.c
 )
 
 target_link_libraries(listener

@@ -5,7 +5,7 @@
 #include <ctype.h>
 
 #include <zenoh-pico.h>
-#include "Log.h"
+#include "rcl_interfaces/msg/Log.h"
 // CycloneDDS CDR Deserializer
 #include <dds/cdr/dds_cdrstream.h>
 
@@ -41,6 +41,11 @@ void data_handler(const z_sample_t *sample, void *arg) {
     rcl_interfaces_msg_Log *msg = calloc(1, desc_rd.size);
 
     dds_stream_read_sample(&is, msg, &allocator, &desc_rd);
+    /* print result */
+    char buf[5000];
+    is.m_index = 0;
+    dds_stream_print_sample (&is, &desc_rd, buf, 5000);
+    printf ("read sample: %s\n\n", buf);
 
     dds_cdrstream_desc_fini(&desc_rd, &allocator);
 
