@@ -161,7 +161,7 @@ jobs:
       version: ${{ needs.tag.outputs.version }}
       repo: ${{ github.repository }}
       branch: ${{ needs.tag.outputs.branch }}
-      tags: "eclipse/zenoh-plugin-ros2dds:${{ needs.tag.outputs.version }}"
+      tags: "eclipse/zenoh-bridge-ros2dds:${{ needs.tag.outputs.version }}"
       binary: zenoh-bridge-ros2dds
       files: |
         zenoh-bridge-ros2dds
