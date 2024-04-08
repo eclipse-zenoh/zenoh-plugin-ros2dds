@@ -98,6 +98,7 @@ jobs:
       version: ${{ needs.tag.outputs.version }}
       repo: ${{ github.repository }}
       branch: ${{ needs.tag.outputs.branch }}
+      installation-test: false
     secrets: inherit
 
   homebrew:
