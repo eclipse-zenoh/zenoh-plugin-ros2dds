@@ -21,6 +21,7 @@ homepage = { workspace = true }
 license = { workspace = true }
 categories = ["network-programming"]
 description = "Zenoh bridge for ROS 2 and DDS in general"
+publish = false
 
 [features]
 dds_shm = ["zenoh-plugin-ros2dds/dds_shm"]
