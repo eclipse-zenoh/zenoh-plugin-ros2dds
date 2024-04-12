@@ -122,7 +122,7 @@ impl Plugin for ROS2Plugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        zenoh_util::init_log();
+        zenoh_util::init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -141,7 +141,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    zenoh_util::init_log();
+    zenoh_util::init_log_from_env();
     tracing::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
     tracing::info!("ROS2 plugin {:?}", config);
 
