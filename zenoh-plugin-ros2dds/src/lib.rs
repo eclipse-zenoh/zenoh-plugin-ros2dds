@@ -122,7 +122,7 @@ impl Plugin for ROS2Plugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        let _ = env_logger::try_init();
+        zenoh_util::init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -141,16 +141,16 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    let _ = env_logger::try_init();
-    log::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
-    log::info!("ROS2 plugin {:?}", config);
+    zenoh_util::init_log_from_env();
+    tracing::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
+    tracing::info!("ROS2 plugin {:?}", config);
 
     // Check config validity
     if !regex::Regex::new("/[A-Za-z0-9_/]*")
         .unwrap()
         .is_match(&config.namespace)
     {
-        log::error!(
+        tracing::error!(
             r#"Configuration error: invalid namespace "{}" must contain only alphanumeric, '_' or '/' characters and start with '/'"#,
             config.namespace
         );
@@ -160,7 +160,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         .unwrap()
         .is_match(&config.nodename)
     {
-        log::error!(
+        tracing::error!(
             r#"Configuration error: invalid nodename "{}" must contain only alphanumeric or '_' characters"#,
             config.nodename
         );
@@ -171,14 +171,14 @@ pub async fn run(runtime: Runtime, config: Config) {
     let zsession = match zenoh::init(runtime).res_async().await {
         Ok(session) => Arc::new(session),
         Err(e) => {
-            log::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
+            tracing::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
             return;
         }
     };
 
     let plugin_id = if let Some(ref id) = config.id {
         if id.contains('/') {
-            log::error!("The 'id' configuration must not contain any '/' character");
+            tracing::error!("The 'id' configuration must not contain any '/' character");
             return;
         }
         id.clone()
@@ -197,7 +197,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(member) => member,
         Err(e) => {
-            log::error!(
+            tracing::error!(
                 "Unable to declare liveliness token for DDS plugin : {:?}",
                 e
             );
@@ -233,14 +233,14 @@ pub async fn run(runtime: Runtime, config: Config) {
     }
 
     // create DDS Participant
-    log::debug!(
+    tracing::debug!(
         "Create DDS Participant on domain {} with CYCLONEDDS_URI='{}'",
         config.domain,
         env::var("CYCLONEDDS_URI").unwrap_or_default()
     );
     let participant =
         unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
-    log::debug!(
+    tracing::debug!(
         "ROS2 plugin {} using DDS Participant {} created",
         plugin_id,
         get_guid(&participant).unwrap()
@@ -301,7 +301,7 @@ impl<'a> ROS2PluginRuntime<'a> {
         let admin_prefix =
             zenoh::keformat!(ke_admin_prefix::formatter(), plugin_id = &self.plugin_id).unwrap();
         let admin_keyexpr_expr = (&admin_prefix) / *KE_ANY_N_SEGMENT;
-        log::debug!("Declare admin space on {}", admin_keyexpr_expr);
+        tracing::debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
             .zsession
             .declare_queryable(admin_keyexpr_expr)
@@ -349,16 +349,16 @@ impl<'a> ROS2PluginRuntime<'a> {
                     match evt {
                         Ok(evt) => {
                             if self.is_allowed(&evt) {
-                                log::info!("{evt} - Allowed");
+                                tracing::info!("{evt} - Allowed");
                                 // pass ROS2DiscoveryEvent to RoutesMgr
                                 if let Err(e) = routes_mgr.on_ros_discovery_event(evt).await {
-                                    log::warn!("Error updating route: {e}");
+                                    tracing::warn!("Error updating route: {e}");
                                 }
                             } else {
-                                log::debug!("{evt} - Denied per config");
+                                tracing::debug!("{evt} - Denied per config");
                             }
                         }
-                        Err(e) => log::error!("Internal Error: received from DiscoveryMgr: {e}")
+                        Err(e) => tracing::error!("Internal Error: received from DiscoveryMgr: {e}")
                     }
                 },
 
@@ -376,31 +376,31 @@ impl<'a> ROS2PluginRuntime<'a> {
                                 match (parsed.remaining(), evt.kind)  {
                                     // New remote bridge detected
                                     (None, SampleKind::Put) => {
-                                        log::info!("New ROS 2 bridge detected: {}", plugin_id);
+                                        tracing::info!("New ROS 2 bridge detected: {}", plugin_id);
                                         // make each routes for a TRANSIENT_LOCAL Subscriber to query historical publications from this new plugin
                                         routes_mgr.query_all_historical_publications(plugin_id).await;
                                     }
                                     // New remote bridge left
-                                    (None, SampleKind::Delete) => log::info!("Remote ROS 2 bridge left: {}", plugin_id),
+                                    (None, SampleKind::Delete) => tracing::info!("Remote ROS 2 bridge left: {}", plugin_id),
                                     // the liveliness token corresponds to a ROS2 announcement
                                     (Some(remaining), _) => {
                                         // parse it and pass ROS2AnnouncementEvent to RoutesMgr
                                         match self.parse_announcement_event(ke, &remaining.as_str()[..3], evt.kind) {
                                             Ok(evt) => {
-                                                log::info!("Remote bridge {plugin_id} {evt}");
+                                                tracing::info!("Remote bridge {plugin_id} {evt}");
                                                 routes_mgr.on_ros_announcement_event(evt).await
-                                                    .unwrap_or_else(|e| log::warn!("Error treating announcement event: {e}"));
+                                                    .unwrap_or_else(|e| tracing::warn!("Error treating announcement event: {e}"));
                                             },
                                             Err(e) =>
-                                                log::warn!("Received unexpected liveliness key expression '{ke}': {e}")
+                                                tracing::warn!("Received unexpected liveliness key expression '{ke}': {e}")
                                         }
                                     }
                                 }
                             } else {
-                                log::warn!("Received unexpected liveliness key expression '{ke}'");
+                                tracing::warn!("Received unexpected liveliness key expression '{ke}'");
                             }
                         },
-                        Err(e) => log::warn!("Error receiving liveliness event: {e}")
+                        Err(e) => tracing::warn!("Error receiving liveliness event: {e}")
                     }
                 },
 
@@ -412,7 +412,7 @@ impl<'a> ROS2PluginRuntime<'a> {
                         // pass query to discovery_mgr
                         routes_mgr.treat_admin_query(&query).await;
                     } else {
-                        log::warn!("AdminSpace queryable was closed!");
+                        tracing::warn!("AdminSpace queryable was closed!");
                     }
                 }
             )
@@ -426,7 +426,7 @@ impl<'a> ROS2PluginRuntime<'a> {
         sample_kind: SampleKind,
     ) -> Result<ROS2AnnouncementEvent, String> {
         use ROS2AnnouncementEvent::*;
-        log::debug!("Received liveliness event: {sample_kind} on {liveliness_ke}");
+        tracing::debug!("Received liveliness event: {sample_kind} on {liveliness_ke}");
         match (iface_kind, sample_kind) {
             ("MP/", SampleKind::Put) => parse_ke_liveliness_pub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
@@ -579,7 +579,7 @@ impl<'a> ROS2PluginRuntime<'a> {
             AdminRef::Config => match serde_json::to_value(&*self.config) {
                 Ok(v) => v.into(),
                 Err(e) => {
-                    log::error!("INTERNAL ERROR serializing config as JSON: {}", e);
+                    tracing::error!("INTERNAL ERROR serializing config as JSON: {}", e);
                     return;
                 }
             },
@@ -589,7 +589,7 @@ impl<'a> ROS2PluginRuntime<'a> {
             .res_async()
             .await
         {
-            log::warn!("Error replying to admin query {:?}: {}", query, e);
+            tracing::warn!("Error replying to admin query {:?}: {}", query, e);
         }
     }
 }
@@ -609,7 +609,7 @@ struct ChannelEvent {
 impl Timed for ChannelEvent {
     async fn run(&mut self) {
         if self.tx.send(()).is_err() {
-            log::warn!("Error sending periodic timer notification on channel");
+            tracing::warn!("Error sending periodic timer notification on channel");
         };
     }
 }

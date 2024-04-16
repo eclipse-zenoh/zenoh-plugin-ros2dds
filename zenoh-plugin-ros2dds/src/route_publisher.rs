@@ -127,7 +127,7 @@ impl RoutePublisher<'_> {
         reader_qos: Qos,
         context: Context,
     ) -> Result<RoutePublisher<'_>, String> {
-        log::debug!(
+        tracing::debug!(
             "Route Publisher ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
         );
 
@@ -159,7 +159,7 @@ impl RoutePublisher<'_> {
             };
             // In case there are several Writers served by this route, increase the cache size
             history = history.saturating_mul(context.config.transient_local_cache_multiplier);
-            log::debug!(
+            tracing::debug!(
                 "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications via a PublicationCache with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
@@ -229,7 +229,7 @@ impl RoutePublisher<'_> {
                     let publisher = publisher.clone();
 
                     move |status| {
-                        log::debug!("{route_id} MatchingStatus changed: {status:?}");
+                        tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
                         if status.matching_subscribers() {
                             if let Err(e) = activate_dds_reader(
                                 &dds_reader,
@@ -242,7 +242,7 @@ impl RoutePublisher<'_> {
                                 &type_info,
                                 &publisher,
                             ) {
-                                log::error!("{route_id}: failed to activate DDS Reader: {e}");
+                                tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
                             }
                         } else {
                             deactivate_dds_reader(
@@ -286,10 +286,10 @@ impl RoutePublisher<'_> {
             // remove reader's GID from ros_discovery_info message
             match get_guid(&dds_reader) {
                 Ok(gid) => self.context.ros_discovery_mgr.remove_dds_reader(gid),
-                Err(e) => log::warn!("{self}: {e}"),
+                Err(e) => tracing::warn!("{self}: {e}"),
             }
             if let Err(e) = delete_dds_entity(dds_reader) {
-                log::warn!("{}: error deleting DDS Reader:  {}", self, e);
+                tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
             }
         }
     }
@@ -329,14 +329,14 @@ impl RoutePublisher<'_> {
     pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .insert(format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
     pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
         // if last remote route removed, deactivate the DDS Reader
         if self.remote_routes.is_empty() {
             self.deactivate_dds_reader();
@@ -351,11 +351,11 @@ impl RoutePublisher<'_> {
     #[inline]
     pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
         if self.local_nodes.insert(node) {
-            log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             // if 1st local node added, announce the route
             if self.local_nodes.len() == 1 {
                 if let Err(e) = self.announce_route(discovered_writer_qos).await {
-                    log::error!("{self} announcement failed: {e}");
+                    tracing::error!("{self} announcement failed: {e}");
                 }
             }
         }
@@ -364,7 +364,7 @@ impl RoutePublisher<'_> {
     #[inline]
     pub fn remove_local_node(&mut self, node: &str) {
         if self.local_nodes.remove(node) {
-            log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             // if last local node removed, retire the route
             if self.local_nodes.is_empty() {
                 self.retire_route();
@@ -416,7 +416,7 @@ fn activate_dds_reader(
     type_info: &Option<Arc<TypeInfo>>,
     publisher: &Arc<Publisher<'static>>,
 ) -> Result<(), String> {
-    log::debug!("{route_id}: create Reader with {reader_qos:?}");
+    tracing::debug!("{route_id}: create Reader with {reader_qos:?}");
     let topic_name: String = format!("rt{}", ros2_name);
     let type_name = ros2_message_type_to_dds_type(ros2_type);
     let read_period = get_read_period(&context.config, ros2_name);
@@ -443,9 +443,9 @@ fn activate_dds_reader(
     context.ros_discovery_mgr.add_dds_reader(get_guid(&reader)?);
 
     if old != DDS_ENTITY_NULL {
-        log::warn!("{route_id}: on activation their was already a DDS Reader - overwrite it");
+        tracing::warn!("{route_id}: on activation their was already a DDS Reader - overwrite it");
         if let Err(e) = delete_dds_entity(old) {
-            log::warn!("{route_id}: failed to delete overwritten DDS Reader: {e}");
+            tracing::warn!("{route_id}: failed to delete overwritten DDS Reader: {e}");
         }
     }
 
@@ -457,27 +457,27 @@ fn deactivate_dds_reader(
     route_id: &str,
     ros_discovery_mgr: &Arc<RosDiscoveryInfoMgr>,
 ) {
-    log::debug!("{route_id}: delete Reader");
+    tracing::debug!("{route_id}: delete Reader");
     let reader = dds_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
     if reader != DDS_ENTITY_NULL {
         // remove reader's GID from ros_discovery_info message
         match get_guid(&reader) {
             Ok(gid) => ros_discovery_mgr.remove_dds_reader(gid),
-            Err(e) => log::warn!("{route_id}: {e}"),
+            Err(e) => tracing::warn!("{route_id}: {e}"),
         }
         if let Err(e) = delete_dds_entity(reader) {
-            log::warn!("{route_id}: error deleting DDS Reader:  {e}");
+            tracing::warn!("{route_id}: error deleting DDS Reader:  {e}");
         }
     }
 }
 
 fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
     if *LOG_PAYLOAD {
-        log::debug!("{route_id}: routing message - payload: {:02x?}", sample);
+        tracing::debug!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {
-        log::trace!("{route_id}: routing message - {} bytes", sample.len());
+        tracing::trace!("{route_id}: routing message - {} bytes", sample.len());
     }
     if let Err(e) = publisher.put(sample).res_sync() {
-        log::error!("{route_id}: failed to route message: {e}");
+        tracing::error!("{route_id}: failed to route message: {e}");
     }
 }

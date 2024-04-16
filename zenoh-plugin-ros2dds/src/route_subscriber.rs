@@ -81,12 +81,12 @@ impl Drop for RouteSubscriber<'_> {
         // remove writer's GID from ros_discovery_info message
         match get_guid(&self.dds_writer) {
             Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
-            Err(e) => log::warn!("{self}: {e}"),
+            Err(e) => tracing::warn!("{self}: {e}"),
         }
 
-        log::debug!("{self}: delete Writer");
+        tracing::debug!("{self}: delete Writer");
         if let Err(e) = delete_dds_entity(self.dds_writer) {
-            log::warn!("{}: error deleting DDS Reader:  {}", self, e);
+            tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
     }
 }
@@ -112,7 +112,7 @@ impl RouteSubscriber<'_> {
         context: Context,
     ) -> Result<RouteSubscriber<'a>, String> {
         let transient_local = is_transient_local(&writer_qos);
-        log::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
+        tracing::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
 
         let topic_name = format!("rt{ros2_name}");
         let type_name = ros2_message_type_to_dds_type(&ros2_type);
@@ -129,7 +129,7 @@ impl RouteSubscriber<'_> {
             writer_qos.reliability = None;
         }
 
-        log::debug!(
+        tracing::debug!(
             "Route Subscriber ({zenoh_key_expr} -> {ros2_name}): create Writer with {writer_qos:?}"
         );
         let dds_writer = create_dds_writer(
@@ -162,7 +162,7 @@ impl RouteSubscriber<'_> {
 
     // Announce the route over Zenoh via a LivelinessToken
     async fn announce_route(&mut self, discovered_reader_qos: &Qos) -> Result<(), String> {
-        log::debug!("{self} activate");
+        tracing::debug!("{self} activate");
         // Callback routing message received by Zenoh subscriber to DDS Writer (if set)
         let ros2_name = self.ros2_name.clone();
         let dds_writer = self.dds_writer;
@@ -176,7 +176,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr).into();
-            log::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
+            tracing::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .context
                 .zsession
@@ -235,7 +235,7 @@ impl RouteSubscriber<'_> {
 
     // Retire the route over Zenoh removing the LivelinessToken
     fn retire_route(&mut self) {
-        log::debug!("{self} deactivate");
+        tracing::debug!("{self} deactivate");
         // Drop Zenoh Subscriber and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
         self.zenoh_subscriber = None;
@@ -249,7 +249,7 @@ impl RouteSubscriber<'_> {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<plugin_id>/<routing_keyexpr>"
             let query_selector: Selector =
                 (*KE_PREFIX_PUB_CACHE / plugin_id / &self.zenoh_key_expr).into();
-            log::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
+            tracing::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
                 self.zenoh_key_expr, self.ros2_name
             );
 
@@ -273,7 +273,7 @@ impl RouteSubscriber<'_> {
                 .res()
                 .await
             {
-                log::warn!(
+                tracing::warn!(
                     "{}: query for historical publications on {} failed: {}",
                     self,
                     query_selector,
@@ -287,14 +287,14 @@ impl RouteSubscriber<'_> {
     pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .insert(format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
     pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
             .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
-        log::debug!("{self} now serving remote routes {:?}", self.remote_routes);
+        tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
@@ -305,11 +305,11 @@ impl RouteSubscriber<'_> {
     #[inline]
     pub async fn add_local_node(&mut self, entity_key: String, discovered_reader_qos: &Qos) {
         self.local_nodes.insert(entity_key);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if 1st local node added, activate the route
         if self.local_nodes.len() == 1 {
             if let Err(e) = self.announce_route(discovered_reader_qos).await {
-                log::error!("{self} activation failed: {e}");
+                tracing::error!("{self} activation failed: {e}");
             }
         }
     }
@@ -317,7 +317,7 @@ impl RouteSubscriber<'_> {
     #[inline]
     pub fn remove_local_node(&mut self, entity_key: &str) {
         self.local_nodes.remove(entity_key);
-        log::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         // if last local node removed, deactivate the route
         if self.local_nodes.is_empty() {
             self.retire_route();
@@ -337,14 +337,14 @@ impl RouteSubscriber<'_> {
 
 fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
-        log::debug!(
+        tracing::debug!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - payload: {:02x?}",
             s.key_expr,
             &ros2_name,
             s.value.payload
         );
     } else {
-        log::trace!(
+        tracing::trace!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - {} bytes",
             s.key_expr,
             &ros2_name,
@@ -364,7 +364,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
         let size: ddsrt_iov_len_t = match ddsrt_iov_len_from_usize(len) {
             Ok(s) => s,
             Err(_) => {
-                log::warn!(
+                tracing::warn!(
                     "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; excessive payload size ({})",
                     s.key_expr,
                     ros2_name,
@@ -382,7 +382,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
         let mut sertype_ptr: *const ddsi_sertype = std::ptr::null_mut();
         let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);
         if ret < 0 {
-            log::warn!(
+            tracing::warn!(
                 "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; sertype lookup failed ({})",
                 s.key_expr,
                 ros2_name,
@@ -403,7 +403,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
 
         let ret = dds_writecdr(data_writer, fwdp);
         if ret < 0 {
-            log::warn!(
+            tracing::warn!(
                 "Route Subscriber (Zenoh:{} -> ROS:{}): DDS write({data_writer}) failed: {}",
                 s.key_expr,
                 ros2_name,

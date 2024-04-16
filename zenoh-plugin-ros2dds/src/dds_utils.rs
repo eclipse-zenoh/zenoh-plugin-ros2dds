@@ -296,7 +296,7 @@ where
                 if reader >= 0 {
                     let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
-                        log::error!(
+                        tracing::error!(
                             "Error calling dds_reader_wait_for_historical_data(): {}",
                             CStr::from_ptr(dds_strretcode(-res))
                                 .to_str()

@@ -98,7 +98,7 @@ impl DiscoveredEntities {
         // Remove associated NodeInfos
         if let Some(nodes) = self.nodes_info.remove(gid) {
             for (name, mut node) in nodes {
-                log::info!("Undiscovered ROS Node {}", name);
+                tracing::info!("Undiscovered ROS Node {}", name);
                 self.admin_space.remove(
                     &zenoh::keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
                         .unwrap(),
@@ -267,7 +267,7 @@ impl DiscoveredEntities {
         // Remove nodes that are no longer present in ParticipantEntitiesInfo
         nodes_map.retain(|name, node| {
             if !ros_info.node_entities_info_seq.contains_key(name) {
-                log::info!("Undiscovered ROS Node {}", name);
+                tracing::info!("Undiscovered ROS Node {}", name);
                 admin_space.remove(
                     &zenoh::keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
                         .unwrap(),
@@ -284,7 +284,7 @@ impl DiscoveredEntities {
         for (name, ros_node_info) in &ros_info.node_entities_info_seq {
             // If node was not yet discovered, add a new NodeInfo
             if !nodes_map.contains_key(name) {
-                log::info!("Discovered ROS Node {}", name);
+                tracing::info!("Discovered ROS Node {}", name);
                 match NodeInfo::create(
                     ros_node_info.node_namespace.clone(),
                     ros_node_info.node_name.clone(),
@@ -302,7 +302,7 @@ impl DiscoveredEntities {
                         nodes_map.insert(node.fullname().to_string(), node);
                     }
                     Err(e) => {
-                        log::warn!("ROS Node has incompatible name: {e}");
+                        tracing::warn!("ROS Node has incompatible name: {e}");
                         break;
                     }
                 }
@@ -333,19 +333,19 @@ impl DiscoveredEntities {
         // For each declared Reader
         for rgid in &ros_node_info.reader_gid_seq {
             if let Some(entity) = readers.get(rgid) {
-                log::trace!(
+                tracing::trace!(
                     "ROS Node {ros_node_info} declares a Reader on {}",
                     entity.topic_name
                 );
                 if let Some(e) = node.update_with_reader(entity) {
-                    log::debug!(
+                    tracing::debug!(
                         "ROS Node {ros_node_info} declares a new Reader on {}",
                         entity.topic_name
                     );
                     events.push(e)
                 };
             } else {
-                log::debug!(
+                tracing::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Reader: {rgid}"
                 );
                 node.undiscovered_reader.push(*rgid);
@@ -354,19 +354,19 @@ impl DiscoveredEntities {
         // For each declared Writer
         for wgid in &ros_node_info.writer_gid_seq {
             if let Some(entity) = writers.get(wgid) {
-                log::trace!(
+                tracing::trace!(
                     "ROS Node {ros_node_info} declares Writer on {}",
                     entity.topic_name
                 );
                 if let Some(e) = node.update_with_writer(entity) {
-                    log::debug!(
+                    tracing::debug!(
                         "ROS Node {ros_node_info} declares a new Writer on {}",
                         entity.topic_name
                     );
                     events.push(e)
                 };
             } else {
-                log::debug!(
+                tracing::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Writer: {wgid}"
                 );
                 node.undiscovered_writer.push(*wgid);
@@ -414,7 +414,7 @@ impl DiscoveredEntities {
         // the selector, if those keys had the admin_keyexpr_prefix.
         let sub_kes = selector.key_expr.strip_prefix(admin_keyexpr_prefix);
         if sub_kes.is_empty() {
-            log::error!("Received query for admin space: '{}' - but it's not prefixed by admin_keyexpr_prefix='{}'", selector, admin_keyexpr_prefix);
+            tracing::error!("Received query for admin space: '{}' - but it's not prefixed by admin_keyexpr_prefix='{}'", selector, admin_keyexpr_prefix);
             return;
         }
 
@@ -453,12 +453,14 @@ impl DiscoveredEntities {
                     .res_async()
                     .await
                 {
-                    log::warn!("Error replying to admin query {:?}: {}", query, e);
+                    tracing::warn!("Error replying to admin query {:?}: {}", query, e);
                 }
             }
-            Ok(None) => log::error!("INTERNAL ERROR: Dangling {:?} for {}", entity_ref, key_expr),
+            Ok(None) => {
+                tracing::error!("INTERNAL ERROR: Dangling {:?} for {}", entity_ref, key_expr)
+            }
             Err(e) => {
-                log::error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
+                tracing::error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
             }
         }
     }
