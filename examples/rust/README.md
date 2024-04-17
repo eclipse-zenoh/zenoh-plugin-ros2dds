@@ -3,7 +3,7 @@
 ## Building the examples
 In order to build the examples you will need to:
 * [Install Rust and Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-* [Install Zenoh Rust](https://github.com/eclipse-zenoh/zenoh?tab=readme-ov-file#how-to-install-it)
+* [Clone the repository](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds)
 
 Once this is done, compile by running the following:
 ```
