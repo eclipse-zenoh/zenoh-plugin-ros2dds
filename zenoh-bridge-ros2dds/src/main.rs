@@ -60,7 +60,7 @@ fn parse_args() -> (Option<f32>, Config) {
 
 #[async_std::main]
 async fn main() {
-    zenoh_util::try_init_log_from_env();
+    zenoh_util::init_log_from_env_or("z=info");
     tracing::info!(
         "zenoh-bridge-ros2dds {}",
         zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_LONG_VERSION
