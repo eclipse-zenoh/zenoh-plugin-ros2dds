@@ -13,6 +13,7 @@ KillMode=mixed
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 Restart=on-failure
+RestartSec=2
 PermissionsStartOnly=true
 User=zenoh-bridge-ros2dds
 StandardOutput=syslog

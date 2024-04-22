@@ -80,7 +80,10 @@ async fn main() {
     }
 
     // create a zenoh session. Plugins are loaded during the open.
-    let _session = zenoh::open(config).res().await.unwrap();
+    let _session = zenoh::open(config).res().await.unwrap_or_else(|e| {
+        println!("{e}. Exiting...");
+        std::process::exit(-1);
+    });
 
     async_std::future::pending::<()>().await;
 }
