@@ -17,6 +17,8 @@ use clap::Parser;
 use ros_args::RosArgs;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
+use zenoh::prelude::r#async::*;
+use zenoh_plugin_trait::Plugin;
 
 mod bridge_args;
 mod ros_args;
@@ -55,6 +57,11 @@ fn parse_args() -> (Option<f32>, Config) {
         .set_enabled(Some(ModeDependentValue::Unique(true)))
         .unwrap();
 
+    // Enable admin space
+    config.adminspace.set_enabled(true).unwrap();
+    // Enable loading plugins
+    config.plugins_loading.set_enabled(true).unwrap();
+
     (watchdog_opt, config)
 }
 
@@ -67,35 +74,17 @@ async fn main() {
     );
 
     let (watchdog_period, config) = parse_args();
-    let rest_plugin = config.plugin("rest").is_some();
 
     if let Some(period) = watchdog_period {
         run_watchdog(period);
     }
 
-    // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::runtime::Runtime::new(config)
-        .await
-        .unwrap_or_else(|e| {
-            println!("{e}. Exiting...");
-            std::process::exit(-1);
-        });
-
-    // start REST plugin
-    if rest_plugin {
-        use zenoh_plugin_trait::Plugin;
-        zenoh_plugin_rest::RestPlugin::start("rest", &runtime).unwrap_or_else(|e| {
-            println!("{e}. Exiting...");
-            std::process::exit(-1);
-        });
-    }
-
-    // start DDS plugin
-    use zenoh_plugin_trait::Plugin;
-    zenoh_plugin_ros2dds::ROS2Plugin::start("ros2dds", &runtime).unwrap_or_else(|e| {
+    // create a zenoh session. Plugins are loaded during the open.
+    let _session = zenoh::open(config).res().await.unwrap_or_else(|e| {
         println!("{e}. Exiting...");
         std::process::exit(-1);
     });
+
     async_std::future::pending::<()>().await;
 }
 
