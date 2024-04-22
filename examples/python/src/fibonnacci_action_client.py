@@ -60,7 +60,7 @@ class Fibonacci_Feedback(IdlStruct, typename="Fibonacci_Feedback"):
 def feedback_callback(sample: zenoh.Sample):
     # Deserialize the message
     feedback = Fibonacci_Feedback.deserialize(sample.payload)
-    print('Received feedback: {0}'.format(feedback.partial_sequence))
+    print('Next number in sequence received: {0}'.format(feedback.partial_sequence))
 
 
 def main():
@@ -84,6 +84,7 @@ def main():
     goal_id = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     req = Fibonacci_SendGoal_Request(goal_id, order=10)
     # Send the query with the serialized request
+    print('Sending goal')
     replies = session.get('fibonacci/_action/send_goal', zenoh.Queue(), value=req.serialize())
     # Zenoh could get several replies for a request (e.g. from several "Service Servers" using the same name)
     for reply in replies.receiver:
@@ -93,7 +94,7 @@ def main():
             print('Goal rejected :(')
             return
 
-    print('Goal accepted :)')
+    print('Goal accepted by server, waiting for result')
 
     req = Fibonacci_GetResult_Request(goal_id)
     # Send the query with the serialized request
