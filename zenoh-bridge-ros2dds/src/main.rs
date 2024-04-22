@@ -74,17 +74,28 @@ async fn main() {
     }
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::runtime::Runtime::new(config).await.unwrap();
+    let runtime = zenoh::runtime::Runtime::new(config)
+        .await
+        .unwrap_or_else(|e| {
+            println!("{e}. Exiting...");
+            std::process::exit(-1);
+        });
 
     // start REST plugin
     if rest_plugin {
         use zenoh_plugin_trait::Plugin;
-        zenoh_plugin_rest::RestPlugin::start("rest", &runtime).unwrap();
+        zenoh_plugin_rest::RestPlugin::start("rest", &runtime).unwrap_or_else(|e| {
+            println!("{e}. Exiting...");
+            std::process::exit(-1);
+        });
     }
 
     // start DDS plugin
     use zenoh_plugin_trait::Plugin;
-    zenoh_plugin_ros2dds::ROS2Plugin::start("ros2dds", &runtime).unwrap();
+    zenoh_plugin_ros2dds::ROS2Plugin::start("ros2dds", &runtime).unwrap_or_else(|e| {
+        println!("{e}. Exiting...");
+        std::process::exit(-1);
+    });
     async_std::future::pending::<()>().await;
 }
 
