@@ -161,7 +161,7 @@ To make sure of this, you can either:
   ```
 
 On the robot, run:
-  - `zenoh-bridge-ros2dds -l tcp/0.0.0.0:7447`
+  - `zenoh-bridge-ros2dds`
 
 On the operating host run:
   - `zenoh-bridge-ros2dds -e tcp/<robot-ip>:7447`
@@ -184,6 +184,33 @@ The `"ros2dds"` part of this same configuration file can also be used in the con
 - `zenoh-bridge-ros2dds -h`
 
 The command line arguments overwrite the equivalent keys configured in a configuration file.
+
+## Connectivity configurations
+
+### DDS communications
+The bridge discovers all ROS 2 Nodes and their topics/services/actions running on the same Domain ID (set via `ROS_DOMAIN_ID` or `0` by default) via UDP multicast, as per DDS specification.
+
+As the bridge relies on [CycloneDDS](https://github.com/eclipse-cyclonedds/cyclonedds), it's DDS communications can be configured via a CycloneDDS XML configuration file as explained [here](https://github.com/eclipse-cyclonedds/cyclonedds/tree/8638e1fa1e8ae9f964c91ad4763653702b8f91e0?tab=readme-ov-file#run-time-configuration).
+
+### Zenoh communications
+Starting from **v0.11.0**, the `zenoh-bridge-ros2dds` is by default started in `router` mode (See the difference between modes in Zenoh documentation: https://zenoh.io/docs/getting-started/deployment/).  
+This means it's listening for incoming TCP connections by remote bridges or any Zenoh application on port `7447` via any network interface. It does perform discovery via scouting over UDP multicast or gossip protocol, but doesn't auto-connect to anything.  
+As a consequence the connectivity between bridges has to be statically configured in one bridge connecting to the other (or several other bridges) via the `-e` command line option, or via the `connect` section in [configuration file](DEFAULT_CONFIG.json5).
+
+If required, the automatic connection to other discovered bridges (also running in `router` mode) can be enabled adding such configuration:
+```json5
+  scouting: {
+    multicast: {
+      autoconnect: { router: "router" }
+    },
+    gossip: {
+      autoconnect: { router: "router" }
+    }
+  },
+```
+
+Prior to **v0.11.0**, the `zenoh-bridge-ros2dds` was by default started in `peer` mode.  
+It was listening for incoming TCP connections on a random port (chosen by the OS), and was automatically connecting to any discovered brige, router or peer.
 
 ## Easy multi-robots via Namespace configuration
 

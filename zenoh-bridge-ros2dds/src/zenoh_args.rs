@@ -21,19 +21,32 @@ use zenoh::config::Config;
 pub enum Wai {
     Peer,
     Client,
+    Router,
 }
+
 impl core::fmt::Display for Wai {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         core::fmt::Debug::fmt(&self, f)
     }
 }
+
+impl Into<zenoh::scouting::WhatAmI> for Wai {
+    fn into(self) -> zenoh::scouting::WhatAmI {
+        match self {
+            Self::Peer => zenoh::scouting::WhatAmI::Peer,
+            Self::Client => zenoh::scouting::WhatAmI::Client,
+            Self::Router => zenoh::scouting::WhatAmI::Router,
+        }
+    }
+}
+
 #[derive(clap::Parser, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CommonArgs {
     #[arg(short, long)]
     /// A configuration file.
     pub config: Option<String>,
     #[arg(short, long)]
-    /// The Zenoh session mode [default: peer].
+    /// The Zenoh session mode [default: router].
     pub mode: Option<Wai>,
     #[arg(short = 'e', long)]
     /// Endpoints to connect to.
@@ -60,12 +73,13 @@ impl From<&CommonArgs> for Config {
             Some(path) => Config::from_file(path).unwrap(),
             None => Config::default(),
         };
-        match value.mode {
-            Some(Wai::Peer) => config.set_mode(Some(zenoh::scouting::WhatAmI::Peer)),
-            Some(Wai::Client) => config.set_mode(Some(zenoh::scouting::WhatAmI::Client)),
-            None => Ok(None),
+        if value.mode.is_some() {
+            // apply mode set via command line, overwritting mode set in config file
+            config.set_mode(value.mode.map(Into::into)).unwrap();
+        } else if config.mode().is_none() {
+            // no mode set neither via command line, neither in config file - set Router mode by default
+            config.set_mode(Some(zenoh::scouting::WhatAmI::Router)).unwrap();
         }
-        .unwrap();
         if !value.connect.is_empty() {
             config.connect.endpoints = value.connect.iter().map(|v| v.parse().unwrap()).collect();
         }
