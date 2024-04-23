@@ -16,7 +16,7 @@ resolver = "2"
 members = ["zenoh-bridge-ros2dds", "zenoh-plugin-ros2dds"]
 
 [workspace.package]
-version = "0.11.0-dev"
+version = "0.11.0-dev-83-g3c1267f"
 authors = ["Julien Enoch <julien@enoch.fr>"]
 edition = "2021"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
