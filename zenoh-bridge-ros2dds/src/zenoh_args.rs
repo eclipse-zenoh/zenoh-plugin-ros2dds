@@ -78,7 +78,9 @@ impl From<&CommonArgs> for Config {
             config.set_mode(value.mode.map(Into::into)).unwrap();
         } else if config.mode().is_none() {
             // no mode set neither via command line, neither in config file - set Router mode by default
-            config.set_mode(Some(zenoh::scouting::WhatAmI::Router)).unwrap();
+            config
+                .set_mode(Some(zenoh::scouting::WhatAmI::Router))
+                .unwrap();
         }
         if !value.connect.is_empty() {
             config.connect.endpoints = value.connect.iter().map(|v| v.parse().unwrap()).collect();
