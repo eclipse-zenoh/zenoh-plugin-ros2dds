@@ -30,12 +30,12 @@ impl core::fmt::Display for Wai {
     }
 }
 
-impl Into<zenoh::scouting::WhatAmI> for Wai {
-    fn into(self) -> zenoh::scouting::WhatAmI {
-        match self {
-            Self::Peer => zenoh::scouting::WhatAmI::Peer,
-            Self::Client => zenoh::scouting::WhatAmI::Client,
-            Self::Router => zenoh::scouting::WhatAmI::Router,
+impl From<Wai> for zenoh::scouting::WhatAmI {
+    fn from(val: Wai) -> Self {
+        match val {
+            Wai::Peer => zenoh::scouting::WhatAmI::Peer,
+            Wai::Client => zenoh::scouting::WhatAmI::Client,
+            Wai::Router => zenoh::scouting::WhatAmI::Router,
         }
     }
 }

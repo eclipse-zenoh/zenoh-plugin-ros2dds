@@ -116,7 +116,7 @@ impl Plugin for ROS2Plugin {
 
     const PLUGIN_VERSION: &'static str = plugin_version!();
     const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
-    const DEFAULT_NAME: &'static str = "zenoh-plugin-ros2dds";
+    const DEFAULT_NAME: &'static str = "ros2dds";
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
         // Try to initiate login.
@@ -143,7 +143,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // But cannot be done twice in case of static link.
     zenoh_util::try_init_log_from_env();
     tracing::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
-    tracing::info!("ROS2 plugin {:?}", config);
+    tracing::info!("ROS2 plugin {config:?}");
 
     // Check config validity
     if !regex::Regex::new("/[A-Za-z0-9_/]*")
