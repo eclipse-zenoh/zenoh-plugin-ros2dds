@@ -19,7 +19,7 @@ set -e
 
 
 case "$1" in
-    purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    purge|remove|abort-install|disappear)
     userdel zenoh-bridge-ros2dds > /dev/null 2>&1 || true
     rm -rf /etc/zenoh-bridge-ros2dds
     ;;
