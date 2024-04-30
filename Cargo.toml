@@ -42,18 +42,18 @@ rustc_version = "0.4"
 serde = "1.0.154"
 serde_json = "1.0.94"
 tracing = "0.1"
-zenoh = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
+zenoh = { version = "0.11.0-rc.2", features = [
   "unstable", "plugins"
 ] }
-zenoh-collections = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
-zenoh-core = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
-zenoh-ext = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
+zenoh-collections = { version = "0.11.0-rc.2"}
+zenoh-core = { version = "0.11.0-rc.2"}
+zenoh-ext = { version = "0.11.0-rc.2", features = [
   "unstable",
 ] }
-zenoh-plugin-rest = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-plugin-ros2dds = { version = "0.11.0-dev", path = "zenoh-plugin-ros2dds/", default-features = false }
-zenoh-plugin-trait = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-util = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
+zenoh-plugin-rest = { version = "0.11.0-rc.2", default-features = false }
+zenoh-plugin-ros2dds = { version = "0.11.0-rc.2", path = "zenoh-plugin-ros2dds/", default-features = false }
+zenoh-plugin-trait = { version = "0.11.0-rc.2", default-features = false }
+zenoh-util = { version = "0.11.0-rc.2", default-features = false }
 
 [profile.release]
 codegen-units = 1
