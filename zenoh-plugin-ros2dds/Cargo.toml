@@ -27,9 +27,9 @@ name = "zenoh_plugin_ros2dds"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["no_mangle"]
+default = ["dynamic_plugin"]
 stats = ["zenoh/stats"]
-no_mangle = []
+dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
 
 [dependencies]
