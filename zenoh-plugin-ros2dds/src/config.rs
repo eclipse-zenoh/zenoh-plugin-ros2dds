@@ -111,54 +111,72 @@ impl Config {
     }
 
     pub fn get_queries_timeout_action_send_goal(&self, ros2_name: &str) -> Duration {
-        if let Some(QueriesTimeouts {
-            default,
-            actions: Some(at),
-            ..
-        }) = &self.queries_timeout
-        {
-            for (re, secs) in &at.send_goal {
-                if re.is_match(ros2_name) {
-                    return Duration::from_secs_f32(*secs);
+        match &self.queries_timeout {
+            Some(QueriesTimeouts {
+                default,
+                actions: Some(at),
+                ..
+            }) => {
+                for (re, secs) in &at.send_goal {
+                    if re.is_match(ros2_name) {
+                        return Duration::from_secs_f32(*secs);
+                    }
                 }
+                Duration::from_secs_f32(*default)
             }
-            return Duration::from_secs_f32(*default);
+            Some(QueriesTimeouts {
+                default,
+                actions: None,
+                ..
+            }) => Duration::from_secs_f32(*default),
+            _ => Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT),
         }
-        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_action_cancel_goal(&self, ros2_name: &str) -> Duration {
-        if let Some(QueriesTimeouts {
-            default,
-            actions: Some(at),
-            ..
-        }) = &self.queries_timeout
-        {
-            for (re, secs) in &at.cancel_goal {
-                if re.is_match(ros2_name) {
-                    return Duration::from_secs_f32(*secs);
+        match &self.queries_timeout {
+            Some(QueriesTimeouts {
+                default,
+                actions: Some(at),
+                ..
+            }) => {
+                for (re, secs) in &at.cancel_goal {
+                    if re.is_match(ros2_name) {
+                        return Duration::from_secs_f32(*secs);
+                    }
                 }
+                Duration::from_secs_f32(*default)
             }
-            return Duration::from_secs_f32(*default);
+            Some(QueriesTimeouts {
+                default,
+                actions: None,
+                ..
+            }) => Duration::from_secs_f32(*default),
+            _ => Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT),
         }
-        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 
     pub fn get_queries_timeout_action_get_result(&self, ros2_name: &str) -> Duration {
-        if let Some(QueriesTimeouts {
-            default,
-            actions: Some(at),
-            ..
-        }) = &self.queries_timeout
-        {
-            for (re, secs) in &at.get_result {
-                if re.is_match(ros2_name) {
-                    return Duration::from_secs_f32(*secs);
+        match &self.queries_timeout {
+            Some(QueriesTimeouts {
+                default,
+                actions: Some(at),
+                ..
+            }) => {
+                for (re, secs) in &at.get_result {
+                    if re.is_match(ros2_name) {
+                        return Duration::from_secs_f32(*secs);
+                    }
                 }
+                Duration::from_secs_f32(*default)
             }
-            return Duration::from_secs_f32(*default);
+            Some(QueriesTimeouts {
+                default,
+                actions: None,
+                ..
+            }) => Duration::from_secs_f32(*default),
+            _ => Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT),
         }
-        Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
     }
 }
 

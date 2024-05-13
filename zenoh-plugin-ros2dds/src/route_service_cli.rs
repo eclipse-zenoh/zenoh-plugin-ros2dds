@@ -101,7 +101,7 @@ impl RouteServiceCli<'_> {
         context: Context,
     ) -> Result<RouteServiceCli<'a>, String> {
         tracing::debug!(
-            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type}"
+            "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type} (queries_timeout={queries_timeout:#?})"
         );
         Ok(RouteServiceCli {
             ros2_name,
@@ -369,10 +369,10 @@ fn route_dds_request_to_zenoh(
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {
-        tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh - payload: {zenoh_req_buf:02x?}");
+        tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - payload: {zenoh_req_buf:02x?}");
     } else {
         tracing::trace!(
-            "{route_id}: routing request {request_id} from DDS to Zenoh - {} bytes",
+            "{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - {} bytes",
             zenoh_req_buf.len()
         );
     }
