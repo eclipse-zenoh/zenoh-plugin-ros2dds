@@ -45,7 +45,7 @@
       // ros_localhost_only: true,
 
       ////
-      //// shm_enabled: If set to true, the DDS implementation will use Iceoryx shared memory.
+      //// shm_enabled: If set to true, the DDS implementation will be configured to use the Iceoryx PSMX plugin.
       ////              Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
       ////              By default set to false.
       ////

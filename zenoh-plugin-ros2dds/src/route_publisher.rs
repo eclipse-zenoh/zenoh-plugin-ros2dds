@@ -433,7 +433,7 @@ fn activate_dds_reader(
         {
             let route_id = route_id.to_string();
             let publisher = publisher.clone();
-            move |sample: &DDSRawSample| {
+            move |sample: &Result<DDSRawSample, String>| {
                 route_dds_message_to_zenoh(sample, &publisher, &route_id);
             }
         },
@@ -471,7 +471,19 @@ fn deactivate_dds_reader(
     }
 }
 
-fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>, route_id: &str) {
+fn route_dds_message_to_zenoh(
+    sample: &Result<DDSRawSample, String>,
+    publisher: &Arc<Publisher>,
+    route_id: &str,
+) {
+    let sample = match sample {
+        Err(e) => {
+            tracing::warn!("{route_id}: received invalid sample from DDS: {e}");
+            return;
+        }
+        Ok(sample) => sample,
+    };
+
     if *LOG_PAYLOAD {
         tracing::debug!("{route_id}: routing message - payload: {:02x?}", sample);
     } else {

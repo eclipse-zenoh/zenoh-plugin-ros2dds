@@ -53,12 +53,14 @@ jobs:
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
 
       - name: Build zenoh-plugin-ros2dds (with dds_shm)
+        if: ${{ ! startsWith(matrix.os,'window') }}
         run: cargo build -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds
         run: cargo build -p zenoh-bridge-ros2dds  --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds (with dds_shm)
+        if: ${{ ! startsWith(matrix.os,'window') }}
         run: cargo build -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
 
       - name: Run tests

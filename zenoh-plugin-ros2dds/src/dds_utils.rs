@@ -243,7 +243,7 @@ pub fn dds_write(data_writer: dds_entity_t, data: Vec<u8>) -> Result<(), String>
 
 unsafe extern "C" fn listener_to_callback<F>(dr: dds_entity_t, arg: *mut std::os::raw::c_void)
 where
-    F: Fn(&DDSRawSample),
+    F: Fn(&Result<DDSRawSample, String>),
 {
     let callback = arg as *mut F;
     let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
@@ -279,7 +279,7 @@ pub fn create_dds_reader<F>(
     callback: F,
 ) -> Result<dds_entity_t, String>
 where
-    F: Fn(&DDSRawSample) + std::marker::Send + 'static,
+    F: Fn(&Result<DDSRawSample, String>) + std::marker::Send + 'static,
 {
     unsafe {
         let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
