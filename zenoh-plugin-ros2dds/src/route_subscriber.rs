@@ -19,10 +19,15 @@ use cyclors::{
 use serde::Serialize;
 use std::collections::HashSet;
 use std::{ffi::CStr, fmt, time::Duration};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::prelude::*;
-use zenoh::query::ReplyKeyExpr;
-use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
+use zenoh::{
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
+    sample::{Locality, Sample},
+    selector::Selector,
+    subscriber::Subscriber,
+};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
 use crate::dds_utils::{create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
@@ -188,7 +193,6 @@ impl RouteSubscriber<'_> {
                 .query_timeout(self.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
-                .res()
                 .await
                 .map_err(|e| format!("{self}: failed to create FetchingSubscriber: {e}",))?;
             Some(ZSubscriber::FetchingSubscriber(sub))
@@ -200,7 +204,6 @@ impl RouteSubscriber<'_> {
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
-                .res()
                 .await
                 .map_err(|e| format!("{self}: failed to create Subscriber: {e}"))?;
             Some(ZSubscriber::Subscriber(sub))
@@ -221,7 +224,6 @@ impl RouteSubscriber<'_> {
                 self.context.zsession
                     .liveliness()
                     .declare_token(liveliness_ke)
-                    .res()
                     .await
                     .map_err(|e| {
                         format!(
@@ -259,7 +261,6 @@ impl RouteSubscriber<'_> {
                     let query_selector = query_selector.clone();
                     let queries_timeout = self.queries_timeout;
                     move |cb| {
-                        use zenoh_core::SyncResolve;
                         session
                             .get(&query_selector)
                             .target(QueryTarget::All)
@@ -267,10 +268,9 @@ impl RouteSubscriber<'_> {
                             .accept_replies(ReplyKeyExpr::Any)
                             .timeout(queries_timeout)
                             .callback(cb)
-                            .res_sync()
+                            .wait()
                     }
                 })
-                .res()
                 .await
             {
                 tracing::warn!(
@@ -339,21 +339,21 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
     if *LOG_PAYLOAD {
         tracing::debug!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - payload: {:02x?}",
-            s.key_expr,
+            s.key_expr(),
             &ros2_name,
-            s.value.payload
+            s.payload()
         );
     } else {
         tracing::trace!(
             "Route Subscriber (Zenoh:{} -> ROS:{}): routing message - {} bytes",
-            s.key_expr,
+            s.key_expr(),
             &ros2_name,
-            s.value.payload.len()
+            s.payload().len()
         );
     }
 
     unsafe {
-        let bs = s.value.payload.contiguous().into_owned();
+        let bs = s.payload().into();
         // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
         // the only way to correctly releasing it is to create a vec using from_raw_parts
         // and then have its destructor do the cleanup.
@@ -366,7 +366,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
             Err(_) => {
                 tracing::warn!(
                     "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; excessive payload size ({})",
-                    s.key_expr,
+                    s.key_expr(),
                     ros2_name,
                     len
                 );
@@ -384,7 +384,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
         if ret < 0 {
             tracing::warn!(
                 "Route Subscriber (Zenoh:{} -> ROS:{}): can't route message; sertype lookup failed ({})",
-                s.key_expr,
+                s.key_expr(),
                 ros2_name,
                 CStr::from_ptr(dds_strretcode(ret))
                     .to_str()
@@ -405,7 +405,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
         if ret < 0 {
             tracing::warn!(
                 "Route Subscriber (Zenoh:{} -> ROS:{}): DDS write({data_writer}) failed: {}",
-                s.key_expr,
+                s.key_expr(),
                 ros2_name,
                 CStr::from_ptr(dds_strretcode(ret))
                     .to_str()

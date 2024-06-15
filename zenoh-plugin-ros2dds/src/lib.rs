@@ -21,14 +21,23 @@ use std::collections::HashMap;
 use std::env;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
-use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin};
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
-use zenoh::queryable::Query;
-use zenoh::runtime::Runtime;
-use zenoh::Result as ZResult;
-use zenoh::Session;
+use zenoh::{
+    bytes::ZBytes,
+    internal::{
+        plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
+        runtime::Runtime,
+        Value,
+    },
+    key_expr::{
+        format::{kedefine, keformat},
+        keyexpr, OwnedKeyExpr,
+    },
+    liveliness::LivelinessToken,
+    prelude::*,
+    query::Query,
+    sample::SampleKind,
+    Result as ZResult, Session,
+};
 use zenoh_core::zerror;
 use zenoh_ext::SubscriberBuilderExt;
 use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
@@ -72,7 +81,7 @@ macro_rules! ke_for_sure {
 
 lazy_static::lazy_static!(
     pub static ref VERSION_JSON_VALUE: Value =
-        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned()).into();
+        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned()).as_str().into();
 
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
@@ -82,7 +91,7 @@ lazy_static::lazy_static!(
     static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@ros2_pub_cache");
 );
 
-zenoh::kedefine!(
+kedefine!(
     // Admin space key expressions of plugin's version
     pub ke_admin_version: "${plugin_status_key:**}/__version__",
 
@@ -118,7 +127,7 @@ impl Plugin for ROS2Plugin {
     const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
     const DEFAULT_NAME: &'static str = "ros2dds";
 
-    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
+    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<RunningPlugin> {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
@@ -168,7 +177,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     }
 
     // open zenoh-net Session
-    let zsession = match zenoh::init(runtime).res_async().await {
+    let zsession = match zenoh::session::init(runtime).await {
         Ok(session) => Arc::new(session),
         Err(e) => {
             tracing::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
@@ -183,18 +192,18 @@ pub async fn run(runtime: Runtime, config: Config) {
         }
         id.clone()
     } else {
-        zsession.zid().into_keyexpr().to_owned()
+        if let Ok(id) = zsession.zid().to_string().try_into() {
+            id
+        } else {
+            tracing::error!("The zsession id can't be transformed into key expr");
+            return;
+        }
     };
 
     // Declare plugin's liveliness token
     let ke_liveliness =
-        zenoh::keformat!(ke_liveliness_plugin::formatter(), plugin_id = &plugin_id).unwrap();
-    let member = match zsession
-        .liveliness()
-        .declare_token(ke_liveliness)
-        .res_async()
-        .await
-    {
+        keformat!(ke_liveliness_plugin::formatter(), plugin_id = &plugin_id).unwrap();
+    let member = match zsession.liveliness().declare_token(ke_liveliness).await {
         Ok(member) => member,
         Err(e) => {
             tracing::error!(
@@ -281,7 +290,7 @@ enum AdminRef {
 impl<'a> ROS2PluginRuntime<'a> {
     async fn run(&mut self) {
         // Subscribe to all liveliness info from other ROS2 plugins
-        let ke_liveliness_all = zenoh::keformat!(
+        let ke_liveliness_all = keformat!(
             ke_liveliness_all::formatter(),
             plugin_id = "*",
             remaining = "**"
@@ -293,19 +302,17 @@ impl<'a> ROS2PluginRuntime<'a> {
             .declare_subscriber(ke_liveliness_all)
             .querying()
             .with(flume::unbounded())
-            .res_async()
             .await
             .expect("Failed to create Liveliness Subscriber");
 
         // declare admin space queryable
         let admin_prefix =
-            zenoh::keformat!(ke_admin_prefix::formatter(), plugin_id = &self.plugin_id).unwrap();
+            keformat!(ke_admin_prefix::formatter(), plugin_id = &self.plugin_id).unwrap();
         let admin_keyexpr_expr = (&admin_prefix) / *KE_ANY_N_SEGMENT;
         tracing::debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
             .zsession
             .declare_queryable(admin_keyexpr_expr)
-            .res_async()
             .await
             .expect("Failed to create AdminSpace queryable");
 
@@ -366,14 +373,14 @@ impl<'a> ROS2PluginRuntime<'a> {
                     match liveliness_event
                     {
                         Ok(evt) => {
-                            let ke = evt.key_expr.as_keyexpr();
+                            let ke = evt.key_expr().as_keyexpr();
                             if let Ok(parsed) = ke_liveliness_all::parse(ke) {
                                 let plugin_id = parsed.plugin_id();
                                 if plugin_id == self.plugin_id.as_ref() {
                                     // ignore own announcements
                                     continue;
                                 }
-                                match (parsed.remaining(), evt.kind)  {
+                                match (parsed.remaining(), evt.kind())  {
                                     // New remote bridge detected
                                     (None, SampleKind::Put) => {
                                         tracing::info!("New ROS 2 bridge detected: {}", plugin_id);
@@ -385,7 +392,7 @@ impl<'a> ROS2PluginRuntime<'a> {
                                     // the liveliness token corresponds to a ROS2 announcement
                                     (Some(remaining), _) => {
                                         // parse it and pass ROS2AnnouncementEvent to RoutesMgr
-                                        match self.parse_announcement_event(ke, &remaining.as_str()[..3], evt.kind) {
+                                        match self.parse_announcement_event(ke, &remaining.as_str()[..3], evt.kind()) {
                                             Ok(evt) => {
                                                 tracing::info!("Remote bridge {plugin_id} {evt}");
                                                 routes_mgr.on_ros_announcement_event(evt).await
@@ -556,7 +563,7 @@ impl<'a> ROS2PluginRuntime<'a> {
     }
 
     async fn treat_admin_query(&self, query: &Query) {
-        let query_ke = query.selector().key_expr;
+        let query_ke = query.key_expr();
         if query_ke.is_wild() {
             // iterate over all admin space to find matching keys and reply for each
             for (ke, admin_ref) in self.admin_space.iter() {
@@ -566,7 +573,7 @@ impl<'a> ROS2PluginRuntime<'a> {
             }
         } else {
             // sub_ke correspond to 1 key - just get it and reply
-            let own_ke: OwnedKeyExpr = query_ke.into();
+            let own_ke: OwnedKeyExpr = query_ke.to_owned().into();
             if let Some(admin_ref) = self.admin_space.get(&own_ke) {
                 self.send_admin_reply(query, &own_ke, admin_ref).await;
             }
@@ -577,18 +584,20 @@ impl<'a> ROS2PluginRuntime<'a> {
         let value: Value = match admin_ref {
             AdminRef::Version => VERSION_JSON_VALUE.clone(),
             AdminRef::Config => match serde_json::to_value(&*self.config) {
-                Ok(v) => v.into(),
+                Ok(v) => match TryInto::<ZBytes>::try_into(v) {
+                    Ok(value) => value.into(),
+                    Err(e) => {
+                        tracing::warn!("Error transforming JSON to ZBtyes: {}", e);
+                        return;
+                    }
+                },
                 Err(e) => {
                     tracing::error!("INTERNAL ERROR serializing config as JSON: {}", e);
                     return;
                 }
             },
         };
-        if let Err(e) = query
-            .reply(Ok(Sample::new(key_expr.to_owned(), value)))
-            .res_async()
-            .await
-        {
+        if let Err(e) = query.reply(key_expr.to_owned(), value.payload()).await {
             tracing::warn!("Error replying to admin query {:?}: {}", query, e);
         }
     }

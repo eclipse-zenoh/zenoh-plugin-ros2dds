@@ -21,11 +21,14 @@ use cyclors::{
     },
 };
 use std::{
+    collections::HashMap,
     env::VarError,
     sync::atomic::{AtomicU32, Ordering},
 };
-use zenoh::prelude::{keyexpr, KeyExpr, OwnedKeyExpr};
-use zenoh::sample::Attachment;
+use zenoh::{
+    bytes::ZBytes,
+    key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
+};
 use zenoh_core::{bail, zresult::ZError};
 
 use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
@@ -211,23 +214,25 @@ impl CddsRequestHeader {
         &self.header
     }
 
-    pub fn as_attachment(&self) -> Attachment {
-        let mut attach = Attachment::new();
+    pub fn as_attachment(&self) -> ZBytes {
+        let mut hashmap = HashMap::new();
 
         // concat header + endianness flag
         let mut buf = [0u8; 17];
         buf[0..16].copy_from_slice(&self.header);
         buf[16] = self.is_little_endian as u8;
 
-        attach.insert(&ATTACHMENT_KEY_REQUEST_HEADER, &buf);
-        attach
+        hashmap.insert(ATTACHMENT_KEY_REQUEST_HEADER, buf);
+        ZBytes::from_iter(hashmap.iter())
     }
 }
 
-impl TryFrom<&Attachment> for CddsRequestHeader {
+impl TryFrom<&ZBytes> for CddsRequestHeader {
     type Error = ZError;
-    fn try_from(value: &Attachment) -> Result<Self, Self::Error> {
-        match value.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
+    fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
+        let hashmap: HashMap<[u8; 3], [u8; 17]> =
+            HashMap::from_iter(value.iter::<([u8; 3], [u8; 17])>().map(Result::unwrap));
+        match hashmap.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
             Some(buf) => {
                 if buf.len() == 17 {
                     let header: [u8; 16] = buf[0..16]

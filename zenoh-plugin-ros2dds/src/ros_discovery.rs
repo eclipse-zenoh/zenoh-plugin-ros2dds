@@ -36,8 +36,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
-use zenoh::buffers::ZBuf;
-use zenoh::prelude::HasReader;
+use zenoh::internal::buffers::{HasReader, ZBuf};
 use zenoh_core::zwrite;
 use zenoh_util::{TimedEvent, Timer};
 

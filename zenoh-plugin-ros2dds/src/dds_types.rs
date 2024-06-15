@@ -15,10 +15,9 @@
 use cyclors::*;
 use std::fmt;
 use std::slice;
-use zenoh::buffers::ZBuf;
 #[cfg(feature = "dds_shm")]
-use zenoh::buffers::ZSlice;
-use zenoh::prelude::*;
+use zenoh::internal::buffers::ZSlice;
+use zenoh::internal::{buffers::ZBuf, Value};
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
 

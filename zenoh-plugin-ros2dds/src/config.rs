@@ -16,7 +16,7 @@ use serde::{de, de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Seria
 use std::env;
 use std::fmt;
 use std::time::Duration;
-use zenoh::prelude::*;
+use zenoh::{core::Priority, key_expr::OwnedKeyExpr};
 
 pub const DEFAULT_NAMESPACE: &str = "/";
 pub const DEFAULT_NODENAME: &str = "zenoh_bridge_ros2dds";

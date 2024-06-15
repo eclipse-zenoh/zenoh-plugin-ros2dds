@@ -17,8 +17,7 @@ use clap::Parser;
 use ros_args::RosArgs;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
-use zenoh::plugins::PluginsManager;
-use zenoh::runtime::RuntimeBuilder;
+use zenoh::internal::{plugins::PluginsManager, runtime::RuntimeBuilder};
 use zenoh_plugin_trait::Plugin;
 
 mod bridge_args;

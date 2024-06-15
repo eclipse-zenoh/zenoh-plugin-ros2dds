@@ -34,12 +34,12 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
-use zenoh::prelude::keyexpr;
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::OwnedKeyExpr;
-use zenoh::queryable::Query;
-use zenoh::sample::Sample;
-use zenoh::Session;
+use zenoh::{
+    bytes::ZBytes,
+    key_expr::{keyexpr, OwnedKeyExpr},
+    query::Query,
+    Session,
+};
 use zenoh_core::zread;
 
 use crate::ke_for_sure;
@@ -795,12 +795,15 @@ impl<'a> RoutesMgr<'a> {
         match self.get_entity_json_value(route_ref) {
             Ok(Some(v)) => {
                 let admin_keyexpr = &self.admin_prefix / key_expr;
-                if let Err(e) = query
-                    .reply(Ok(Sample::new(admin_keyexpr, v)))
-                    .res_async()
-                    .await
-                {
-                    tracing::warn!("Error replying to admin query {:?}: {}", query, e);
+                match TryInto::<ZBytes>::try_into(v) {
+                    Ok(payload) => {
+                        if let Err(e) = query.reply(admin_keyexpr, payload).await {
+                            tracing::warn!("Error replying to admin query {:?}: {}", query, e);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Error transforming JSON to admin query {:?}: {}", query, e);
+                    }
                 }
             }
             Ok(None) => {

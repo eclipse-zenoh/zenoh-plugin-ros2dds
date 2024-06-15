@@ -20,11 +20,14 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashSet, fmt};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
-use zenoh::publication::Publisher;
-use zenoh_core::SyncResolve;
+use zenoh::{
+    core::Priority,
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+    publisher::{CongestionControl, Publisher},
+    sample::Locality,
+};
 use zenoh_ext::{PublicationCache, SessionExt};
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
@@ -41,7 +44,7 @@ use crate::{KE_PREFIX_PUB_CACHE, LOG_PAYLOAD};
 
 pub struct ZPublisher {
     publisher: Arc<Publisher<'static>>,
-    _matching_listener: zenoh::publication::MatchingListener<'static, ()>,
+    _matching_listener: zenoh::publisher::MatchingListener<'static, ()>,
     _cache: Option<PublicationCache<'static>>,
     cache_size: usize,
 }
@@ -171,7 +174,6 @@ impl RoutePublisher<'_> {
                         .history(history)
                         .queryable_prefix(*KE_PREFIX_PUB_CACHE / &context.plugin_id)
                         .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
-                        .res_async()
                         .await
                         .map_err(|e| {
                             format!("Failed create PublicationCache for key {zenoh_key_expr}: {e}",)
@@ -204,7 +206,6 @@ impl RoutePublisher<'_> {
             .allowed_destination(Locality::Remote)
             .congestion_control(congestion_ctrl)
             .priority(priority)
-            .res_async()
             .await
             .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
             .into_arc();
@@ -253,7 +254,6 @@ impl RoutePublisher<'_> {
                         }
                     }
                 })
-                .res_async()
                 .await
                 .map_err(|e| format!("Failed to lisetn of matchibng status changes: {e}",))?
         };
@@ -309,7 +309,6 @@ impl RoutePublisher<'_> {
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
-                .res_async()
                 .await
                 .map_err(|e| {
                     format!(
@@ -477,7 +476,7 @@ fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>,
     } else {
         tracing::trace!("{route_id}: routing message - {} bytes", sample.len());
     }
-    if let Err(e) = publisher.put(sample).res_sync() {
+    if let Err(e) = publisher.put(sample.payload_as_slice()).wait() {
         tracing::error!("{route_id}: failed to route message: {e}");
     }
 }
