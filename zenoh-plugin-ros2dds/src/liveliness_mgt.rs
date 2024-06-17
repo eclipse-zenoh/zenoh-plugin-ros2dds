@@ -16,11 +16,14 @@ use cyclors::qos::{
     Durability, DurabilityKind, History, HistoryKind, Qos, Reliability, ReliabilityKind,
     DDS_100MS_DURATION,
 };
-use zenoh::prelude::{keyexpr, OwnedKeyExpr};
+use zenoh::key_expr::{
+    format::{kedefine, keformat},
+    keyexpr, OwnedKeyExpr,
+};
 
 const SLASH_REPLACEMSNT_CHAR: &str = "§";
 
-zenoh::kedefine!(
+kedefine!(
     // Liveliness tokens key expressions
     pub ke_liveliness_all: "@ros2_lv/${plugin_id:*}/${remaining:**}",
     pub ke_liveliness_plugin: "@ros2_lv/${plugin_id:*}",
@@ -42,8 +45,7 @@ pub(crate) fn new_ke_liveliness_pub(
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
     let qos_ke = qos_to_key_expr(keyless, qos);
-    zenoh::keformat!(ke_liveliness_pub::formatter(), plugin_id, ke, typ, qos_ke)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_pub::formatter(), plugin_id, ke, typ, qos_ke).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_pub(
@@ -75,8 +77,7 @@ pub(crate) fn new_ke_liveliness_sub(
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
     let qos_ke = qos_to_key_expr(keyless, qos);
-    zenoh::keformat!(ke_liveliness_sub::formatter(), plugin_id, ke, typ, qos_ke)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_sub::formatter(), plugin_id, ke, typ, qos_ke).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_sub(
@@ -105,8 +106,7 @@ pub(crate) fn new_ke_liveliness_service_srv(
 ) -> Result<OwnedKeyExpr, String> {
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
-    zenoh::keformat!(ke_liveliness_service_srv::formatter(), plugin_id, ke, typ)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_service_srv::formatter(), plugin_id, ke, typ).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_service_srv(
@@ -127,8 +127,7 @@ pub(crate) fn new_ke_liveliness_service_cli(
 ) -> Result<OwnedKeyExpr, String> {
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
-    zenoh::keformat!(ke_liveliness_service_cli::formatter(), plugin_id, ke, typ)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_service_cli::formatter(), plugin_id, ke, typ).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_service_cli(
@@ -149,8 +148,7 @@ pub(crate) fn new_ke_liveliness_action_srv(
 ) -> Result<OwnedKeyExpr, String> {
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
-    zenoh::keformat!(ke_liveliness_action_srv::formatter(), plugin_id, ke, typ)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_action_srv::formatter(), plugin_id, ke, typ).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_action_srv(
@@ -171,8 +169,7 @@ pub(crate) fn new_ke_liveliness_action_cli(
 ) -> Result<OwnedKeyExpr, String> {
     let ke = escape_slashes(zenoh_key_expr);
     let typ = escape_slashes(ros2_type);
-    zenoh::keformat!(ke_liveliness_action_cli::formatter(), plugin_id, ke, typ)
-        .map_err(|e| e.to_string())
+    keformat!(ke_liveliness_action_cli::formatter(), plugin_id, ke, typ).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_ke_liveliness_action_cli(

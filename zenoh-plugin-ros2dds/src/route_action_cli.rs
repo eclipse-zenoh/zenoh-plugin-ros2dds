@@ -13,8 +13,11 @@
 //
 use serde::Serialize;
 use std::{collections::HashSet, fmt};
-use zenoh::{liveliness::LivelinessToken, prelude::*};
-use zenoh_core::AsyncResolve;
+use zenoh::{
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+};
 
 use crate::{
     liveliness_mgt::new_ke_liveliness_action_cli, ros2_utils::*,
@@ -169,7 +172,6 @@ impl RouteActionCli<'_> {
         self.liveliness_token = Some(self.context.zsession
             .liveliness()
             .declare_token(liveliness_ke)
-            .res_async()
             .await
             .map_err(|e| {
                 format!(

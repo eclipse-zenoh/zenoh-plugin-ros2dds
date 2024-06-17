@@ -19,12 +19,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::{collections::HashSet, fmt};
-use zenoh::buffers::{ZBuf, ZSlice};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
-use zenoh::queryable::{Query, Queryable};
-use zenoh_core::zwrite;
+use zenoh::{
+    internal::{
+        buffers::{Buffer, ZBuf, ZSlice},
+        zwrite,
+    },
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+    query::Query,
+    queryable::Queryable,
+};
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
 use crate::dds_utils::{
@@ -214,7 +219,6 @@ impl RouteServiceSrv<'_> {
             .context
             .zsession
             .declare_keyexpr(self.zenoh_key_expr.clone())
-            .res()
             .await
             .map_err(|e| {
                 format!(
@@ -245,7 +249,6 @@ impl RouteServiceSrv<'_> {
                         req_writer,
                     )
                 })
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -268,7 +271,6 @@ impl RouteServiceSrv<'_> {
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -351,9 +353,9 @@ fn route_zenoh_request_to_dds(
 ) {
     // Get expected endianness from the query value:
     // if any and if long enoough it shall be the Request type encoded as CDR (including 4 bytes header)
-    let is_little_endian = match query.value() {
-        Some(Value { payload, .. }) if payload.len() > 4 => {
-            is_cdr_little_endian(payload.contiguous().as_ref()).unwrap_or(true)
+    let is_little_endian = match query.payload() {
+        Some(value) if value.len() > 4 => {
+            is_cdr_little_endian(value.into::<ZSlice>().as_ref()).unwrap_or(true)
         }
         _ => true,
     };
@@ -373,9 +375,9 @@ fn route_zenoh_request_to_dds(
 
     // prepend request payload with a (client_guid, sequence_number) header as per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    let dds_req_buf = if let Some(value) = query.value() {
+    let dds_req_buf = if let Some(value) = query.payload() {
         // The query comes with some payload. It's expected to be the Request type encoded as CDR (including 4 bytes header)
-        let zenoh_req_buf = &*(value.payload.contiguous());
+        let zenoh_req_buf = value.into::<Vec<u8>>();
         if zenoh_req_buf.len() < 4 || zenoh_req_buf[1] > 1 {
             tracing::warn!("{route_id}: received invalid request: {zenoh_req_buf:0x?}");
             return;
@@ -438,7 +440,8 @@ fn route_dds_reply_to_zenoh(
     }
 
     let zbuf: ZBuf = sample.into();
-    let dds_rep_buf = zbuf.contiguous();
+    let slice: ZSlice = zbuf.to_zslice();
+    let dds_rep_buf = slice.as_ref();
     let cdr_header = &dds_rep_buf[..4];
     let is_little_endian =
         is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
@@ -452,8 +455,6 @@ fn route_dds_reply_to_zenoh(
     // Check if it's one of my queries in progress. Drop otherwise
     match queries_in_progress.remove(&request_id) {
         Some(query) => {
-            use zenoh_core::SyncResolve;
-            let slice: ZSlice = dds_rep_buf.into_owned().into();
             let mut zenoh_rep_buf = ZBuf::empty();
             zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
             zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
@@ -467,10 +468,7 @@ fn route_dds_reply_to_zenoh(
                 );
             }
 
-            if let Err(e) = query
-                .reply(Ok(Sample::new(zenoh_key_expr, zenoh_rep_buf)))
-                .res_sync()
-            {
+            if let Err(e) = query.reply(zenoh_key_expr, zenoh_rep_buf).wait() {
                 tracing::warn!("{route_id}: routing reply for request {request_id} from DDS to Zenoh failed: {e}");
             }
         }

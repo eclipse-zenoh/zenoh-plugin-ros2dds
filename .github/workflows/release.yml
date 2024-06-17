@@ -31,6 +31,10 @@ on:
         type: string
         description: Zenoh Release number
         required: false
+      branch:
+        type: string
+        description: Release branch
+        required: false
 
 jobs:
   tag:
@@ -40,6 +44,7 @@ jobs:
       repo: ${{ github.repository }}
       live-run: ${{ inputs.live-run || false }}
       version: ${{ inputs.version }}
+      branch: ${{ inputs.branch }}
       bump-deps-version: ${{ inputs.zenoh-version }}
       bump-deps-pattern: ${{ inputs.zenoh-version && 'zenoh.*' || '^$' }}
       bump-deps-branch: ${{ inputs.zenoh-version && format('release/{0}', inputs.zenoh-version) || '' }}

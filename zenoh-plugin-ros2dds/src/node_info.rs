@@ -16,7 +16,7 @@ use serde::{Serialize, Serializer};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use zenoh::prelude::{keyexpr, KeyExpr};
+use zenoh::key_expr::{keyexpr, KeyExpr};
 
 use crate::dds_discovery::DdsEntity;
 use crate::events::ROS2DiscoveryEvent;

@@ -30,12 +30,12 @@ impl core::fmt::Display for Wai {
     }
 }
 
-impl From<Wai> for zenoh::scouting::WhatAmI {
+impl From<Wai> for zenoh::config::WhatAmI {
     fn from(val: Wai) -> Self {
         match val {
-            Wai::Peer => zenoh::scouting::WhatAmI::Peer,
-            Wai::Client => zenoh::scouting::WhatAmI::Client,
-            Wai::Router => zenoh::scouting::WhatAmI::Router,
+            Wai::Peer => zenoh::config::WhatAmI::Peer,
+            Wai::Client => zenoh::config::WhatAmI::Client,
+            Wai::Router => zenoh::config::WhatAmI::Router,
         }
     }
 }
@@ -79,7 +79,7 @@ impl From<&CommonArgs> for Config {
         } else if config.mode().is_none() {
             // no mode set neither via command line, neither in config file - set Router mode by default
             config
-                .set_mode(Some(zenoh::scouting::WhatAmI::Router))
+                .set_mode(Some(zenoh::config::WhatAmI::Router))
                 .unwrap();
         }
         if !value.connect.is_empty() {

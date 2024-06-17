@@ -38,7 +38,6 @@ zenoh = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
 zenoh-plugin-ros2dds = { workspace = true }
-zenoh-util = { workspace = true }
 
 [[bin]]
 name = "zenoh-bridge-ros2dds"

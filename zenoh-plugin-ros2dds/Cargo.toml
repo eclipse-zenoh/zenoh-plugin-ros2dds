@@ -49,11 +49,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 zenoh = { workspace = true }
-zenoh-collections = { workspace = true }
-zenoh-core = { workspace = true }
 zenoh-ext = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
-zenoh-util = { workspace = true }
 
 [build-dependencies]
 rustc_version = { workspace = true }

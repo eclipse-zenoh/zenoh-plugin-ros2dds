@@ -12,11 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use std::collections::HashMap;
-use std::fmt::{self, Debug};
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::{prelude::*, queryable::Query};
-
 use crate::events::ROS2DiscoveryEvent;
 use crate::ros_discovery::NodeEntitiesInfo;
 use crate::{
@@ -25,8 +20,18 @@ use crate::{
     node_info::*,
     ros_discovery::ParticipantEntitiesInfo,
 };
+use std::collections::HashMap;
+use std::fmt::{self, Debug};
+use zenoh::{
+    bytes::ZBytes,
+    key_expr::{
+        format::{kedefine, keformat},
+        keyexpr, OwnedKeyExpr,
+    },
+    query::Query,
+};
 
-zenoh::kedefine!(
+kedefine!(
     pub(crate) ke_admin_participant: "dds/${pgid:*}",
     pub(crate) ke_admin_writer: "dds/${pgid:*}/writer/${wgid:*}/${topic:**}",
     pub(crate) ke_admin_reader: "dds/${pgid:*}/reader/${wgid:*}/${topic:**}",
@@ -82,7 +87,7 @@ impl DiscoveredEntities {
     #[inline]
     pub fn add_participant(&mut self, participant: DdsParticipant) {
         self.admin_space.insert(
-            zenoh::keformat!(ke_admin_participant::formatter(), pgid = participant.key).unwrap(),
+            keformat!(ke_admin_participant::formatter(), pgid = participant.key).unwrap(),
             EntityRef::Participant(participant.key),
         );
         self.participants.insert(participant.key, participant);
@@ -94,13 +99,13 @@ impl DiscoveredEntities {
         // Remove Participant from participants list and from admin_space
         self.participants.remove(gid);
         self.admin_space
-            .remove(&zenoh::keformat!(ke_admin_participant::formatter(), pgid = gid).unwrap());
+            .remove(&keformat!(ke_admin_participant::formatter(), pgid = gid).unwrap());
         // Remove associated NodeInfos
         if let Some(nodes) = self.nodes_info.remove(gid) {
             for (name, mut node) in nodes {
                 tracing::info!("Undiscovered ROS Node {}", name);
                 self.admin_space.remove(
-                    &zenoh::keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
+                    &keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
                         .unwrap(),
                 );
                 // return undiscovery events for this node
@@ -114,7 +119,7 @@ impl DiscoveredEntities {
     pub fn add_writer(&mut self, writer: DdsEntity) -> Option<ROS2DiscoveryEvent> {
         // insert in admin space
         self.admin_space.insert(
-            zenoh::keformat!(
+            keformat!(
                 ke_admin_writer::formatter(),
                 pgid = writer.participant_key,
                 wgid = writer.key,
@@ -158,7 +163,7 @@ impl DiscoveredEntities {
     pub fn remove_writer(&mut self, gid: &Gid) -> Option<ROS2DiscoveryEvent> {
         if let Some(writer) = self.writers.remove(gid) {
             self.admin_space.remove(
-                &zenoh::keformat!(
+                &keformat!(
                     ke_admin_writer::formatter(),
                     pgid = writer.participant_key,
                     wgid = writer.key,
@@ -184,7 +189,7 @@ impl DiscoveredEntities {
     pub fn add_reader(&mut self, reader: DdsEntity) -> Option<ROS2DiscoveryEvent> {
         // insert in admin space
         self.admin_space.insert(
-            zenoh::keformat!(
+            keformat!(
                 ke_admin_reader::formatter(),
                 pgid = reader.participant_key,
                 wgid = reader.key,
@@ -228,7 +233,7 @@ impl DiscoveredEntities {
     pub fn remove_reader(&mut self, gid: &Gid) -> Option<ROS2DiscoveryEvent> {
         if let Some(reader) = self.readers.remove(gid) {
             self.admin_space.remove(
-                &zenoh::keformat!(
+                &keformat!(
                     ke_admin_reader::formatter(),
                     pgid = reader.participant_key,
                     wgid = reader.key,
@@ -269,7 +274,7 @@ impl DiscoveredEntities {
             if !ros_info.node_entities_info_seq.contains_key(name) {
                 tracing::info!("Undiscovered ROS Node {}", name);
                 admin_space.remove(
-                    &zenoh::keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
+                    &keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
                         .unwrap(),
                 );
                 // return undiscovery events for this node
@@ -292,11 +297,8 @@ impl DiscoveredEntities {
                 ) {
                     Ok(node) => {
                         self.admin_space.insert(
-                            zenoh::keformat!(
-                                ke_admin_node::formatter(),
-                                node_id = node.id_as_keyexpr(),
-                            )
-                            .unwrap(),
+                            keformat!(ke_admin_node::formatter(), node_id = node.id_as_keyexpr(),)
+                                .unwrap(),
                             EntityRef::Node(ros_info.gid, node.fullname().to_string()),
                         );
                         nodes_map.insert(node.fullname().to_string(), node);
@@ -448,12 +450,15 @@ impl DiscoveredEntities {
         match self.get_entity_json_value(entity_ref) {
             Ok(Some(v)) => {
                 let admin_keyexpr = admin_keyexpr_prefix / key_expr;
-                if let Err(e) = query
-                    .reply(Ok(Sample::new(admin_keyexpr, v)))
-                    .res_async()
-                    .await
-                {
-                    tracing::warn!("Error replying to admin query {:?}: {}", query, e);
+                match ZBytes::try_from(v) {
+                    Ok(payload) => {
+                        if let Err(e) = query.reply(admin_keyexpr, payload).await {
+                            tracing::warn!("Error replying to admin query {:?}: {}", query, e);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Error transforming JSON to admin query {:?}: {}", query, e);
+                    }
                 }
             }
             Ok(None) => {

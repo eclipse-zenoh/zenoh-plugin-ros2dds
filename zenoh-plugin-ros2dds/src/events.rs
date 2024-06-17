@@ -15,7 +15,7 @@
 use std::fmt::Display;
 
 use cyclors::qos::Qos;
-use zenoh::prelude::OwnedKeyExpr;
+use zenoh::key_expr::OwnedKeyExpr;
 
 use crate::node_info::*;
 

@@ -36,10 +36,10 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
-use zenoh::buffers::ZBuf;
-use zenoh::prelude::HasReader;
-use zenoh_core::zwrite;
-use zenoh_util::{TimedEvent, Timer};
+use zenoh::internal::{
+    buffers::{HasReader, ZBuf},
+    zwrite, TimedEvent, Timer,
+};
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";

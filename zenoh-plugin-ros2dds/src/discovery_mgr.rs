@@ -22,11 +22,11 @@ use futures::select;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
-use zenoh::prelude::keyexpr;
-use zenoh::queryable::Query;
-use zenoh_core::zread;
-use zenoh_core::zwrite;
-use zenoh_util::{TimedEvent, Timer};
+use zenoh::{
+    internal::{zread, zwrite, TimedEvent, Timer},
+    key_expr::keyexpr,
+    query::Query,
+};
 
 use crate::ChannelEvent;
 use crate::ROS_DISCOVERY_INFO_POLL_INTERVAL_MS;

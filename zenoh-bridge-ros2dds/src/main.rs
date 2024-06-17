@@ -17,8 +17,7 @@ use clap::Parser;
 use ros_args::RosArgs;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
-use zenoh::plugins::PluginsManager;
-use zenoh::runtime::RuntimeBuilder;
+use zenoh::internal::{plugins::PluginsManager, runtime::RuntimeBuilder};
 use zenoh_plugin_trait::Plugin;
 
 mod bridge_args;
@@ -68,7 +67,7 @@ fn parse_args() -> (Option<f32>, Config) {
 
 #[async_std::main]
 async fn main() {
-    zenoh_util::init_log_from_env_or("z=info");
+    zenoh::init_log_from_env_or("z=info");
     tracing::info!(
         "zenoh-bridge-ros2dds {}",
         zenoh_plugin_ros2dds::ROS2Plugin::PLUGIN_LONG_VERSION
@@ -85,11 +84,13 @@ async fn main() {
 
     // declare REST plugin if specified in conf
     if config.plugin("rest").is_some() {
-        plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_rest::RestPlugin>(true);
+        plugins_mgr =
+            plugins_mgr.declare_static_plugin::<zenoh_plugin_rest::RestPlugin, &str>("rest", true);
     }
 
     // declare ROS2DDS plugin
-    plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_ros2dds::ROS2Plugin>(true);
+    plugins_mgr = plugins_mgr
+        .declare_static_plugin::<zenoh_plugin_ros2dds::ROS2Plugin, &str>("ros2dds", true);
 
     // create a zenoh Runtime.
     let mut runtime = match RuntimeBuilder::new(config)
