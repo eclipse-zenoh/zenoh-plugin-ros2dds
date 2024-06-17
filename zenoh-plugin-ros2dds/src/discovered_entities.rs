@@ -450,7 +450,7 @@ impl DiscoveredEntities {
         match self.get_entity_json_value(entity_ref) {
             Ok(Some(v)) => {
                 let admin_keyexpr = admin_keyexpr_prefix / key_expr;
-                match TryInto::<ZBytes>::try_into(v) {
+                match ZBytes::try_from(v) {
                     Ok(payload) => {
                         if let Err(e) = query.reply(admin_keyexpr, payload).await {
                             tracing::warn!("Error replying to admin query {:?}: {}", query, e);

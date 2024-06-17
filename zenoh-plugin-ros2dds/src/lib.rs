@@ -583,7 +583,7 @@ impl<'a> ROS2PluginRuntime<'a> {
         let value: Value = match admin_ref {
             AdminRef::Version => VERSION_JSON_VALUE.clone(),
             AdminRef::Config => match serde_json::to_value(&*self.config) {
-                Ok(v) => match TryInto::<ZBytes>::try_into(v) {
+                Ok(v) => match ZBytes::try_from(v) {
                     Ok(value) => value.into(),
                     Err(e) => {
                         tracing::warn!("Error transforming JSON to ZBtyes: {}", e);

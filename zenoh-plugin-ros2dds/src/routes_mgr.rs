@@ -795,7 +795,7 @@ impl<'a> RoutesMgr<'a> {
         match self.get_entity_json_value(route_ref) {
             Ok(Some(v)) => {
                 let admin_keyexpr = &self.admin_prefix / key_expr;
-                match TryInto::<ZBytes>::try_into(v) {
+                match ZBytes::try_from(v) {
                     Ok(payload) => {
                         if let Err(e) = query.reply(admin_keyexpr, payload).await {
                             tracing::warn!("Error replying to admin query {:?}: {}", query, e);
