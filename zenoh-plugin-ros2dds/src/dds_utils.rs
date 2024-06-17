@@ -23,8 +23,6 @@ use std::{
     sync::{atomic::AtomicI32, Arc},
     time::Duration,
 };
-#[cfg(feature = "dds_shm")]
-use zenoh::buffers::ZSlice;
 
 use crate::{
     dds_types::{DDSRawSample, TypeInfo},
