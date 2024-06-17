@@ -21,7 +21,7 @@ use std::sync::RwLock;
 use std::{collections::HashSet, fmt};
 use zenoh::{
     internal::{
-        buffers::{ZBuf, ZSlice},
+        buffers::{Buffer, ZBuf, ZSlice},
         zwrite,
     },
     key_expr::{keyexpr, OwnedKeyExpr},
@@ -464,7 +464,7 @@ fn route_dds_reply_to_zenoh(
             } else {
                 tracing::trace!(
                     "{route_id}: routing reply {request_id} from DDS to Zenoh - {} bytes",
-                    zenoh_rep_buf.to_zslice().len()
+                    zenoh_rep_buf.len()
                 );
             }
 

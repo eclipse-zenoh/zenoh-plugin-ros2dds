@@ -20,7 +20,7 @@ use std::time::Duration;
 use std::{collections::HashSet, fmt};
 use zenoh::{
     handlers::CallbackDrop,
-    internal::buffers::ZBuf,
+    internal::buffers::{Buffer, ZBuf},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
@@ -375,7 +375,7 @@ fn route_dds_request_to_zenoh(
     } else {
         tracing::trace!(
             "{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - {} bytes",
-            zenoh_req_buf.to_zslice().len()
+            zenoh_req_buf.len()
         );
     }
 
