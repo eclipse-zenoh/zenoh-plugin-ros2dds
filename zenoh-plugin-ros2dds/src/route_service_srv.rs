@@ -20,14 +20,16 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::{collections::HashSet, fmt};
 use zenoh::{
-    internal::buffers::{ZBuf, ZSlice},
+    internal::{
+        buffers::{ZBuf, ZSlice},
+        zwrite,
+    },
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
     query::Query,
     queryable::Queryable,
 };
-use zenoh_core::zwrite;
 
 use crate::dds_types::{DDSRawSample, TypeInfo};
 use crate::dds_utils::{

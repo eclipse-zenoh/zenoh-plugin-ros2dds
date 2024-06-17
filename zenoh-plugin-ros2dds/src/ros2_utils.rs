@@ -27,9 +27,10 @@ use std::{
 };
 use zenoh::{
     bytes::ZBytes,
+    internal::bail,
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
+    Error as ZError,
 };
-use zenoh_core::{bail, zresult::ZError};
 
 use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
 
@@ -229,6 +230,7 @@ impl CddsRequestHeader {
 
 impl TryFrom<&ZBytes> for CddsRequestHeader {
     type Error = ZError;
+
     fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
         let hashmap: HashMap<[u8; 3], [u8; 17]> =
             HashMap::from_iter(value.iter::<([u8; 3], [u8; 17])>().map(Result::unwrap));

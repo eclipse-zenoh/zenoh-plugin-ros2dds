@@ -36,11 +36,11 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use zenoh::{
     bytes::ZBytes,
+    internal::zread,
     key_expr::{keyexpr, OwnedKeyExpr},
     query::Query,
     Session,
 };
-use zenoh_core::zread;
 
 use crate::ke_for_sure;
 

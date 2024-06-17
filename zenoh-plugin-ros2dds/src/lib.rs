@@ -26,7 +26,7 @@ use zenoh::{
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
-        Value,
+        zerror, Timed, Value,
     },
     key_expr::{
         format::{kedefine, keformat},
@@ -38,10 +38,8 @@ use zenoh::{
     sample::SampleKind,
     Result as ZResult, Session,
 };
-use zenoh_core::zerror;
 use zenoh_ext::SubscriberBuilderExt;
 use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
-use zenoh_util::Timed;
 
 pub mod config;
 mod dds_discovery;
@@ -131,7 +129,7 @@ impl Plugin for ROS2Plugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        zenoh_util::try_init_log_from_env();
+        zenoh::try_init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -150,7 +148,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    zenoh_util::try_init_log_from_env();
+    zenoh::try_init_log_from_env();
     tracing::debug!("ROS2 plugin {}", ROS2Plugin::PLUGIN_VERSION);
     tracing::info!("ROS2 plugin {config:?}");
 
