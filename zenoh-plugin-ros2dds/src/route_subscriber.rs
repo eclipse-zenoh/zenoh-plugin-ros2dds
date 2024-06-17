@@ -179,8 +179,8 @@ impl RouteSubscriber<'_> {
         // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical messages to write
         self.zenoh_subscriber = if self.transient_local {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
-            let query_selector: Selector =
-                (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr).into();
+            let query_selector: OwnedKeyExpr =
+                *KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr;
             tracing::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .context
@@ -191,7 +191,7 @@ impl RouteSubscriber<'_> {
                 .reliable()
                 .querying()
                 .query_timeout(self.queries_timeout)
-                .query_selector(query_selector)
+                .query_selector(&query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
                 .await
                 .map_err(|e| format!("{self}: failed to create FetchingSubscriber: {e}",))?;

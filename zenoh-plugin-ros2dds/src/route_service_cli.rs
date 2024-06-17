@@ -355,7 +355,7 @@ fn route_dds_request_to_zenoh(
     let slice = zbuf.to_zslice();
     let dds_req_buf = slice.as_ref();
     let is_little_endian =
-        is_cdr_little_endian(&dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
+        is_cdr_little_endian(dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
     let request_id = CddsRequestHeader::from_slice(
         dds_req_buf[4..20]
             .try_into()
