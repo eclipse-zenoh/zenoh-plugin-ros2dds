@@ -190,13 +190,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         }
         id.clone()
     } else {
-        // TODO: Wait for the PR: https://github.com/eclipse-zenoh/zenoh/pull/1149
-        if let Ok(id) = zsession.zid().to_string().try_into() {
-            id
-        } else {
-            tracing::error!("The zsession id can't be transformed into key expr");
-            return;
-        }
+        zsession.zid().into_keyexpr()
     };
 
     // Declare plugin's liveliness token
