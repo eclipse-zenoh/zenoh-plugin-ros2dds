@@ -14,10 +14,12 @@
 
 use cyclors::dds_entity_t;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashSet, fmt};
+use zenoh::bytes::ZBytes;
 use zenoh::{
     handlers::CallbackDrop,
     internal::buffers::{Buffer, ZBuf},
@@ -351,9 +353,11 @@ fn route_dds_request_to_zenoh(
         return;
     }
 
-    let zbuf: ZBuf = sample.into();
-    let slice = zbuf.to_zslice();
+    //
+    let zbuf: ZBytes = sample.into();
+    let slice = Cow::from(zbuf);
     let dds_req_buf = slice.as_ref();
+    //
     let is_little_endian =
         is_cdr_little_endian(dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
     let request_id = CddsRequestHeader::from_slice(

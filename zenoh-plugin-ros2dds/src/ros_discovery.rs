@@ -36,6 +36,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
+use zenoh::bytes::ZBytes;
 use zenoh::internal::{
     buffers::{HasReader, ZBuf},
     zwrite, TimedEvent, Timer,
@@ -279,7 +280,7 @@ impl RosDiscoveryInfoMgr {
                 .filter_map(|sample| {
                     tracing::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
                     match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                        ZBuf::from(sample).reader(),
+                        ZBytes::from(sample).reader(),
                         cdr::size::Infinite,
                     ) {
                         Ok(i) => {

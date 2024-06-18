@@ -15,9 +15,11 @@
 use cyclors::*;
 use std::fmt;
 use std::slice;
+use zenoh::bytes::ZBytes;
+use zenoh::encoding::Encoding;
 #[cfg(feature = "dds_shm")]
 use zenoh::internal::buffers::ZSlice;
-use zenoh::internal::{buffers::ZBuf, Value};
+use zenoh::internal::Value;
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
 
@@ -206,7 +208,7 @@ impl fmt::Debug for DDSRawSample {
     }
 }
 
-impl From<&DDSRawSample> for ZBuf {
+impl From<&DDSRawSample> for ZBytes {
     fn from(buf: &DDSRawSample) -> Self {
         #[cfg(feature = "dds_shm")]
         {
@@ -225,6 +227,6 @@ impl From<&DDSRawSample> for ZBuf {
 
 impl From<&DDSRawSample> for Value {
     fn from(buf: &DDSRawSample) -> Self {
-        ZBuf::from(buf).into()
+        Value::new(ZBytes::from(buf), Encoding::default())
     }
 }

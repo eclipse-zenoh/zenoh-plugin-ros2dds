@@ -23,6 +23,7 @@ use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use zenoh::{
     bytes::ZBytes,
+    encoding::Encoding,
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
@@ -79,7 +80,11 @@ macro_rules! ke_for_sure {
 
 lazy_static::lazy_static!(
     pub static ref VERSION_JSON_VALUE: Value =
-        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned()).as_str().into();
+        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned())
+        .as_str()
+        .map(|x| ZBytes::from(x))
+        .map(|z_bytes| Value::new(z_bytes,Encoding::default()))
+        .into();
 
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
@@ -578,7 +583,7 @@ impl<'a> ROS2PluginRuntime<'a> {
             AdminRef::Version => VERSION_JSON_VALUE.clone(),
             AdminRef::Config => match serde_json::to_value(&*self.config) {
                 Ok(v) => match ZBytes::try_from(v) {
-                    Ok(value) => value.into(),
+                    Ok(value) => Value::new(value, Encoding::default()),
                     Err(e) => {
                         tracing::warn!("Error transforming JSON to ZBtyes: {}", e);
                         return;
