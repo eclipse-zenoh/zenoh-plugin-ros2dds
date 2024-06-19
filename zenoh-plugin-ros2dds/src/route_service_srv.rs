@@ -14,16 +14,15 @@
 
 use cyclors::dds_entity_t;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::{collections::HashSet, fmt};
+use zenoh::bytes::ZBytes;
 use zenoh::{
-    internal::{
-        buffers::{Buffer, ZBuf, ZSlice},
-        zwrite,
-    },
+    internal::{buffers::ZSlice, zwrite},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
@@ -439,9 +438,11 @@ fn route_dds_reply_to_zenoh(
         return;
     }
 
-    let zbuf: ZBuf = sample.into();
-    let slice: ZSlice = zbuf.to_zslice();
+    let z_bytes: ZBytes = sample.into();
+
+    let slice = Cow::from(z_bytes);
     let dds_rep_buf = slice.as_ref();
+
     let cdr_header = &dds_rep_buf[..4];
     let is_little_endian =
         is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
@@ -455,9 +456,35 @@ fn route_dds_reply_to_zenoh(
     // Check if it's one of my queries in progress. Drop otherwise
     match queries_in_progress.remove(&request_id) {
         Some(query) => {
-            let mut zenoh_rep_buf = ZBuf::empty();
-            zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
-            zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+            // copy CDR Header
+            let cdr_header = match dds_rep_buf.get(0..4) {
+                Some(hdr) => hdr,
+                None => {
+                    // TODO: do we want this to return or explode ?
+                    tracing::error!(
+                        "Sample buffer was empty, Could not ger cdr header expected bytes [0..4]",
+                    );
+                    return;
+                }
+            };
+
+            // copy Request payload, skiping client_id + sequence_number
+            let payload = match dds_rep_buf.get(20..dds_rep_buf.len()) {
+                Some(hdr) => hdr,
+                None => {
+                    // TODO: do we want this to return or explode ?
+                    tracing::error!(
+                        "Sample buffer payload subslice failed, expected bytes [20..buffer.len()]",
+                    );
+                    return;
+                }
+            };
+
+            // let mut zenoh_rep_buf = ZBuf::empty();
+            // zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
+            // zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+            let res: Vec<u8> = [cdr_header, payload].concat();
+            let zenoh_rep_buf = ZBytes::new(res);
 
             if *LOG_PAYLOAD {
                 tracing::debug!("{route_id}: routing reply {request_id} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");

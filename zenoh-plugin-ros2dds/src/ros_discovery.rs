@@ -37,10 +37,7 @@ use std::{
     mem::MaybeUninit,
 };
 use zenoh::bytes::ZBytes;
-use zenoh::internal::{
-    buffers::{HasReader, ZBuf},
-    zwrite, TimedEvent, Timer,
-};
+use zenoh::internal::{zwrite, TimedEvent, Timer};
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
