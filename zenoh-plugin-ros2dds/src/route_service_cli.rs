@@ -366,7 +366,7 @@ fn route_dds_request_to_zenoh(
         is_little_endian,
     );
 
-    // copy CDR Header
+    // Copy CDR Header
     let cdr_header = match dds_req_buf.get(0..4) {
         Some(hdr) => hdr,
         None => {

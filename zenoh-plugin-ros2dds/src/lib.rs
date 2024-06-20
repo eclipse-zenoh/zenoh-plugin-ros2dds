@@ -86,6 +86,7 @@ lazy_static::lazy_static!(
         .map(|z_bytes| Value::new(z_bytes,Encoding::default()))
         .into();
 
+
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");

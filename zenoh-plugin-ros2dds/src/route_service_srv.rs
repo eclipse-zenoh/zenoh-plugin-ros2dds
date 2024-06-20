@@ -480,9 +480,6 @@ fn route_dds_reply_to_zenoh(
                 }
             };
 
-            // let mut zenoh_rep_buf = ZBuf::empty();
-            // zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
-            // zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
             let res: Vec<u8> = [cdr_header, payload].concat();
             let zenoh_rep_buf = ZBytes::new(res);
 
