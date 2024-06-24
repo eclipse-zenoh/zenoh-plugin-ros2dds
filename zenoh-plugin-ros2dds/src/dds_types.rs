@@ -15,9 +15,9 @@
 use cyclors::*;
 use std::fmt;
 use std::slice;
-#[cfg(feature = "dds_shm")]
-use zenoh::internal::buffers::ZSlice;
-use zenoh::internal::{buffers::ZBuf, Value};
+use zenoh::bytes::ZBytes;
+use zenoh::encoding::Encoding;
+use zenoh::internal::Value;
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
 
@@ -206,17 +206,17 @@ impl fmt::Debug for DDSRawSample {
     }
 }
 
-impl From<&DDSRawSample> for ZBuf {
+impl From<&DDSRawSample> for ZBytes {
     fn from(buf: &DDSRawSample) -> Self {
         #[cfg(feature = "dds_shm")]
         {
             // Where data was received via Iceoryx return both the header (contained in buf.data) and
             // payload (contained in buf.iox_chunk) in a buffer.
             if let Some(iox_chunk) = buf.iox_chunk {
-                let mut zbuf = ZBuf::default();
-                zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
-                zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
-                return zbuf;
+                let mut buf_and_iox_chunk = buf.data_as_slice().to_vec();
+                buf_and_iox_chunk.append(&mut iox_chunk.as_slice().to_vec());
+                let z_bytes = ZBytes::from(buf_and_iox_chunk);
+                return z_bytes;
             }
         }
         buf.data_as_slice().to_vec().into()
@@ -225,6 +225,6 @@ impl From<&DDSRawSample> for ZBuf {
 
 impl From<&DDSRawSample> for Value {
     fn from(buf: &DDSRawSample) -> Self {
-        ZBuf::from(buf).into()
+        Value::new(ZBytes::from(buf), Encoding::default())
     }
 }

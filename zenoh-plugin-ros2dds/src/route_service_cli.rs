@@ -14,13 +14,14 @@
 
 use cyclors::dds_entity_t;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashSet, fmt};
+use zenoh::bytes::ZBytes;
 use zenoh::{
     handlers::CallbackDrop,
-    internal::buffers::{Buffer, ZBuf},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
@@ -351,11 +352,13 @@ fn route_dds_request_to_zenoh(
         return;
     }
 
-    let zbuf: ZBuf = sample.into();
-    let slice = zbuf.to_zslice();
+    let z_bytes: ZBytes = sample.into();
+    let slice = Cow::from(z_bytes);
     let dds_req_buf = slice.as_ref();
+
     let is_little_endian =
         is_cdr_little_endian(dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
+
     let request_id = CddsRequestHeader::from_slice(
         dds_req_buf[4..20]
             .try_into()
@@ -363,12 +366,32 @@ fn route_dds_request_to_zenoh(
         is_little_endian,
     );
 
-    // route request buffer stripped from request_id (client_id + sequence_number)
-    let mut zenoh_req_buf = ZBuf::empty();
-    // copy CDR Header
-    zenoh_req_buf.push_zslice(slice.subslice(0, 4).unwrap());
+    // Copy CDR Header
+    let cdr_header = match dds_req_buf.get(0..4) {
+        Some(hdr) => hdr,
+        None => {
+            // TODO: do we want this to return or explode ?
+            tracing::error!(
+                "Sample buffer was empty, Could not ger cdr header expected bytes [0..4]",
+            );
+            return;
+        }
+    };
+
     // copy Request payload, skiping client_id + sequence_number
-    zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+    let payload = match dds_req_buf.get(20..dds_req_buf.len()) {
+        Some(hdr) => hdr,
+        None => {
+            // TODO: do we want this to return or explode ?
+            tracing::error!(
+                "Sample buffer payload subslice failed, expected bytes [20..buffer.len()]",
+            );
+            return;
+        }
+    };
+
+    let res: Vec<u8> = [cdr_header, payload].concat();
+    let zenoh_req_buf = ZBytes::new(res);
 
     if *LOG_PAYLOAD {
         tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - payload: {zenoh_req_buf:02x?}");

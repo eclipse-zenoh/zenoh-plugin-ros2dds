@@ -36,10 +36,8 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
-use zenoh::internal::{
-    buffers::{HasReader, ZBuf},
-    zwrite, TimedEvent, Timer,
-};
+use zenoh::bytes::ZBytes;
+use zenoh::internal::{zwrite, TimedEvent, Timer};
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
@@ -279,7 +277,7 @@ impl RosDiscoveryInfoMgr {
                 .filter_map(|sample| {
                     tracing::trace!("Deserialize ParticipantEntitiesInfo: {:?}", sample);
                     match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                        ZBuf::from(sample).reader(),
+                        ZBytes::from(sample).reader(),
                         cdr::size::Infinite,
                     ) {
                         Ok(i) => {
