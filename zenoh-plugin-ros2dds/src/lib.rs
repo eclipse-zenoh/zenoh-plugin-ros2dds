@@ -82,8 +82,8 @@ lazy_static::lazy_static!(
     pub static ref VERSION_JSON_VALUE: Value =
         serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned())
         .as_str()
-        .map(|x| ZBytes::from(x))
-        .map(|z_bytes| Value::new(z_bytes,Encoding::default()))
+        .map(ZBytes::from)
+        .map(|z_bytes| Value::new(z_bytes, Encoding::default()))
         .into();
 
 
