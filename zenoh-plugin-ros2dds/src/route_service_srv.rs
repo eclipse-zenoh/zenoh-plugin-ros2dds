@@ -12,37 +12,42 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    fmt,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
+};
+
 use cyclors::dds_entity_t;
 use serde::Serialize;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::{collections::HashSet, fmt};
-use zenoh::bytes::ZBytes;
 use zenoh::{
+    bytes::ZBytes,
     internal::{buffers::ZSlice, zwrite},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
-    query::Query,
-    queryable::Queryable,
+    query::{Query, Queryable},
 };
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::{
-    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-    get_instance_handle, CDR_HEADER_BE, CDR_HEADER_LE,
+use crate::{
+    dds_types::{DDSRawSample, TypeInfo},
+    dds_utils::{
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+        get_instance_handle, is_cdr_little_endian, serialize_entity_guid, CDR_HEADER_BE,
+        CDR_HEADER_LE,
+    },
+    liveliness_mgt::new_ke_liveliness_service_srv,
+    ros2_utils::{
+        is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+        ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
+    },
+    routes_mgr::Context,
+    serialize_option_as_bool, LOG_PAYLOAD,
 };
-use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
-use crate::liveliness_mgt::new_ke_liveliness_service_srv;
-use crate::ros2_utils::{
-    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
-};
-use crate::routes_mgr::Context;
-use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
 #[derive(Serialize)]

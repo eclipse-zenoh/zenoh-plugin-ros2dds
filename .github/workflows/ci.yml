@@ -44,8 +44,7 @@ jobs:
           rustup component add rustfmt clippy
 
       - name: Code format check
-        run: cargo fmt --check
-
+        run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
       - name: Clippy
         run: cargo clippy --all --examples -- -D warnings
 
