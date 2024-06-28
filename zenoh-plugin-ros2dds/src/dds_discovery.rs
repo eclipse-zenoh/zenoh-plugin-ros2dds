@@ -11,17 +11,13 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use cyclors::qos::Qos;
-use cyclors::*;
+use std::{ffi::CStr, fmt, mem::MaybeUninit, sync::Arc};
+
+use cyclors::{qos::Qos, *};
 use flume::Sender;
 use serde::{Deserialize, Serialize};
-use std::ffi::CStr;
-use std::fmt;
-use std::mem::MaybeUninit;
-use std::sync::Arc;
 
-use crate::dds_types::TypeInfo;
-use crate::gid::Gid;
+use crate::{dds_types::TypeInfo, gid::Gid};
 
 const MAX_SAMPLES: usize = 32;
 

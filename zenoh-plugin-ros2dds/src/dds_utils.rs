@@ -11,18 +11,19 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::task;
-use cyclors::{
-    qos::{History, HistoryKind, Qos},
-    *,
-};
-use serde::Serializer;
 use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
     sync::{atomic::AtomicI32, Arc},
     time::Duration,
 };
+
+use async_std::task;
+use cyclors::{
+    qos::{History, HistoryKind, Qos},
+    *,
+};
+use serde::Serializer;
 
 use crate::{
     dds_types::{DDSRawSample, TypeInfo},

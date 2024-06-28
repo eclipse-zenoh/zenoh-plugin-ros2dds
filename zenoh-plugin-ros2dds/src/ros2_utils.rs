@@ -12,6 +12,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::HashMap,
+    env::VarError,
+    sync::atomic::{AtomicU32, Ordering},
+};
+
 use cyclors::{
     dds_entity_t,
     qos::{
@@ -19,11 +25,6 @@ use cyclors::{
         Reliability, ReliabilityKind, TypeConsistency, TypeConsistencyKind, WriterDataLifecycle,
         DDS_INFINITE_TIME,
     },
-};
-use std::{
-    collections::HashMap,
-    env::VarError,
-    sync::atomic::{AtomicU32, Ordering},
 };
 use zenoh::{
     bytes::ZBytes,

@@ -11,19 +11,16 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{collections::HashMap, env, mem::ManuallyDrop, sync::Arc};
+
 use async_trait::async_trait;
 use cyclors::*;
 use events::ROS2AnnouncementEvent;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use serde::Serializer;
-use std::collections::HashMap;
-use std::env;
-use std::mem::ManuallyDrop;
-use std::sync::Arc;
 use zenoh::{
-    bytes::ZBytes,
-    encoding::Encoding,
+    bytes::{Encoding, ZBytes},
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
@@ -64,12 +61,10 @@ mod route_subscriber;
 mod routes_mgr;
 use config::Config;
 
-use crate::dds_utils::get_guid;
-use crate::discovery_mgr::DiscoveryMgr;
-use crate::events::ROS2DiscoveryEvent;
-use crate::liveliness_mgt::*;
-use crate::ros_discovery::RosDiscoveryInfoMgr;
-use crate::routes_mgr::RoutesMgr;
+use crate::{
+    dds_utils::get_guid, discovery_mgr::DiscoveryMgr, events::ROS2DiscoveryEvent,
+    liveliness_mgt::*, ros_discovery::RosDiscoveryInfoMgr, routes_mgr::RoutesMgr,
+};
 
 #[macro_export]
 macro_rules! ke_for_sure {

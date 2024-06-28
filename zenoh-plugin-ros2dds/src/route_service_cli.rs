@@ -12,15 +12,21 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+    fmt,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use cyclors::dds_entity_t;
 use serde::Serialize;
-use std::borrow::Cow;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{collections::HashSet, fmt};
-use zenoh::bytes::ZBytes;
 use zenoh::{
+    bytes::ZBytes,
     handlers::CallbackDrop,
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
@@ -30,19 +36,20 @@ use zenoh::{
     Session,
 };
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::{
-    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-    serialize_atomic_entity_guid, AtomicDDSEntity,
+use crate::{
+    dds_types::{DDSRawSample, TypeInfo},
+    dds_utils::{
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+        is_cdr_little_endian, serialize_atomic_entity_guid, AtomicDDSEntity, DDS_ENTITY_NULL,
+    },
+    liveliness_mgt::new_ke_liveliness_service_cli,
+    ros2_utils::{
+        is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+        ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
+    },
+    routes_mgr::Context,
+    LOG_PAYLOAD,
 };
-use crate::dds_utils::{is_cdr_little_endian, DDS_ENTITY_NULL};
-use crate::liveliness_mgt::new_ke_liveliness_service_cli;
-use crate::ros2_utils::{
-    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
-};
-use crate::routes_mgr::Context;
-use crate::LOG_PAYLOAD;
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]

@@ -11,13 +11,16 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::time::{Duration, SystemTime};
+
 use async_liveliness_monitor::LivelinessMonitor;
 use bridge_args::BridgeArgs;
 use clap::Parser;
 use ros_args::RosArgs;
-use std::time::{Duration, SystemTime};
-use zenoh::config::{Config, ModeDependentValue};
-use zenoh::internal::{plugins::PluginsManager, runtime::RuntimeBuilder};
+use zenoh::{
+    config::{Config, ModeDependentValue},
+    internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
+};
 use zenoh_plugin_trait::Plugin;
 
 mod bridge_args;

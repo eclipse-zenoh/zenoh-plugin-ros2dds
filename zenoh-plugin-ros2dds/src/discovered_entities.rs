@@ -12,16 +12,11 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::events::ROS2DiscoveryEvent;
-use crate::ros_discovery::NodeEntitiesInfo;
-use crate::{
-    dds_discovery::{DdsEntity, DdsParticipant},
-    gid::Gid,
-    node_info::*,
-    ros_discovery::ParticipantEntitiesInfo,
+use std::{
+    collections::HashMap,
+    fmt::{self, Debug},
 };
-use std::collections::HashMap;
-use std::fmt::{self, Debug};
+
 use zenoh::{
     bytes::ZBytes,
     key_expr::{
@@ -29,6 +24,14 @@ use zenoh::{
         keyexpr, OwnedKeyExpr,
     },
     query::Query,
+};
+
+use crate::{
+    dds_discovery::{DdsEntity, DdsParticipant},
+    events::ROS2DiscoveryEvent,
+    gid::Gid,
+    node_info::*,
+    ros_discovery::{NodeEntitiesInfo, ParticipantEntitiesInfo},
 };
 
 kedefine!(

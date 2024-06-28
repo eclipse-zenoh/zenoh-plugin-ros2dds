@@ -12,39 +12,46 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use cyclors::qos::{HistoryKind, Qos};
-use cyclors::DDS_LENGTH_UNLIMITED;
+use std::{
+    collections::HashSet,
+    fmt,
+    ops::Deref,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
+
+use cyclors::{
+    qos::{HistoryKind, Qos},
+    DDS_LENGTH_UNLIMITED,
+};
 use serde::{Serialize, Serializer};
-use std::ops::Deref;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{collections::HashSet, fmt};
 use zenoh::{
-    core::Priority,
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
-    publisher::{CongestionControl, Publisher},
+    pubsub::Publisher,
+    qos::{CongestionControl, Priority},
     sample::Locality,
 };
 use zenoh_ext::{PublicationCache, SessionExt};
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::{
-    create_dds_reader, delete_dds_entity, get_guid, serialize_atomic_entity_guid, AtomicDDSEntity,
-    DDS_ENTITY_NULL,
+use crate::{
+    dds_types::{DDSRawSample, TypeInfo},
+    dds_utils::{
+        create_dds_reader, delete_dds_entity, get_guid, serialize_atomic_entity_guid,
+        AtomicDDSEntity, DDS_ENTITY_NULL,
+    },
+    liveliness_mgt::new_ke_liveliness_pub,
+    qos_helpers::*,
+    ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
+    ros_discovery::RosDiscoveryInfoMgr,
+    routes_mgr::Context,
+    Config, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
-use crate::liveliness_mgt::new_ke_liveliness_pub;
-use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
-use crate::ros_discovery::RosDiscoveryInfoMgr;
-use crate::routes_mgr::Context;
-use crate::{qos_helpers::*, Config};
-use crate::{KE_PREFIX_PUB_CACHE, LOG_PAYLOAD};
 
 pub struct ZPublisher {
     publisher: Arc<Publisher<'static>>,
-    _matching_listener: zenoh::publisher::MatchingListener<'static, ()>,
+    _matching_listener: zenoh::pubsub::MatchingListener<'static, ()>,
     _cache: Option<PublicationCache<'static>>,
     cache_size: usize,
 }
