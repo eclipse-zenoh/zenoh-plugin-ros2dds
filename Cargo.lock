@@ -4071,7 +4071,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-ros2dds"
-version = "0.11.0-dev"
+version = "0.11.0-dev-124-ga742b36"
 dependencies = [
  "async-liveliness-monitor",
  "async-std",
@@ -4411,7 +4411,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-ros2dds"
-version = "0.11.0-dev"
+version = "0.11.0-dev-124-ga742b36"
 dependencies = [
  "async-std",
  "async-trait",
