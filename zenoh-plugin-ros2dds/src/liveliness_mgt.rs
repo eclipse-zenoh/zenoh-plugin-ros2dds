@@ -25,14 +25,14 @@ const SLASH_REPLACEMSNT_CHAR: &str = "§";
 
 kedefine!(
     // Liveliness tokens key expressions
-    pub ke_liveliness_all: "@ros2_lv/${zenoh_id:*}/${remaining:**}",
-    pub ke_liveliness_plugin: "@ros2_lv/${zenoh_id:*}",
-    pub(crate) ke_liveliness_pub: "@ros2_lv/${zenoh_id:*}/MP/${ke:*}/${typ:*}/${qos_ke:*}",
-    pub(crate) ke_liveliness_sub: "@ros2_lv/${zenoh_id:*}/MS/${ke:*}/${typ:*}/${qos_ke:*}",
-    pub(crate) ke_liveliness_service_srv: "@ros2_lv/${zenoh_id:*}/SS/${ke:*}/${typ:*}",
-    pub(crate) ke_liveliness_service_cli: "@ros2_lv/${zenoh_id:*}/SC/${ke:*}/${typ:*}",
-    pub(crate) ke_liveliness_action_srv: "@ros2_lv/${zenoh_id:*}/AS/${ke:*}/${typ:*}",
-    pub(crate) ke_liveliness_action_cli: "@ros2_lv/${zenoh_id:*}/AC/${ke:*}/${typ:*}",
+    pub ke_liveliness_all: "@/${zenoh_id:*}/@ros2_lv/${remaining:**}",
+    pub ke_liveliness_plugin: "@/${zenoh_id:*}/@ros2_lv",
+    pub(crate) ke_liveliness_pub: "@/${zenoh_id:*}/@ros2_lv/MP/${ke:*}/${typ:*}/${qos_ke:*}",
+    pub(crate) ke_liveliness_sub: "@/${zenoh_id:*}/@ros2_lv/MS/${ke:*}/${typ:*}/${qos_ke:*}",
+    pub(crate) ke_liveliness_service_srv: "@/${zenoh_id:*}/@ros2_lv/SS/${ke:*}/${typ:*}",
+    pub(crate) ke_liveliness_service_cli: "@/${zenoh_id:*}/@ros2_lv/SC/${ke:*}/${typ:*}",
+    pub(crate) ke_liveliness_action_srv: "@/${zenoh_id:*}/@ros2_lv/AS/${ke:*}/${typ:*}",
+    pub(crate) ke_liveliness_action_cli: "@/${zenoh_id:*}/@ros2_lv/AC/${ke:*}/${typ:*}",
 );
 
 pub(crate) fn new_ke_liveliness_pub(

@@ -87,6 +87,7 @@ lazy_static::lazy_static!(
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
     static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
 
+    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@");
     static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@ros2_pub_cache");
 );
 
@@ -95,7 +96,7 @@ kedefine!(
     pub ke_admin_version: "${plugin_status_key:**}/__version__",
 
     // Admin prefix of this bridge
-    pub ke_admin_prefix: "@ros2/${zenoh_id:*}/",
+    pub ke_admin_prefix: "@/${zenoh_id:*}/ros2/",
 );
 
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be

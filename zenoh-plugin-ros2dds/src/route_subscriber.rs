@@ -39,8 +39,8 @@ use crate::{
     qos_helpers::is_transient_local,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     routes_mgr::Context,
-    serialize_option_as_bool, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_PUB_CACHE,
-    LOG_PAYLOAD,
+    serialize_option_as_bool, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_ADMIN_SPACE,
+    KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
 enum ZSubscriber<'a> {
@@ -181,9 +181,11 @@ impl RouteSubscriber<'_> {
         // create zenoh subscriber
         // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical messages to write
         self.zenoh_subscriber = if self.transient_local {
-            // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
-            let query_selector: OwnedKeyExpr =
-                *KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &self.zenoh_key_expr;
+            // query all PublicationCaches on "<KE_PREFIX_ADMIN_SPACE>/*/<KE_PREFIX_PUB_CACHE>/<routing_keyexpr>"
+            let query_selector: OwnedKeyExpr = *KE_PREFIX_ADMIN_SPACE
+                / *KE_ANY_1_SEGMENT
+                / *KE_PREFIX_PUB_CACHE
+                / &self.zenoh_key_expr;
             tracing::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .context
@@ -251,9 +253,10 @@ impl RouteSubscriber<'_> {
     /// using the specified Selector. Otherwise, do nothing.
     pub async fn query_historical_publications<'a>(&mut self, zenoh_id: &keyexpr) {
         if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
-            // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<zenoh_id>/<routing_keyexpr>"
+            // query all PublicationCaches on "<KE_PREFIX_ADMIN_SPACE>/<zenoh_id>/<KE_PREFIX_PUB_CACHE>/<routing_keyexpr>"
             let query_selector: Selector =
-                (*KE_PREFIX_PUB_CACHE / zenoh_id / &self.zenoh_key_expr).into();
+                (*KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_PUB_CACHE / &self.zenoh_key_expr)
+                    .into();
             tracing::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {zenoh_id} for TRANSIENT_LOCAL Reader on {query_selector}",
                 self.zenoh_key_expr, self.ros2_name
             );

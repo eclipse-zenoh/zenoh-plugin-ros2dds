@@ -228,8 +228,8 @@ NOTE: the bridge prefixes ALL topics/services/actions names with the configured 
 
 ## Admin space
 
-The bridge exposes some internal states via a Zenoh admin space under `@ros2/<id>/**`, where `<id>` is the unique id of the bridge (configurable).  
+The bridge exposes some internal states via a Zenoh admin space under `@/<id>/ros2/**`, where `<id>` is the unique id of the bridge (configurable).  
 This admin space can be queried via Zenoh `get()` operation. If the REST plugin is configured for the bridge for instance via `--rest-http-port 8000` argument, those URLs can be queried:
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/dds/**]() : to get all the DDS Readers/Writers discovered by the bridge
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/node/**]() : to get all ROS nodes with their interfaces discovered by the bridge
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/route/**]() : to get all routes between ROS interfaces and Zenoh established by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/dds/**]() : to get all the DDS Readers/Writers discovered by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/node/**]() : to get all ROS nodes with their interfaces discovered by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/route/**]() : to get all routes between ROS interfaces and Zenoh established by the bridge
