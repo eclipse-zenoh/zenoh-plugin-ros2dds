@@ -11,25 +11,25 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_discovery::*;
-use crate::discovered_entities::DiscoveredEntities;
-use crate::events::ROS2DiscoveryEvent;
-use crate::ros_discovery::*;
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
+
 use async_std::task;
 use cyclors::dds_entity_t;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Duration;
 use zenoh::{
     internal::{zread, zwrite, TimedEvent, Timer},
     key_expr::keyexpr,
     query::Query,
 };
 
-use crate::ChannelEvent;
-use crate::ROS_DISCOVERY_INFO_POLL_INTERVAL_MS;
+use crate::{
+    dds_discovery::*, discovered_entities::DiscoveredEntities, events::ROS2DiscoveryEvent,
+    ros_discovery::*, ChannelEvent, ROS_DISCOVERY_INFO_POLL_INTERVAL_MS,
+};
 
 pub struct DiscoveryMgr {
     pub participant: dds_entity_t,

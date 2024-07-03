@@ -11,29 +11,16 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::config::Config;
-use crate::discovered_entities::DiscoveredEntities;
-use crate::events::ROS2AnnouncementEvent;
-use crate::events::ROS2DiscoveryEvent;
-use crate::qos_helpers::adapt_reader_qos_for_writer;
-use crate::qos_helpers::adapt_writer_qos_for_reader;
-use crate::ros2_utils::key_expr_to_ros2_name;
-use crate::ros2_utils::ros2_name_to_key_expr;
-use crate::ros_discovery::RosDiscoveryInfoMgr;
-use crate::route_action_cli::RouteActionCli;
-use crate::route_action_srv::RouteActionSrv;
-use crate::route_publisher::RoutePublisher;
-use crate::route_service_cli::RouteServiceCli;
-use crate::route_service_srv::RouteServiceSrv;
-use crate::route_subscriber::RouteSubscriber;
-use cyclors::dds_entity_t;
-use cyclors::qos::IgnoreLocal;
-use cyclors::qos::Qos;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::{Arc, RwLock},
+};
+
+use cyclors::{
+    dds_entity_t,
+    qos::{IgnoreLocal, Qos},
+};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::RwLock;
 use zenoh::{
     bytes::ZBytes,
     internal::zread,
@@ -42,7 +29,21 @@ use zenoh::{
     Session,
 };
 
-use crate::ke_for_sure;
+use crate::{
+    config::Config,
+    discovered_entities::DiscoveredEntities,
+    events::{ROS2AnnouncementEvent, ROS2DiscoveryEvent},
+    ke_for_sure,
+    qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader},
+    ros2_utils::{key_expr_to_ros2_name, ros2_name_to_key_expr},
+    ros_discovery::RosDiscoveryInfoMgr,
+    route_action_cli::RouteActionCli,
+    route_action_srv::RouteActionSrv,
+    route_publisher::RoutePublisher,
+    route_service_cli::RouteServiceCli,
+    route_service_srv::RouteServiceSrv,
+    route_subscriber::RouteSubscriber,
+};
 
 lazy_static::lazy_static!(
     static ref KE_PREFIX_ROUTE_PUBLISHER: &'static keyexpr = ke_for_sure!("route/topic/pub");

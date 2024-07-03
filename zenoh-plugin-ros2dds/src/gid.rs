@@ -11,8 +11,9 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt, ops::Deref, str::FromStr};
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Gid([u8; 16]);
@@ -119,9 +120,9 @@ mod tests {
 
     #[test]
     fn test_gid() {
+        use std::{ops::Deref, str::FromStr};
+
         use crate::gid::Gid;
-        use std::ops::Deref;
-        use std::str::FromStr;
 
         let str1 = "01106c8324a780d1b9e62c8f000001c1";
         let bytes1 = [

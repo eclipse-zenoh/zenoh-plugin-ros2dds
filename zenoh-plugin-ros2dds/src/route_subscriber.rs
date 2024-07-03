@@ -12,33 +12,36 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{collections::HashSet, ffi::CStr, fmt, time::Duration};
+
 use cyclors::{
     dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
     ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iov_len_t, ddsrt_iovec_t,
 };
 use serde::Serialize;
-use std::collections::HashSet;
-use std::{ffi::CStr, fmt, time::Duration};
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
-    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
+    pubsub::Subscriber,
+    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
-    selector::Selector,
-    subscriber::Subscriber,
 };
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
-use crate::dds_utils::{create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
-use crate::liveliness_mgt::new_ke_liveliness_sub;
-use crate::qos_helpers::is_transient_local;
-use crate::ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type};
-use crate::routes_mgr::Context;
 use crate::{
-    dds_utils::serialize_entity_guid, qos::Qos, vec_into_raw_parts, KE_ANY_1_SEGMENT, LOG_PAYLOAD,
+    dds_utils::{
+        create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid,
+        serialize_entity_guid,
+    },
+    liveliness_mgt::new_ke_liveliness_sub,
+    qos::Qos,
+    qos_helpers::is_transient_local,
+    ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
+    routes_mgr::Context,
+    serialize_option_as_bool, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_PUB_CACHE,
+    LOG_PAYLOAD,
 };
-use crate::{serialize_option_as_bool, KE_PREFIX_PUB_CACHE};
 
 enum ZSubscriber<'a> {
     Subscriber(Subscriber<'a, ()>),

@@ -11,18 +11,17 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use serde::ser::SerializeSeq;
-use serde::{Serialize, Serializer};
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
-use std::ops::Range;
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    ops::Range,
+};
+
+use serde::{ser::SerializeSeq, Serialize, Serializer};
 use zenoh::key_expr::{keyexpr, KeyExpr};
 
-use crate::dds_discovery::DdsEntity;
-use crate::events::ROS2DiscoveryEvent;
-use crate::gid::Gid;
-use crate::ke_for_sure;
-use crate::ros2_utils::*;
+use crate::{
+    dds_discovery::DdsEntity, events::ROS2DiscoveryEvent, gid::Gid, ke_for_sure, ros2_utils::*,
+};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MsgPub {

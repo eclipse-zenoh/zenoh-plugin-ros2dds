@@ -11,12 +11,11 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{env, fmt, time::Duration};
+
 use regex::Regex;
 use serde::{de, de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
-use std::env;
-use std::fmt;
-use std::time::Duration;
-use zenoh::{core::Priority, key_expr::OwnedKeyExpr};
+use zenoh::{key_expr::OwnedKeyExpr, qos::Priority};
 
 pub const DEFAULT_NAMESPACE: &str = "/";
 pub const DEFAULT_NODENAME: &str = "zenoh_bridge_ros2dds";

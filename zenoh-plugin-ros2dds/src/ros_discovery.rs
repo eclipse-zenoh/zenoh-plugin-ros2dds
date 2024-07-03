@@ -1,6 +1,26 @@
-use crate::dds_types::DDSRawSample;
-use crate::ros2_utils::{ros_distro_is_less_than, ROS_DISTRO};
-use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+    ffi::{CStr, CString},
+    mem::MaybeUninit,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
+
+use async_std::task;
+use cdr::{CdrLe, Infinite};
+use cyclors::{
+    qos::{Durability, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, DDS_INFINITE_TIME},
+    *,
+};
+use flume::{unbounded, Receiver, Sender};
+use futures::select;
+use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use zenoh::{
+    bytes::ZBytes,
+    internal::{zwrite, TimedEvent, Timer},
+};
+
 //
 // Copyright (c) 2022 ZettaScale Technology
 //
@@ -15,29 +35,12 @@ use crate::{ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS};
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use crate::dds_utils::{ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
-use crate::gid::Gid;
-use async_std::task;
-use cdr::{CdrLe, Infinite};
-use cyclors::qos::{
-    Durability, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, DDS_INFINITE_TIME,
+use crate::{
+    dds_types::DDSRawSample,
+    gid::Gid,
+    ros2_utils::{ros_distro_is_less_than, ROS_DISTRO},
+    ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS,
 };
-use cyclors::*;
-use flume::{unbounded, Receiver, Sender};
-use futures::select;
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashSet;
-use std::convert::TryInto;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Duration;
-use std::{
-    collections::HashMap,
-    ffi::{CStr, CString},
-    mem::MaybeUninit,
-};
-use zenoh::bytes::ZBytes;
-use zenoh::internal::{zwrite, TimedEvent, Timer};
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
@@ -584,9 +587,10 @@ mod tests {
     // Both need different ROS_DISTRO env var, that cannot be changed between the 2 tests
     // Run this test individually or with `cargo test -- --ignored``
     fn test_serde_prior_to_iron() {
+        use std::str::FromStr;
+
         use super::*;
         use crate::ros2_utils::get_ros_distro;
-        use std::str::FromStr;
 
         // ros_discovery_message sent by a component_container node on Humble started as such:
         //   - ros2 run rclcpp_components component_container --ros-args --remap __ns:=/TEST
@@ -666,9 +670,10 @@ mod tests {
 
     #[test]
     fn test_serde_after_iron() {
+        use std::str::FromStr;
+
         use super::*;
         use crate::ros2_utils::get_ros_distro;
-        use std::str::FromStr;
 
         // ros_discovery_message sent by a component_container node on Iron started as such:
         //   - ros2 run rclcpp_components component_container --ros-args --remap __ns:=/TEST

@@ -12,12 +12,13 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{fmt, slice};
+
 use cyclors::*;
-use std::fmt;
-use std::slice;
-use zenoh::bytes::ZBytes;
-use zenoh::encoding::Encoding;
-use zenoh::internal::Value;
+use zenoh::{
+    bytes::{Encoding, ZBytes},
+    internal::Value,
+};
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
 
