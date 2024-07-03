@@ -10,14 +10,6 @@
     ////
     ros2dds: {
       ////
-      //// id: An identifier for this bridge, which must be unique in the system.
-      ///      The bridge will use this identifier in it's administration space: `@ros2/<id>/**`.
-      ///      This identifier will also appears in the logs of all other bridges on discovery events.
-      ///      By default a random UUID
-      ////
-      // id: "robot-1",
-
-      ////
       //// nodename: A ROS node name to be used by this bridge.
       ////            Default: "zenoh_bridge_ros2dds"
       ////

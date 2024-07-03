@@ -83,7 +83,7 @@ pub struct RouteServiceSrv<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -266,7 +266,7 @@ impl RouteServiceSrv<'_> {
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_service_srv(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
@@ -296,16 +296,16 @@ impl RouteServiceSrv<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 

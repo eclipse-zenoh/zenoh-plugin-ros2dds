@@ -28,8 +28,6 @@ pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    #[serde(default)]
-    pub id: Option<OwnedKeyExpr>,
     #[serde(default = "default_namespace")]
     pub namespace: String,
     #[serde(default = "default_nodename")]

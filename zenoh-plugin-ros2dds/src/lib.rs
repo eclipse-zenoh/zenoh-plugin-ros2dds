@@ -95,7 +95,7 @@ kedefine!(
     pub ke_admin_version: "${plugin_status_key:**}/__version__",
 
     // Admin prefix of this bridge
-    pub ke_admin_prefix: "@ros2/${plugin_id:*}/",
+    pub ke_admin_prefix: "@ros2/${zenoh_id:*}/",
 );
 
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
@@ -184,19 +184,12 @@ pub async fn run(runtime: Runtime, config: Config) {
         }
     };
 
-    let plugin_id = if let Some(ref id) = config.id {
-        if id.contains('/') {
-            tracing::error!("The 'id' configuration must not contain any '/' character");
-            return;
-        }
-        id.clone()
-    } else {
-        zsession.zid().into_keyexpr()
-    };
-
     // Declare plugin's liveliness token
-    let ke_liveliness =
-        keformat!(ke_liveliness_plugin::formatter(), plugin_id = &plugin_id).unwrap();
+    let ke_liveliness = keformat!(
+        ke_liveliness_plugin::formatter(),
+        zenoh_id = zsession.zid().into_keyexpr()
+    )
+    .unwrap();
     let member = match zsession.liveliness().declare_token(ke_liveliness).await {
         Ok(member) => member,
         Err(e) => {
@@ -245,7 +238,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
     tracing::debug!(
         "ROS2 plugin {} using DDS Participant {} created",
-        plugin_id,
+        zsession.zid(),
         get_guid(&participant).unwrap()
     );
 
@@ -254,7 +247,6 @@ pub async fn run(runtime: Runtime, config: Config) {
         zsession,
         participant,
         _member: member,
-        plugin_id,
         admin_space: HashMap::<OwnedKeyExpr, AdminRef>::new(),
     };
 
@@ -268,7 +260,6 @@ pub struct ROS2PluginRuntime<'a> {
     zsession: Arc<Session>,
     participant: dds_entity_t,
     _member: LivelinessToken<'a>,
-    plugin_id: OwnedKeyExpr,
     // admin space: index is the admin_keyexpr
     // value is the JSon string to return to queries.
     admin_space: HashMap<OwnedKeyExpr, AdminRef>,
@@ -286,7 +277,7 @@ impl<'a> ROS2PluginRuntime<'a> {
         // Subscribe to all liveliness info from other ROS2 plugins
         let ke_liveliness_all = keformat!(
             ke_liveliness_all::formatter(),
-            plugin_id = "*",
+            zenoh_id = "*",
             remaining = "**"
         )
         .unwrap();
@@ -300,8 +291,11 @@ impl<'a> ROS2PluginRuntime<'a> {
             .expect("Failed to create Liveliness Subscriber");
 
         // declare admin space queryable
-        let admin_prefix =
-            keformat!(ke_admin_prefix::formatter(), plugin_id = &self.plugin_id).unwrap();
+        let admin_prefix = keformat!(
+            ke_admin_prefix::formatter(),
+            zenoh_id = &self.zsession.zid().into_keyexpr()
+        )
+        .unwrap();
         let admin_keyexpr_expr = (&admin_prefix) / *KE_ANY_N_SEGMENT;
         tracing::debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
@@ -335,7 +329,6 @@ impl<'a> ROS2PluginRuntime<'a> {
 
         // Create RoutesManager
         let mut routes_mgr = RoutesMgr::new(
-            self.plugin_id.clone(),
             self.config.clone(),
             self.zsession.clone(),
             self.participant,
@@ -369,26 +362,26 @@ impl<'a> ROS2PluginRuntime<'a> {
                         Ok(evt) => {
                             let ke = evt.key_expr().as_keyexpr();
                             if let Ok(parsed) = ke_liveliness_all::parse(ke) {
-                                let plugin_id = parsed.plugin_id();
-                                if plugin_id == self.plugin_id.as_ref() {
+                                let zenoh_id = parsed.zenoh_id();
+                                if zenoh_id == &*self.zsession.zid().into_keyexpr() {
                                     // ignore own announcements
                                     continue;
                                 }
                                 match (parsed.remaining(), evt.kind())  {
                                     // New remote bridge detected
                                     (None, SampleKind::Put) => {
-                                        tracing::info!("New ROS 2 bridge detected: {}", plugin_id);
+                                        tracing::info!("New ROS 2 bridge detected: {}", zenoh_id);
                                         // make each routes for a TRANSIENT_LOCAL Subscriber to query historical publications from this new plugin
-                                        routes_mgr.query_all_historical_publications(plugin_id).await;
+                                        routes_mgr.query_all_historical_publications(zenoh_id).await;
                                     }
                                     // New remote bridge left
-                                    (None, SampleKind::Delete) => tracing::info!("Remote ROS 2 bridge left: {}", plugin_id),
+                                    (None, SampleKind::Delete) => tracing::info!("Remote ROS 2 bridge left: {}", zenoh_id),
                                     // the liveliness token corresponds to a ROS2 announcement
                                     (Some(remaining), _) => {
                                         // parse it and pass ROS2AnnouncementEvent to RoutesMgr
                                         match self.parse_announcement_event(ke, &remaining.as_str()[..3], evt.kind()) {
                                             Ok(evt) => {
-                                                tracing::info!("Remote bridge {plugin_id} {evt}");
+                                                tracing::info!("Remote bridge {zenoh_id} {evt}");
                                                 routes_mgr.on_ros_announcement_event(evt).await
                                                     .unwrap_or_else(|e| tracing::warn!("Error treating announcement event: {e}"));
                                             },
@@ -432,8 +425,8 @@ impl<'a> ROS2PluginRuntime<'a> {
             ("MP/", SampleKind::Put) => parse_ke_liveliness_pub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
                 .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type, keyless, writer_qos)| AnnouncedMsgPub {
-                        plugin_id,
+                    |(zenoh_id, zenoh_key_expr, ros2_type, keyless, writer_qos)| AnnouncedMsgPub {
+                        zenoh_id,
                         zenoh_key_expr,
                         ros2_type,
                         keyless,
@@ -442,15 +435,15 @@ impl<'a> ROS2PluginRuntime<'a> {
                 ),
             ("MP/", SampleKind::Delete) => parse_ke_liveliness_pub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredMsgPub {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredMsgPub {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             ("MS/", SampleKind::Put) => parse_ke_liveliness_sub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
                 .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type, keyless, reader_qos)| AnnouncedMsgSub {
-                        plugin_id,
+                    |(zenoh_id, zenoh_key_expr, ros2_type, keyless, reader_qos)| AnnouncedMsgSub {
+                        zenoh_id,
                         zenoh_key_expr,
                         ros2_type,
                         keyless,
@@ -459,68 +452,64 @@ impl<'a> ROS2PluginRuntime<'a> {
                 ),
             ("MS/", SampleKind::Delete) => parse_ke_liveliness_sub(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredMsgSub {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredMsgSub {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             ("SS/", SampleKind::Put) => parse_ke_liveliness_service_srv(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
                 .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedServiceSrv {
-                        plugin_id,
+                    |(zenoh_id, zenoh_key_expr, ros2_type)| AnnouncedServiceSrv {
+                        zenoh_id,
                         zenoh_key_expr,
                         ros2_type,
                     },
                 ),
             ("SS/", SampleKind::Delete) => parse_ke_liveliness_service_srv(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredServiceSrv {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredServiceSrv {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             ("SC/", SampleKind::Put) => parse_ke_liveliness_service_cli(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
                 .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedServiceCli {
-                        plugin_id,
+                    |(zenoh_id, zenoh_key_expr, ros2_type)| AnnouncedServiceCli {
+                        zenoh_id,
                         zenoh_key_expr,
                         ros2_type,
                     },
                 ),
             ("SC/", SampleKind::Delete) => parse_ke_liveliness_service_cli(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredServiceCli {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredServiceCli {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             ("AS/", SampleKind::Put) => parse_ke_liveliness_action_srv(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedActionSrv {
-                        plugin_id,
-                        zenoh_key_expr,
-                        ros2_type,
-                    },
-                ),
+                .map(|(zenoh_id, zenoh_key_expr, ros2_type)| AnnouncedActionSrv {
+                    zenoh_id,
+                    zenoh_key_expr,
+                    ros2_type,
+                }),
             ("AS/", SampleKind::Delete) => parse_ke_liveliness_action_srv(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredActionSrv {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredActionSrv {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             ("AC/", SampleKind::Put) => parse_ke_liveliness_action_cli(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(
-                    |(plugin_id, zenoh_key_expr, ros2_type)| AnnouncedActionCli {
-                        plugin_id,
-                        zenoh_key_expr,
-                        ros2_type,
-                    },
-                ),
+                .map(|(zenoh_id, zenoh_key_expr, ros2_type)| AnnouncedActionCli {
+                    zenoh_id,
+                    zenoh_key_expr,
+                    ros2_type,
+                }),
             ("AC/", SampleKind::Delete) => parse_ke_liveliness_action_cli(liveliness_ke)
                 .map_err(|e| format!("Received invalid liveliness token: {e}"))
-                .map(|(plugin_id, zenoh_key_expr, ..)| RetiredActionCli {
-                    plugin_id,
+                .map(|(zenoh_id, zenoh_key_expr, ..)| RetiredActionCli {
+                    zenoh_id,
                     zenoh_key_expr,
                 }),
             _ => Err(format!("invalid ROS2 interface kind: {iface_kind}")),

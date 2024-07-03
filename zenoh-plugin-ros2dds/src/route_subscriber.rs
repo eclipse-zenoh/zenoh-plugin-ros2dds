@@ -78,7 +78,7 @@ pub struct RouteSubscriber<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -216,7 +216,7 @@ impl RouteSubscriber<'_> {
         if !is_message_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_sub(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
@@ -249,12 +249,12 @@ impl RouteSubscriber<'_> {
 
     /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub async fn query_historical_publications<'a>(&mut self, plugin_id: &keyexpr) {
+    pub async fn query_historical_publications<'a>(&mut self, zenoh_id: &keyexpr) {
         if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
-            // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<plugin_id>/<routing_keyexpr>"
+            // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<zenoh_id>/<routing_keyexpr>"
             let query_selector: Selector =
-                (*KE_PREFIX_PUB_CACHE / plugin_id / &self.zenoh_key_expr).into();
-            tracing::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {plugin_id} for TRANSIENT_LOCAL Reader on {query_selector}",
+                (*KE_PREFIX_PUB_CACHE / zenoh_id / &self.zenoh_key_expr).into();
+            tracing::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {zenoh_id} for TRANSIENT_LOCAL Reader on {query_selector}",
                 self.zenoh_key_expr, self.ros2_name
             );
 
@@ -287,16 +287,16 @@ impl RouteSubscriber<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
