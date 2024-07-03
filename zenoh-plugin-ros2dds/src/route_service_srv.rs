@@ -473,7 +473,7 @@ fn route_dds_reply_to_zenoh(
                 }
             };
 
-            // copy Request payload, skiping client_id + sequence_number
+            // copy Request payload, skipping client_id + sequence_number
             let payload = match dds_rep_buf.get(20..dds_rep_buf.len()) {
                 Some(hdr) => hdr,
                 None => {

@@ -571,7 +571,7 @@ impl<'a> ROS2PluginRuntime<'a> {
                 Ok(v) => match ZBytes::try_from(v) {
                     Ok(value) => Value::new(value, Encoding::default()),
                     Err(e) => {
-                        tracing::warn!("Error transforming JSON to ZBtyes: {}", e);
+                        tracing::warn!("Error transforming JSON to ZBytes: {}", e);
                         return;
                     }
                 },

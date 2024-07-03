@@ -385,7 +385,7 @@ fn route_dds_request_to_zenoh(
         }
     };
 
-    // copy Request payload, skiping client_id + sequence_number
+    // copy Request payload, skipping client_id + sequence_number
     let payload = match dds_req_buf.get(20..dds_req_buf.len()) {
         Some(hdr) => hdr,
         None => {

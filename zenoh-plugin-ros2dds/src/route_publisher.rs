@@ -98,7 +98,7 @@ pub struct RoutePublisher<'a> {
     keyless: bool,
     // the QoS for the DDS Reader to be created.
     // those are either the QoS announced by a remote bridge on a Reader discovery,
-    // either the QoS adapted from a local disovered Writer
+    // either the QoS adapted from a local discovered Writer
     #[serde(skip)]
     _reader_qos: Qos,
     // a liveliness token associated to this route, for announcement to other plugins
