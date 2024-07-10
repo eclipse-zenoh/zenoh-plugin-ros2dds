@@ -424,11 +424,19 @@ fn route_zenoh_request_to_dds(
 }
 
 fn route_dds_reply_to_zenoh(
-    sample: &DDSRawSample,
+    sample: &Result<DDSRawSample, String>,
     zenoh_key_expr: OwnedKeyExpr,
     queries_in_progress: &mut HashMap<CddsRequestHeader, Query>,
     route_id: &str,
 ) {
+    let sample = match sample {
+        Err(e) => {
+            tracing::warn!("{route_id}: received invalid sample from DDS: {e}");
+            return;
+        }
+        Ok(sample) => sample,
+    };
+
     // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
     // the request id as header (16 bytes). As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
