@@ -13,7 +13,6 @@
 //
 
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     fmt,
     sync::{
@@ -26,7 +25,10 @@ use cyclors::dds_entity_t;
 use serde::Serialize;
 use zenoh::{
     bytes::ZBytes,
-    internal::{buffers::ZSlice, zwrite},
+    internal::{
+        buffers::{Buffer, ZBuf, ZSlice},
+        zwrite,
+    },
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
@@ -444,8 +446,7 @@ fn route_dds_reply_to_zenoh(
     }
 
     let z_bytes: ZBytes = sample.into();
-
-    let slice = Cow::from(z_bytes);
+    let slice: ZSlice = z_bytes.into();
     let dds_rep_buf = slice.as_ref();
 
     let cdr_header = &dds_rep_buf[..4];
@@ -461,32 +462,9 @@ fn route_dds_reply_to_zenoh(
     // Check if it's one of my queries in progress. Drop otherwise
     match queries_in_progress.remove(&request_id) {
         Some(query) => {
-            // copy CDR Header
-            let cdr_header = match dds_rep_buf.get(0..4) {
-                Some(hdr) => hdr,
-                None => {
-                    // TODO: do we want this to return or explode ?
-                    tracing::error!(
-                        "Sample buffer was empty, Could not ger cdr header expected bytes [0..4]",
-                    );
-                    return;
-                }
-            };
-
-            // copy Request payload, skiping client_id + sequence_number
-            let payload = match dds_rep_buf.get(20..dds_rep_buf.len()) {
-                Some(hdr) => hdr,
-                None => {
-                    // TODO: do we want this to return or explode ?
-                    tracing::error!(
-                        "Sample buffer payload subslice failed, expected bytes [20..buffer.len()]",
-                    );
-                    return;
-                }
-            };
-
-            let res: Vec<u8> = [cdr_header, payload].concat();
-            let zenoh_rep_buf = ZBytes::new(res);
+            let mut zenoh_rep_buf = ZBuf::empty();
+            zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
+            zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
             if *LOG_PAYLOAD {
                 tracing::debug!("{route_id}: routing reply {request_id} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");

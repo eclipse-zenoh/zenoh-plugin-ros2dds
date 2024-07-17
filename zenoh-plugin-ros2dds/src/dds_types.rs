@@ -16,8 +16,7 @@ use std::{fmt, slice};
 
 use cyclors::*;
 use zenoh::{
-    bytes::{Encoding, ZBytes},
-    internal::Value,
+    bytes::ZBytes,
 };
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
@@ -220,12 +219,6 @@ impl From<&DDSRawSample> for ZBytes {
                 return z_bytes;
             }
         }
-        buf.data_as_slice().to_vec().into()
-    }
-}
-
-impl From<&DDSRawSample> for Value {
-    fn from(buf: &DDSRawSample) -> Self {
-        Value::new(ZBytes::from(buf), Encoding::default())
+        buf.data_as_slice().into()
     }
 }
