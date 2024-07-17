@@ -15,9 +15,7 @@
 use std::{fmt, slice};
 
 use cyclors::*;
-use zenoh::{
-    bytes::ZBytes,
-};
+use zenoh::bytes::ZBytes;
 
 use crate::dds_utils::ddsrt_iov_len_to_usize;
 
