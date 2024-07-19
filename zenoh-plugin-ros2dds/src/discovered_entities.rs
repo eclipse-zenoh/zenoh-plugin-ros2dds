@@ -18,7 +18,7 @@ use std::{
 };
 
 use zenoh::{
-    bytes::ZBytes,
+    bytes::{Encoding, EncodingBuilderTrait, ZBytes},
     key_expr::{
         format::{kedefine, keformat},
         keyexpr, OwnedKeyExpr,
@@ -455,7 +455,11 @@ impl DiscoveredEntities {
                 let admin_keyexpr = admin_keyexpr_prefix / key_expr;
                 match ZBytes::try_from(v) {
                     Ok(payload) => {
-                        if let Err(e) = query.reply(admin_keyexpr, payload).await {
+                        if let Err(e) = query
+                            .reply(admin_keyexpr, payload)
+                            .encoding(Encoding::APPLICATION_JSON)
+                            .await
+                        {
                             tracing::warn!("Error replying to admin query {:?}: {}", query, e);
                         }
                     }

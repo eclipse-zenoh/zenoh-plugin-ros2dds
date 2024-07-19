@@ -46,7 +46,7 @@ use crate::{
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     ros_discovery::RosDiscoveryInfoMgr,
     routes_mgr::Context,
-    Config, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
+    Config, KE_PREFIX_ADMIN_SPACE, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
 pub struct ZPublisher {
@@ -98,13 +98,13 @@ pub struct RoutePublisher<'a> {
     keyless: bool,
     // the QoS for the DDS Reader to be created.
     // those are either the QoS announced by a remote bridge on a Reader discovery,
-    // either the QoS adapted from a local disovered Writer
+    // either the QoS adapted from a local discovered Writer
     #[serde(skip)]
     _reader_qos: Qos,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -179,7 +179,11 @@ impl RoutePublisher<'_> {
                         .zsession
                         .declare_publication_cache(&zenoh_key_expr)
                         .history(history)
-                        .queryable_prefix(*KE_PREFIX_PUB_CACHE / &context.plugin_id)
+                        .queryable_prefix(
+                            *KE_PREFIX_ADMIN_SPACE
+                                / &context.zsession.zid().into_keyexpr()
+                                / *KE_PREFIX_PUB_CACHE,
+                        )
                         .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
                         .await
                         .map_err(|e| {
@@ -306,7 +310,7 @@ impl RoutePublisher<'_> {
         if !is_message_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_pub(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
                 self.keyless,
@@ -332,16 +336,16 @@ impl RoutePublisher<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
         // if last remote route removed, deactivate the DDS Reader
         if self.remote_routes.is_empty() {
