@@ -13,7 +13,6 @@
 //
 
 use std::{
-    borrow::Cow,
     collections::HashSet,
     fmt,
     sync::{
@@ -28,6 +27,7 @@ use serde::Serialize;
 use zenoh::{
     bytes::ZBytes,
     handlers::CallbackDrop,
+    internal::buffers::{Buffer, ZBuf, ZSlice},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
@@ -351,54 +351,34 @@ fn route_dds_request_to_zenoh(
     query_timeout: Duration,
     rep_writer: dds_entity_t,
 ) {
-    // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
-    // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
+    // Request payload is expected to be the Request type encoded as CDR, including a 4 bytes CDR header,
+    // the 16 bytes request_id (8 bytes client guid + 8 bytes sequence_number), and the request payload. As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    if sample.len() < 20 {
-        tracing::warn!("{route_id}: received invalid request: {sample:0x?}");
-        return;
-    }
 
     let z_bytes: ZBytes = sample.into();
-    let slice = Cow::from(z_bytes);
-    let dds_req_buf = slice.as_ref();
+    let slice: ZSlice = z_bytes.into();
 
-    let is_little_endian =
-        is_cdr_little_endian(dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
-
-    let request_id = CddsRequestHeader::from_slice(
-        dds_req_buf[4..20]
-            .try_into()
-            .expect("Shouldn't happen: sample.len >= 20"),
-        is_little_endian,
-    );
-
-    // Copy CDR Header
-    let cdr_header = match dds_req_buf.get(0..4) {
-        Some(hdr) => hdr,
-        None => {
-            // TODO: do we want this to return or explode ?
-            tracing::error!(
-                "Sample buffer was empty, Could not ger cdr header expected bytes [0..4]",
-            );
+    // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
+    let (header, request_id, payload) = match (
+        slice.subslice(20, slice.len()), // payload from index 20
+        slice.subslice(4, 20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
+        slice.subslice(0, 4),            // header: 4 bytes
+        is_cdr_little_endian(slice.as_ref()), // check endianness flag
+    ) {
+        (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
+            let request_id = CddsRequestHeader::from_slice(request_id, is_little_endian);
+            (header, request_id, payload)
+        }
+        _ => {
+            tracing::warn!("{route_id}: received invalid request: {sample:0x?} (less than 20 bytes) dropping it");
             return;
         }
     };
 
-    // copy Request payload, skipping client_id + sequence_number
-    let payload = match dds_req_buf.get(20..dds_req_buf.len()) {
-        Some(hdr) => hdr,
-        None => {
-            // TODO: do we want this to return or explode ?
-            tracing::error!(
-                "Sample buffer payload subslice failed, expected bytes [20..buffer.len()]",
-            );
-            return;
-        }
-    };
-
-    let res: Vec<u8> = [cdr_header, payload].concat();
-    let zenoh_req_buf = ZBytes::new(res);
+    // route request buffer stripped from request_id
+    let mut zenoh_req_buf = ZBuf::empty();
+    zenoh_req_buf.push_zslice(header);
+    zenoh_req_buf.push_zslice(payload);
 
     if *LOG_PAYLOAD {
         tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - payload: {zenoh_req_buf:02x?}");

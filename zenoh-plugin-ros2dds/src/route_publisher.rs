@@ -487,7 +487,7 @@ fn route_dds_message_to_zenoh(sample: &DDSRawSample, publisher: &Arc<Publisher>,
     } else {
         tracing::trace!("{route_id}: routing message - {} bytes", sample.len());
     }
-    if let Err(e) = publisher.put(sample.payload_as_slice()).wait() {
+    if let Err(e) = publisher.put(sample).wait() {
         tracing::error!("{route_id}: failed to route message: {e}");
     }
 }
