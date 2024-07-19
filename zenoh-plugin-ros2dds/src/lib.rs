@@ -24,7 +24,7 @@ use zenoh::{
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
-        zerror, Timed, Value,
+        zerror, Timed,
     },
     key_expr::{
         format::{kedefine, keformat},
