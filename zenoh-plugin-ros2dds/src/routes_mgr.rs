@@ -33,7 +33,6 @@ use crate::{
     config::Config,
     discovered_entities::DiscoveredEntities,
     events::{ROS2AnnouncementEvent, ROS2DiscoveryEvent},
-    ke_for_sure,
     qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader},
     ros2_utils::{key_expr_to_ros2_name, ros2_name_to_key_expr},
     ros_discovery::RosDiscoveryInfoMgr,

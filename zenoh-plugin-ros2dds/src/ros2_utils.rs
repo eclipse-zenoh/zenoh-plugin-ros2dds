@@ -33,7 +33,7 @@ use zenoh::{
     Error as ZError,
 };
 
-use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
+use crate::{config::Config, dds_utils::get_guid};
 
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
 pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";

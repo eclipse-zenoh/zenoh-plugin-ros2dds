@@ -19,9 +19,7 @@ use std::{
 use serde::{ser::SerializeSeq, Serialize, Serializer};
 use zenoh::key_expr::{keyexpr, KeyExpr};
 
-use crate::{
-    dds_discovery::DdsEntity, events::ROS2DiscoveryEvent, gid::Gid, ke_for_sure, ros2_utils::*,
-};
+use crate::{dds_discovery::DdsEntity, events::ROS2DiscoveryEvent, gid::Gid, ros2_utils::*};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MsgPub {
