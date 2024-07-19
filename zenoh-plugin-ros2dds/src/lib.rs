@@ -67,12 +67,6 @@ use crate::{
 };
 
 lazy_static::lazy_static!(
-    pub static ref VERSION_JSON_VALUE: Value =
-        serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned())
-        .as_str()
-        .map(ZBytes::from)
-        .map(|z_bytes| Value::new(z_bytes,Encoding::default()))
-        .into();
 
 
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
@@ -562,11 +556,23 @@ impl<'a> ROS2PluginRuntime<'a> {
     }
 
     async fn send_admin_reply(&self, query: &Query, key_expr: &keyexpr, admin_ref: &AdminRef) {
-        let value: Value = match admin_ref {
-            AdminRef::Version => VERSION_JSON_VALUE.clone(),
+        let z_bytes: ZBytes = match admin_ref {
+            AdminRef::Version => match serde_json::to_value(ROS2Plugin::PLUGIN_LONG_VERSION) {
+                Ok(v) => match ZBytes::try_from(v) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        tracing::warn!("Error transforming JSON to ZBytes: {}", e);
+                        return;
+                    }
+                },
+                Err(e) => {
+                    tracing::error!("INTERNAL ERROR serializing config as JSON: {}", e);
+                    return;
+                }
+            },
             AdminRef::Config => match serde_json::to_value(&*self.config) {
                 Ok(v) => match ZBytes::try_from(v) {
-                    Ok(value) => Value::new(value, Encoding::default()),
+                    Ok(value) => value,
                     Err(e) => {
                         tracing::warn!("Error transforming JSON to ZBytes: {}", e);
                         return;
@@ -578,7 +584,11 @@ impl<'a> ROS2PluginRuntime<'a> {
                 }
             },
         };
-        if let Err(e) = query.reply(key_expr.to_owned(), value.payload()).await {
+        if let Err(e) = query
+            .reply(key_expr.to_owned(), z_bytes)
+            .encoding(Encoding::APPLICATION_JSON)
+            .await
+        {
             tracing::warn!("Error replying to admin query {:?}: {}", query, e);
         }
     }
