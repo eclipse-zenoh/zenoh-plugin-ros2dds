@@ -44,11 +44,11 @@ pub const ASSUMED_ROS_DISTRO: &str = "iron";
 lazy_static::lazy_static!(
     pub static ref ROS_DISTRO: String = get_ros_distro();
 
-    pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr = ke_for_sure!("_action/send_goal");
-    pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr = ke_for_sure!("_action/cancel_goal");
-    pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr = ke_for_sure!("_action/get_result");
-    pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr = ke_for_sure!("_action/feedback");
-    pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr = ke_for_sure!("_action/status");
+    pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/send_goal") };
+    pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/cancel_goal") };
+    pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/get_result") };
+    pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/feedback") };
+    pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/status") };
 
     pub static ref QOS_DEFAULT_SERVICE: Qos = ros2_service_default_qos();
     pub static ref QOS_DEFAULT_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
@@ -94,9 +94,12 @@ pub fn ros2_name_to_key_expr(ros2_name: &str, config: &Config) -> OwnedKeyExpr {
     // config.namespace starts with a '/'
     // But a Zenoh key_expr shall not start with a '/'
     if config.namespace == "/" {
-        ke_for_sure!(&ros2_name[1..]).to_owned()
+        unsafe { keyexpr::from_str_unchecked(&ros2_name[1..]) }.to_owned()
     } else {
-        ke_for_sure!(&config.namespace[1..]) / ke_for_sure!(&ros2_name[1..])
+        unsafe {
+            keyexpr::from_str_unchecked(&config.namespace[1..])
+                / keyexpr::from_str_unchecked(&ros2_name[1..])
+        }
     }
 }
 

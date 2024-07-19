@@ -66,13 +66,6 @@ use crate::{
     liveliness_mgt::*, ros_discovery::RosDiscoveryInfoMgr, routes_mgr::RoutesMgr,
 };
 
-#[macro_export]
-macro_rules! ke_for_sure {
-    ($val:expr) => {
-        unsafe { keyexpr::from_str_unchecked($val) }
-    };
-}
-
 lazy_static::lazy_static!(
     pub static ref VERSION_JSON_VALUE: Value =
         serde_json::Value::String(ROS2Plugin::PLUGIN_LONG_VERSION.to_owned())
@@ -84,11 +77,11 @@ lazy_static::lazy_static!(
 
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
-    static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
-    static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
+    static ref KE_ANY_1_SEGMENT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("*") };
+    static ref KE_ANY_N_SEGMENT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("**") };
 
-    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@");
-    static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@ros2_pub_cache");
+    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("@") };
+    static ref KE_PREFIX_PUB_CACHE: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("@ros2_pub_cache") };
 );
 
 kedefine!(
@@ -306,10 +299,14 @@ impl<'a> ROS2PluginRuntime<'a> {
             .expect("Failed to create AdminSpace queryable");
 
         // add plugin's config and version in admin space
-        self.admin_space
-            .insert(&admin_prefix / ke_for_sure!("config"), AdminRef::Config);
-        self.admin_space
-            .insert(&admin_prefix / ke_for_sure!("version"), AdminRef::Version);
+        self.admin_space.insert(
+            &admin_prefix / unsafe { keyexpr::from_str_unchecked("config") },
+            AdminRef::Config,
+        );
+        self.admin_space.insert(
+            &admin_prefix / unsafe { keyexpr::from_str_unchecked("version") },
+            AdminRef::Version,
+        );
 
         // Create and start the RosDiscoveryInfoMgr (managing ros_discovery_info topic)
         let ros_discovery_mgr = Arc::new(

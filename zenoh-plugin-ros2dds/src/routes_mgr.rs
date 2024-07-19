@@ -46,12 +46,12 @@ use crate::{
 };
 
 lazy_static::lazy_static!(
-    static ref KE_PREFIX_ROUTE_PUBLISHER: &'static keyexpr = ke_for_sure!("route/topic/pub");
-    static ref KE_PREFIX_ROUTE_SUBSCRIBER: &'static keyexpr = ke_for_sure!("route/topic/sub");
-    static ref KE_PREFIX_ROUTE_SERVICE_SRV: &'static keyexpr = ke_for_sure!("route/service/srv");
-    static ref KE_PREFIX_ROUTE_SERVICE_CLI: &'static keyexpr = ke_for_sure!("route/service/cli");
-    static ref KE_PREFIX_ROUTE_ACTION_SRV: &'static keyexpr = ke_for_sure!("route/action/srv");
-    static ref KE_PREFIX_ROUTE_ACTION_CLI: &'static keyexpr = ke_for_sure!("route/action/cli");
+    static ref KE_PREFIX_ROUTE_PUBLISHER: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/topic/pub") };
+    static ref KE_PREFIX_ROUTE_SUBSCRIBER: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/topic/sub") };
+    static ref KE_PREFIX_ROUTE_SERVICE_SRV: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/service/srv") };
+    static ref KE_PREFIX_ROUTE_SERVICE_CLI: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/service/cli") };
+    static ref KE_PREFIX_ROUTE_ACTION_SRV: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/action/srv") };
+    static ref KE_PREFIX_ROUTE_ACTION_CLI: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/action/cli") };
 );
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
