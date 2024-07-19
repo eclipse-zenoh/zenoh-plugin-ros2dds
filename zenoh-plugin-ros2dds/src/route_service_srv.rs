@@ -437,34 +437,37 @@ fn route_dds_reply_to_zenoh(
     queries_in_progress: &mut HashMap<CddsRequestHeader, Query>,
     route_id: &str,
 ) {
-    // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
-    // the request id as header (16 bytes). As per rmw_cyclonedds here:
+    // Reply payload is expected to be the Response type encoded as CDR, including a 4 bytes CDR header,
+    // the 16 bytes request_id (8 bytes client guid + 8 bytes sequence_number), and the reply payload. As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    if sample.len() < 20 {
-        tracing::warn!("{route_id}: received invalid response from DDS: {sample:0x?}");
-        return;
-    }
 
     let z_bytes: ZBytes = sample.into();
     let slice: ZSlice = z_bytes.into();
-    let dds_rep_buf = slice.as_ref();
 
-    let cdr_header = &dds_rep_buf[..4];
-    let is_little_endian =
-        is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
-    let request_id = CddsRequestHeader::from_slice(
-        dds_rep_buf[4..20]
-            .try_into()
-            .expect("Shouldn't happen: slice is 16 bytes"),
-        is_little_endian,
-    );
+    // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
+    let (header, request_id, payload) = match (
+        slice.subslice(20, slice.len()), // payload from index 20
+        slice.subslice(4, 20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
+        slice.subslice(0, 4),            // header: 4 bytes
+        is_cdr_little_endian(slice.as_ref()), // check endianness flag
+    ) {
+        (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
+            let request_id = CddsRequestHeader::from_slice(request_id, is_little_endian);
+            (header, request_id, payload)
+        }
+        _ => {
+            tracing::warn!("{route_id}: received invalid request: {sample:0x?} (less than 20 bytes) dropping it");
+            return;
+        }
+    };
 
     // Check if it's one of my queries in progress. Drop otherwise
     match queries_in_progress.remove(&request_id) {
         Some(query) => {
+            // route reply buffer stripped from request_id
             let mut zenoh_rep_buf = ZBuf::empty();
-            zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
-            zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+            zenoh_rep_buf.push_zslice(header);
+            zenoh_rep_buf.push_zslice(payload);
 
             if *LOG_PAYLOAD {
                 tracing::debug!("{route_id}: routing reply {request_id} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");
