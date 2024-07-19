@@ -79,7 +79,7 @@ pub struct RouteServiceCli<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -136,7 +136,7 @@ impl RouteServiceCli<'_> {
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_service_cli(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
@@ -277,9 +277,9 @@ impl RouteServiceCli<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if 1st remote node added (i.e. a Server has been announced), activate the route
         // NOTE: The route shall not be active if a remote Service Server have not been detected.
@@ -295,9 +295,9 @@ impl RouteServiceCli<'_> {
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if last remote node removed, deactivate the route
         if self.remote_routes.is_empty() {
@@ -377,7 +377,7 @@ fn route_dds_request_to_zenoh(
     let mut zenoh_req_buf = ZBuf::empty();
     // copy CDR Header
     zenoh_req_buf.push_zslice(slice.subslice(0, 4).unwrap());
-    // copy Request payload, skiping client_id + sequence_number
+    // copy Request payload, skipping client_id + sequence_number
     zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
 
     if *LOG_PAYLOAD {

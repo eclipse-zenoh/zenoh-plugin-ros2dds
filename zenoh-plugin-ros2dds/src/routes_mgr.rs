@@ -22,7 +22,7 @@ use cyclors::{
 };
 use serde::{Deserialize, Serialize};
 use zenoh::{
-    bytes::ZBytes,
+    bytes::{Encoding, EncodingBuilderTrait, ZBytes},
     internal::zread,
     key_expr::{keyexpr, OwnedKeyExpr},
     query::Query,
@@ -33,7 +33,6 @@ use crate::{
     config::Config,
     discovered_entities::DiscoveredEntities,
     events::{ROS2AnnouncementEvent, ROS2DiscoveryEvent},
-    ke_for_sure,
     qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader},
     ros2_utils::{key_expr_to_ros2_name, ros2_name_to_key_expr},
     ros_discovery::RosDiscoveryInfoMgr,
@@ -46,12 +45,12 @@ use crate::{
 };
 
 lazy_static::lazy_static!(
-    static ref KE_PREFIX_ROUTE_PUBLISHER: &'static keyexpr = ke_for_sure!("route/topic/pub");
-    static ref KE_PREFIX_ROUTE_SUBSCRIBER: &'static keyexpr = ke_for_sure!("route/topic/sub");
-    static ref KE_PREFIX_ROUTE_SERVICE_SRV: &'static keyexpr = ke_for_sure!("route/service/srv");
-    static ref KE_PREFIX_ROUTE_SERVICE_CLI: &'static keyexpr = ke_for_sure!("route/service/cli");
-    static ref KE_PREFIX_ROUTE_ACTION_SRV: &'static keyexpr = ke_for_sure!("route/action/srv");
-    static ref KE_PREFIX_ROUTE_ACTION_CLI: &'static keyexpr = ke_for_sure!("route/action/cli");
+    static ref KE_PREFIX_ROUTE_PUBLISHER: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/topic/pub") };
+    static ref KE_PREFIX_ROUTE_SUBSCRIBER: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/topic/sub") };
+    static ref KE_PREFIX_ROUTE_SERVICE_SRV: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/service/srv") };
+    static ref KE_PREFIX_ROUTE_SERVICE_CLI: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/service/cli") };
+    static ref KE_PREFIX_ROUTE_ACTION_SRV: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/action/srv") };
+    static ref KE_PREFIX_ROUTE_ACTION_CLI: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/action/cli") };
 );
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -75,7 +74,6 @@ enum RouteRef {
 // A Context struct to be shared as an Arc amongst all the code
 #[derive(Clone)]
 pub struct Context {
-    pub(crate) plugin_id: Arc<OwnedKeyExpr>,
     pub(crate) config: Arc<Config>,
     pub(crate) zsession: Arc<Session>,
     pub(crate) participant: dds_entity_t,
@@ -102,7 +100,6 @@ pub struct RoutesMgr<'a> {
 
 impl<'a> RoutesMgr<'a> {
     pub fn new(
-        plugin_id: OwnedKeyExpr,
         config: Arc<Config>,
         zsession: Arc<Session>,
         participant: dds_entity_t,
@@ -111,7 +108,6 @@ impl<'a> RoutesMgr<'a> {
         admin_prefix: OwnedKeyExpr,
     ) -> RoutesMgr<'a> {
         let context = Context {
-            plugin_id: Arc::new(plugin_id),
             config,
             zsession,
             participant,
@@ -325,7 +321,7 @@ impl<'a> RoutesMgr<'a> {
         use ROS2AnnouncementEvent::*;
         match event {
             AnnouncedMsgPub {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
                 keyless,
@@ -346,18 +342,18 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredMsgPub {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_subscribers.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / &zenoh_key_expr));
@@ -368,7 +364,7 @@ impl<'a> RoutesMgr<'a> {
             }
 
             AnnouncedMsgSub {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
                 keyless,
@@ -389,18 +385,18 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredMsgSub {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_publishers.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / &zenoh_key_expr));
@@ -411,7 +407,7 @@ impl<'a> RoutesMgr<'a> {
             }
 
             AnnouncedServiceSrv {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
             } => {
@@ -424,18 +420,18 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredServiceSrv {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_service_cli.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
@@ -446,7 +442,7 @@ impl<'a> RoutesMgr<'a> {
             }
 
             AnnouncedServiceCli {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
             } => {
@@ -459,18 +455,18 @@ impl<'a> RoutesMgr<'a> {
                         true,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredServiceCli {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_service_srv.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
@@ -481,7 +477,7 @@ impl<'a> RoutesMgr<'a> {
             }
 
             AnnouncedActionSrv {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
             } => {
@@ -493,18 +489,18 @@ impl<'a> RoutesMgr<'a> {
                         ros2_type,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredActionSrv {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_action_cli.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / &zenoh_key_expr));
@@ -515,7 +511,7 @@ impl<'a> RoutesMgr<'a> {
             }
 
             AnnouncedActionCli {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
                 ros2_type,
             } => {
@@ -527,18 +523,18 @@ impl<'a> RoutesMgr<'a> {
                         ros2_type,
                     )
                     .await?;
-                route.add_remote_route(&plugin_id, &zenoh_key_expr);
+                route.add_remote_route(&zenoh_id, &zenoh_key_expr);
             }
 
             RetiredActionCli {
-                plugin_id,
+                zenoh_id,
                 zenoh_key_expr,
             } => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_action_srv.entry(format!("/{zenoh_key_expr}"))
                 {
                     let route = entry.get_mut();
-                    route.remove_remote_route(&plugin_id, &zenoh_key_expr);
+                    route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / &zenoh_key_expr));
@@ -551,9 +547,9 @@ impl<'a> RoutesMgr<'a> {
         Ok(())
     }
 
-    pub async fn query_all_historical_publications(&mut self, plugin_id: &keyexpr) {
+    pub async fn query_all_historical_publications(&mut self, zenoh_id: &keyexpr) {
         for route in self.routes_subscribers.values_mut() {
-            route.query_historical_publications(plugin_id).await;
+            route.query_historical_publications(zenoh_id).await;
         }
     }
 
@@ -798,7 +794,11 @@ impl<'a> RoutesMgr<'a> {
                 let admin_keyexpr = &self.admin_prefix / key_expr;
                 match ZBytes::try_from(v) {
                     Ok(payload) => {
-                        if let Err(e) = query.reply(admin_keyexpr, payload).await {
+                        if let Err(e) = query
+                            .reply(admin_keyexpr, payload)
+                            .encoding(Encoding::APPLICATION_JSON)
+                            .await
+                        {
                             tracing::warn!("Error replying to admin query {:?}: {}", query, e);
                         }
                     }

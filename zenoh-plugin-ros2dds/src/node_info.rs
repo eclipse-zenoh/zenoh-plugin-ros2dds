@@ -19,9 +19,7 @@ use std::{
 use serde::{ser::SerializeSeq, Serialize, Serializer};
 use zenoh::key_expr::{keyexpr, KeyExpr};
 
-use crate::{
-    dds_discovery::DdsEntity, events::ROS2DiscoveryEvent, gid::Gid, ke_for_sure, ros2_utils::*,
-};
+use crate::{dds_discovery::DdsEntity, events::ROS2DiscoveryEvent, gid::Gid, ros2_utils::*};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MsgPub {
@@ -49,7 +47,7 @@ impl MsgPub {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 }
 
@@ -86,7 +84,7 @@ impl MsgSub {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 }
 
@@ -141,7 +139,7 @@ impl ServiceSrv {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 
     #[inline]
@@ -201,7 +199,7 @@ impl ServiceCli {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 
     #[inline]
@@ -272,7 +270,7 @@ impl ActionSrv {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 
     #[inline]
@@ -343,7 +341,7 @@ impl ActionCli {
     }
 
     pub fn name_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.name[1..])
+        unsafe { keyexpr::from_str_unchecked(&self.name[1..]) }
     }
 
     #[inline]
@@ -483,7 +481,7 @@ impl NodeInfo {
 
     #[inline]
     pub fn id_as_keyexpr(&self) -> &keyexpr {
-        ke_for_sure!(&self.id)
+        unsafe { keyexpr::from_str_unchecked(&self.id) }
     }
 
     pub fn update_with_reader(&mut self, entity: &DdsEntity) -> Option<ROS2DiscoveryEvent> {
