@@ -4433,11 +4433,12 @@ name = "zenoh-bridge-ros2dds"
 version = "0.11.0-dev"
 dependencies = [
  "async-liveliness-monitor",
- "async-std",
  "clap",
+ "futures",
  "lazy_static",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "zenoh",
  "zenoh-plugin-rest",
@@ -4776,7 +4777,6 @@ dependencies = [
 name = "zenoh-plugin-ros2dds"
 version = "0.11.0-dev"
 dependencies = [
- "async-std",
  "async-trait",
  "bincode",
  "cdr",
@@ -4791,6 +4791,7 @@ dependencies = [
  "rustc_version 0.4.0",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "zenoh",
  "zenoh-ext",
