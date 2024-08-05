@@ -24,6 +24,8 @@ pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
+pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
+pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +61,10 @@ pub struct Config {
         serialize_with = "serialize_vec_regex_prio"
     )]
     pub pub_priorities: Vec<(Regex, Priority)>,
+    #[serde(default = "default_work_thread_num")]
+    pub work_thread_num: usize,
+    #[serde(default = "default_max_block_thread_num")]
+    pub max_block_thread_num: usize,
     __required__: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_path")]
     __path__: Option<Vec<String>>,
@@ -466,6 +472,14 @@ fn default_localhost_only() -> bool {
 
 fn default_transient_local_cache_multiplier() -> usize {
     DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER
+}
+
+fn default_work_thread_num() -> usize {
+    DEFAULT_WORK_THREAD_NUM
+}
+
+fn default_max_block_thread_num() -> usize {
+    DEFAULT_MAX_BLOCK_THREAD_NUM
 }
 
 fn serialize_regex<S>(r: &Option<Regex>, serializer: S) -> Result<S::Ok, S::Error>
