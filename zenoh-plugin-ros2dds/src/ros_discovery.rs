@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use async_std::task;
 use cdr::{CdrLe, Infinite};
 use cyclors::{
     qos::{Durability, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, DDS_INFINITE_TIME},
@@ -16,6 +15,7 @@ use cyclors::{
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use tokio::task;
 use zenoh::{
     bytes::ZBytes,
     internal::{zwrite, TimedEvent, Timer},

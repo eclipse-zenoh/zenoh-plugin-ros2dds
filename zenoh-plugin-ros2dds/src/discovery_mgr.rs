@@ -16,10 +16,10 @@ use std::{
     time::Duration,
 };
 
-use async_std::task;
 use cyclors::dds_entity_t;
 use flume::{unbounded, Receiver, Sender};
-use futures::select;
+use futures::{executor::block_on, select};
+use tokio::task;
 use zenoh::{
     internal::{zread, zwrite, TimedEvent, Timer},
     key_expr::keyexpr,
@@ -141,8 +141,6 @@ impl DiscoveryMgr {
         // pass query to discovered_entities
         let discovered_entities = zread!(self.discovered_entities);
         // TODO: find a better solution than block_on()
-        async_std::task::block_on(
-            discovered_entities.treat_admin_query(query, admin_keyexpr_prefix),
-        );
+        block_on(discovered_entities.treat_admin_query(query, admin_keyexpr_prefix))
     }
 }

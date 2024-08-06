@@ -18,12 +18,12 @@ use std::{
     time::Duration,
 };
 
-use async_std::task;
 use cyclors::{
     qos::{History, HistoryKind, Qos},
     *,
 };
 use serde::Serializer;
+use tokio::task;
 
 use crate::{
     dds_types::{DDSRawSample, TypeInfo},
@@ -332,7 +332,7 @@ where
                             break;
                         }
 
-                        async_std::task::sleep(period).await;
+                        tokio::time::sleep(period).await;
                         let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
                         #[allow(clippy::uninit_assumed_init)]
                         let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
