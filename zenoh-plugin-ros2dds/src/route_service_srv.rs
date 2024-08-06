@@ -446,9 +446,9 @@ fn route_dds_reply_to_zenoh(
 
     // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
     let (header, request_id, payload) = match (
-        slice.subslice(20, slice.len()), // payload from index 20
-        slice.subslice(4, 20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
-        slice.subslice(0, 4),            // header: 4 bytes
+        slice.subslice(20..slice.len()), // payload from index 20
+        slice.subslice(4..20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
+        slice.subslice(0..4),            // header: 4 bytes
         is_cdr_little_endian(slice.as_ref()), // check endianness flag
     ) {
         (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
