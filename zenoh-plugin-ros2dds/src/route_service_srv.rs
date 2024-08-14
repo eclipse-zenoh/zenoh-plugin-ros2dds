@@ -445,7 +445,7 @@ fn route_dds_reply_to_zenoh(
     let slice: ZSlice = z_bytes.into();
 
     // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
-    let (header, request_id, payload) = match (
+    let (payload, request_id, header) = match (
         slice.subslice(20..slice.len()), // payload from index 20
         slice.subslice(4..20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
         slice.subslice(0..4),            // header: 4 bytes
