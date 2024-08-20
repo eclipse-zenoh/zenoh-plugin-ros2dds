@@ -60,7 +60,7 @@ pub struct Config {
         deserialize_with = "deserialize_vec_regex_prio",
         serialize_with = "serialize_vec_regex_prio"
     )]
-    pub pub_priorities: Vec<(Regex, Priority)>,
+    pub pub_priorities: Vec<(Regex, (Priority, bool))>,
     #[serde(default = "default_work_thread_num")]
     pub work_thread_num: usize,
     #[serde(default = "default_max_block_thread_num")]
@@ -80,7 +80,7 @@ impl Config {
         None
     }
 
-    pub fn get_pub_priorities(&self, ros2_name: &str) -> Option<Priority> {
+    pub fn get_pub_priority_and_express(&self, ros2_name: &str) -> Option<(Priority, bool)> {
         for (re, p) in &self.pub_priorities {
             if re.is_match(ros2_name) {
                 return Some(*p);
@@ -587,35 +587,53 @@ where
     seq.end()
 }
 
-fn deserialize_vec_regex_prio<'de, D>(deserializer: D) -> Result<Vec<(Regex, Priority)>, D::Error>
+#[allow(clippy::type_complexity)]
+fn deserialize_vec_regex_prio<'de, D>(
+    deserializer: D,
+) -> Result<Vec<(Regex, (Priority, bool))>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let strs: Vec<String> = Deserialize::deserialize(deserializer).unwrap();
-    let mut result: Vec<(Regex, Priority)> = Vec::with_capacity(strs.len());
+    let mut result: Vec<(Regex, (Priority, bool))> = Vec::with_capacity(strs.len());
     for s in strs {
         let i = s.find('=').ok_or_else(|| {
-            de::Error::custom(format!(r#"Invalid list of "<regex>=<int>" elements": {s}"#))
+            de::Error::custom(format!(
+                r#"Invalid list of "<regex>=<int>[:express]" elements": {s}"#
+            ))
         })?;
         let regex = Regex::new(&s[0..i])
             .map_err(|e| de::Error::custom(format!("Invalid regex in '{s}': {e}")))?;
-        let i: u8 = s[i + 1..].parse().map_err(|e| {
-            de::Error::custom(format!("Invalid priority (not an integer) in '{s}': {e}"))
+        let (prio_str, is_express) = match s[i + 1..].strip_suffix(":express") {
+            Some(prio_str) => (prio_str, true),
+            None => (&s[i + 1..], false),
+        };
+        let i: u8 = prio_str.parse().map_err(|e| {
+            de::Error::custom(format!(
+                "Invalid priority (format is not <int>[:express]) in '{s}': {e}"
+            ))
         })?;
         let priority = Priority::try_from(i)
             .map_err(|e| de::Error::custom(format!("Invalid priority in '{s}': {e}")))?;
-        result.push((regex, priority));
+        result.push((regex, (priority, is_express)));
     }
     Ok(result)
 }
 
-fn serialize_vec_regex_prio<S>(v: &Vec<(Regex, Priority)>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_vec_regex_prio<S>(
+    v: &Vec<(Regex, (Priority, bool))>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let mut seq = serializer.serialize_seq(Some(v.len()))?;
-    for (r, p) in v {
-        let s = format!("{}={}", r.as_str(), *p as u8);
+    for (r, (p, is_express)) in v {
+        let s = if *is_express {
+            format!("{}={}:express", r.as_str(), *p as u8)
+        } else {
+            format!("{}={}", r.as_str(), *p as u8)
+        };
         seq.serialize_element(&s)?;
     }
     seq.end()
