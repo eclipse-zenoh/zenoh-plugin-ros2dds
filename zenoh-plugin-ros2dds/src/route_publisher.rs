@@ -216,6 +216,7 @@ impl RoutePublisher<'_> {
             .declare_publisher(zenoh_key_expr.clone())
             .allowed_destination(Locality::Remote)
             .congestion_control(congestion_ctrl)
+            .express(priority == Priority::RealTime)
             .priority(priority)
             .await
             .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
