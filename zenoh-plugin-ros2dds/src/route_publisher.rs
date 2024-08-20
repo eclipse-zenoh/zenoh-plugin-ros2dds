@@ -206,16 +206,21 @@ impl RoutePublisher<'_> {
         };
 
         // Priority if configured for this topic
-        let priority = context
+        let (priority, is_express) = context
             .config
-            .get_pub_priorities(&ros2_name)
+            .get_pub_priority_and_express(&ros2_name)
             .unwrap_or_default();
+        println!(
+            "!!!!! {} => {:?} + express:{}",
+            ros2_name, priority, is_express
+        );
 
         let publisher: Arc<Publisher<'static>> = context
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .allowed_destination(Locality::Remote)
             .congestion_control(congestion_ctrl)
+            .express(is_express)
             .priority(priority)
             .await
             .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
