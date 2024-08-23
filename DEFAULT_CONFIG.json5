@@ -125,14 +125,18 @@
       // },
 
       ////
-      //// work_thread_num: The number of worker thread in TOKIO runtime (default: 2)
-      ////                  The configuration only takes effect if running as a dynamic plugin, which can not reuse the current runtime.
+      //// work_thread_num: The number of worker thread in the asynchronous runtime will use. (default: 2)
+      ////                  See more detail in https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.worker_threads
+      ////                  The configuration only takes effect if running as a dynamic plugin (i.e. not as a standalone bridge),
+      ////                  which can not reuse the current runtime.
       ////
       // work_thread_num: 2,
 
       ////
-      //// max_block_thread_num: The number of blocking thread in TOKIO runtime (default: 50)
-      ////                       The configuration only takes effect if running as a dynamic plugin, which can not reuse the current runtime.
+      //// max_block_thread_num: The number of blocking thread in the asynchronous runtime will use. (default: 50)
+      ////                       See more detail in https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.max_blocking_threads
+      ////                       The configuration only takes effect if running as a dynamic plugin (i.e. not as a standalone bridge),
+      ////                       which can not reuse the current runtime.
       ////
       // max_block_thread_num: 50,
     },
