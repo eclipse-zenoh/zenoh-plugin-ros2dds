@@ -122,7 +122,25 @@
       //     cancel_goal: 1.0,
       //     get_result: [".*long_mission=3600", ".*short_action=10.0"],
       //   }
-      // }
+      // },
+
+      ////
+      //// This plugin uses Tokio (https://tokio.rs/) for asynchronous programming. 
+      //// When running as a plugin within a Zenoh router, the plugin creates its own Runtime managing 2 pools of threads:
+      ////    - worker threads for non-blocking tasks. Those threads are spawn at Runtime creation.
+      ////    - blocking threads for blocking tasks (e.g. I/O). Those threads are spawn when needed.
+      //// For more details see https://github.com/tokio-rs/tokio/discussions/3858#discussioncomment-869878
+      //// When running as a standalone bridge the Zenoh Session's Runtime is used and can be configured via the
+      //// `ZENOH_RUNTIME` environment variable. See https://docs.rs/zenoh-runtime/latest/zenoh_runtime/enum.ZRuntime.html
+      ////
+      
+      //// work_thread_num: The number of worker thread in the asynchronous runtime will use. (default: 2)
+      ////                  Only for a plugin, no effect on a bridge.
+      // work_thread_num: 2,
+      
+      //// max_block_thread_num: The number of blocking thread in the asynchronous runtime will use. (default: 50)
+      ////                       Only for a plugin, no effect on a bridge.
+      // max_block_thread_num: 50,
     },
 
     ////
