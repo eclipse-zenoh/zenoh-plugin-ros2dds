@@ -406,7 +406,6 @@ pub fn new_service_id(participant: &dds_entity_t) -> Result<String, String> {
 }
 
 mod tests {
-
     #[test]
     fn test_types_conversions() {
         use crate::ros2_utils::*;
