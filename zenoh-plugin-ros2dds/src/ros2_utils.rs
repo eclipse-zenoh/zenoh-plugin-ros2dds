@@ -12,6 +12,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::HashMap,
+    env::VarError,
+    sync::atomic::{AtomicU32, Ordering},
+};
+
 use cyclors::{
     dds_entity_t,
     qos::{
@@ -20,15 +26,14 @@ use cyclors::{
         DDS_INFINITE_TIME,
     },
 };
-use std::{
-    env::VarError,
-    sync::atomic::{AtomicU32, Ordering},
+use zenoh::{
+    bytes::ZBytes,
+    internal::bail,
+    key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
+    Error as ZError,
 };
-use zenoh::prelude::{keyexpr, KeyExpr, OwnedKeyExpr};
-use zenoh::sample::Attachment;
-use zenoh_core::{bail, zresult::ZError};
 
-use crate::{config::Config, dds_utils::get_guid, ke_for_sure};
+use crate::{config::Config, dds_utils::get_guid};
 
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
 pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
@@ -39,11 +44,11 @@ pub const ASSUMED_ROS_DISTRO: &str = "iron";
 lazy_static::lazy_static!(
     pub static ref ROS_DISTRO: String = get_ros_distro();
 
-    pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr = ke_for_sure!("_action/send_goal");
-    pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr = ke_for_sure!("_action/cancel_goal");
-    pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr = ke_for_sure!("_action/get_result");
-    pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr = ke_for_sure!("_action/feedback");
-    pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr = ke_for_sure!("_action/status");
+    pub static ref KE_SUFFIX_ACTION_SEND_GOAL: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/send_goal") };
+    pub static ref KE_SUFFIX_ACTION_CANCEL_GOAL: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/cancel_goal") };
+    pub static ref KE_SUFFIX_ACTION_GET_RESULT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/get_result") };
+    pub static ref KE_SUFFIX_ACTION_FEEDBACK: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/feedback") };
+    pub static ref KE_SUFFIX_ACTION_STATUS: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("_action/status") };
 
     pub static ref QOS_DEFAULT_SERVICE: Qos = ros2_service_default_qos();
     pub static ref QOS_DEFAULT_ACTION_FEEDBACK: Qos = ros2_action_feedback_default_qos();
@@ -89,9 +94,12 @@ pub fn ros2_name_to_key_expr(ros2_name: &str, config: &Config) -> OwnedKeyExpr {
     // config.namespace starts with a '/'
     // But a Zenoh key_expr shall not start with a '/'
     if config.namespace == "/" {
-        ke_for_sure!(&ros2_name[1..]).to_owned()
+        unsafe { keyexpr::from_str_unchecked(&ros2_name[1..]) }.to_owned()
     } else {
-        ke_for_sure!(&config.namespace[1..]) / ke_for_sure!(&ros2_name[1..])
+        unsafe {
+            keyexpr::from_str_unchecked(&config.namespace[1..])
+                / keyexpr::from_str_unchecked(&ros2_name[1..])
+        }
     }
 }
 
@@ -211,23 +219,26 @@ impl CddsRequestHeader {
         &self.header
     }
 
-    pub fn as_attachment(&self) -> Attachment {
-        let mut attach = Attachment::new();
+    pub fn as_attachment(&self) -> ZBytes {
+        let mut hashmap = HashMap::new();
 
         // concat header + endianness flag
         let mut buf = [0u8; 17];
         buf[0..16].copy_from_slice(&self.header);
         buf[16] = self.is_little_endian as u8;
 
-        attach.insert(&ATTACHMENT_KEY_REQUEST_HEADER, &buf);
-        attach
+        hashmap.insert(ATTACHMENT_KEY_REQUEST_HEADER, buf);
+        ZBytes::from_iter(hashmap.iter())
     }
 }
 
-impl TryFrom<&Attachment> for CddsRequestHeader {
+impl TryFrom<&ZBytes> for CddsRequestHeader {
     type Error = ZError;
-    fn try_from(value: &Attachment) -> Result<Self, Self::Error> {
-        match value.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
+
+    fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
+        let hashmap: HashMap<[u8; 3], [u8; 17]> =
+            HashMap::from_iter(value.iter::<([u8; 3], [u8; 17])>().map(Result::unwrap));
+        match hashmap.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
             Some(buf) => {
                 if buf.len() == 17 {
                     let header: [u8; 16] = buf[0..16]

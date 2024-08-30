@@ -11,10 +11,14 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use serde::{Serialize, Serializer};
 use std::{collections::HashSet, fmt};
-use zenoh::{liveliness::LivelinessToken, prelude::*};
-use zenoh_core::AsyncResolve;
+
+use serde::{Serialize, Serializer};
+use zenoh::{
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+};
 
 use crate::{
     liveliness_mgt::new_ke_liveliness_action_srv, ros2_utils::*, route_publisher::RoutePublisher,
@@ -50,7 +54,7 @@ pub struct RouteActionSrv<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -146,7 +150,7 @@ impl RouteActionSrv<'_> {
 
         // create associated LivelinessToken
         let liveliness_ke = new_ke_liveliness_action_srv(
-            &self.context.plugin_id,
+            &self.context.zsession.zid().into_keyexpr(),
             &self.zenoh_key_expr_prefix,
             &self.ros2_type,
         )?;
@@ -155,7 +159,6 @@ impl RouteActionSrv<'_> {
         self.liveliness_token = Some(self.context.zsession
             .liveliness()
             .declare_token(liveliness_ke)
-            .res_async()
             .await
             .map_err(|e| {
                 format!(
@@ -176,56 +179,56 @@ impl RouteActionSrv<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr_prefix: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr_prefix: &keyexpr) {
         self.route_send_goal.add_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL),
         );
         self.route_cancel_goal.add_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL),
         );
         self.route_get_result.add_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT),
         );
         self.route_feedback.add_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_FEEDBACK),
         );
         self.route_status.add_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS),
         );
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr_prefix}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr_prefix}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr_prefix: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr_prefix: &keyexpr) {
         self.route_send_goal.remove_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_SEND_GOAL),
         );
         self.route_cancel_goal.remove_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_CANCEL_GOAL),
         );
         self.route_get_result.remove_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_GET_RESULT),
         );
         self.route_feedback.remove_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_FEEDBACK),
         );
         self.route_status.remove_remote_route(
-            plugin_id,
+            zenoh_id,
             &(zenoh_key_expr_prefix / *KE_SUFFIX_ACTION_STATUS),
         );
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr_prefix}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr_prefix}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 

@@ -10,14 +10,6 @@
     ////
     ros2dds: {
       ////
-      //// id: An identifier for this bridge, which must be unique in the system.
-      ///      The bridge will use this identifier in it's administration space: `@ros2/<id>/**`.
-      ///      This identifier will also appears in the logs of all other bridges on discovery events.
-      ///      By default a random UUID
-      ////
-      // id: "robot-1",
-
-      ////
       //// nodename: A ROS node name to be used by this bridge.
       ////            Default: "zenoh_bridge_ros2dds"
       ////
@@ -89,12 +81,15 @@
       //// pub_priorities: Specify a list of priorities of publications routing over zenoh for a set of Publishers.
       ////                 In case of high traffic, the publications with higher priorities will overtake
       ////                 the publications with lower priorities in Zenoh publication queues.
-      ////                 The strings must have the format "<regex>=<integer>":
-      ////                 - "regex" is a regular expression matching a Publisher interface name
+      ////                 The strings must have the format "<regex>=<integer>[:express]":
+      ////                 - "regex" is a regular expression matching a Publisher topic name
       ////                 - "integer" is a priority value in the range [1-7]. Highest priority is 1, lowest is 7 and default is 5.
       ////                   (see Zenoh Priority definition here: https://docs.rs/zenoh/latest/zenoh/publication/enum.Priority.html)
-      ////
-      // pub_priorities: ["/pose=2", "/rosout=7"],
+      ////                - ":express" is an option to indicate that the Zenoh express policy must be used for those publications.
+      ////                   The express policy makes Zenoh to to send the message immediatly, not waiting for possible further messages
+      ////                   to create a bigger batch of messages. This usually has a positive impact on latency for the topic
+      ////                   but a negative impact on the general throughput, as more overhead is used for those topics.
+      // pub_priorities: ["/scan=1:express", "/pose=2", "/rosout=7"],
 
       ////
       //// reliable_routes_blocking: When true, the publications from a RELIABLE DDS Writer will be
@@ -127,7 +122,25 @@
       //     cancel_goal: 1.0,
       //     get_result: [".*long_mission=3600", ".*short_action=10.0"],
       //   }
-      // }
+      // },
+
+      ////
+      //// This plugin uses Tokio (https://tokio.rs/) for asynchronous programming. 
+      //// When running as a plugin within a Zenoh router, the plugin creates its own Runtime managing 2 pools of threads:
+      ////    - worker threads for non-blocking tasks. Those threads are spawn at Runtime creation.
+      ////    - blocking threads for blocking tasks (e.g. I/O). Those threads are spawn when needed.
+      //// For more details see https://github.com/tokio-rs/tokio/discussions/3858#discussioncomment-869878
+      //// When running as a standalone bridge the Zenoh Session's Runtime is used and can be configured via the
+      //// `ZENOH_RUNTIME` environment variable. See https://docs.rs/zenoh-runtime/latest/zenoh_runtime/enum.ZRuntime.html
+      ////
+      
+      //// work_thread_num: The number of worker thread in the asynchronous runtime will use. (default: 2)
+      ////                  Only for a plugin, no effect on a bridge.
+      // work_thread_num: 2,
+      
+      //// max_block_thread_num: The number of blocking thread in the asynchronous runtime will use. (default: 50)
+      ////                       Only for a plugin, no effect on a bridge.
+      // max_block_thread_num: 50,
     },
 
     ////
@@ -198,8 +211,8 @@
   //  gossip: {
   //    /// Whether gossip scouting is enabled or not
   //    enabled: true,
-  //    /// When true, gossip scouting informations are propagated multiple hops to all nodes in the local network.
-  //    /// When false, gossip scouting informations are only propagated to the next hop.
+  //    /// When true, gossip scouting information is propagated multiple hops to all nodes in the local network.
+  //    /// When false, gossip scouting information is only propagated to the next hop.
   //    /// Activating multihop gossip implies more scouting traffic and a lower scalability.
   //    /// It mostly makes sense when using "linkstate" routing mode where all nodes in the subsystem don't have
   //    /// direct connectivity with each other.

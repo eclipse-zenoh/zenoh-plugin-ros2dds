@@ -12,33 +12,44 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::HashSet,
+    fmt,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use cyclors::dds_entity_t;
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{collections::HashSet, fmt};
-use zenoh::buffers::{ZBuf, ZSlice};
-use zenoh::handlers::{Callback, Dyn};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
-use zenoh::query::Reply;
-use zenoh_core::SyncResolve;
+use zenoh::{
+    bytes::ZBytes,
+    handlers::CallbackDrop,
+    internal::buffers::{Buffer, ZBuf, ZSlice},
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+    query::Reply,
+    sample::Locality,
+    Session,
+};
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::{
-    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-    serialize_atomic_entity_guid, AtomicDDSEntity,
+use crate::{
+    dds_types::{DDSRawSample, TypeInfo},
+    dds_utils::{
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+        is_cdr_little_endian, serialize_atomic_entity_guid, AtomicDDSEntity, DDS_ENTITY_NULL,
+    },
+    liveliness_mgt::new_ke_liveliness_service_cli,
+    ros2_utils::{
+        is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+        ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
+    },
+    routes_mgr::Context,
+    LOG_PAYLOAD,
 };
-use crate::dds_utils::{is_cdr_little_endian, DDS_ENTITY_NULL};
-use crate::liveliness_mgt::new_ke_liveliness_service_cli;
-use crate::ros2_utils::{
-    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
-};
-use crate::routes_mgr::Context;
-use crate::LOG_PAYLOAD;
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]
@@ -68,7 +79,7 @@ pub struct RouteServiceCli<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -125,7 +136,7 @@ impl RouteServiceCli<'_> {
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_service_cli(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
@@ -134,7 +145,6 @@ impl RouteServiceCli<'_> {
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
-                .res_async()
                 .await
                 .map_err(|e| {
                     format!(
@@ -267,9 +277,9 @@ impl RouteServiceCli<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if 1st remote node added (i.e. a Server has been announced), activate the route
         // NOTE: The route shall not be active if a remote Service Server have not been detected.
@@ -285,9 +295,9 @@ impl RouteServiceCli<'_> {
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self}: now serving remote routes {:?}", self.remote_routes);
         // if last remote node removed, deactivate the route
         if self.remote_routes.is_empty() {
@@ -341,32 +351,34 @@ fn route_dds_request_to_zenoh(
     query_timeout: Duration,
     rep_writer: dds_entity_t,
 ) {
-    // request payload is expected to be the Request type encoded as CDR, including a 4 bytes header,
-    // the client guid (8 bytes) and a sequence_number (8 bytes). As per rmw_cyclonedds here:
+    // Request payload is expected to be the Request type encoded as CDR, including a 4 bytes CDR header,
+    // the 16 bytes request_id (8 bytes client guid + 8 bytes sequence_number), and the request payload. As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    if sample.len() < 20 {
-        tracing::warn!("{route_id}: received invalid request: {sample:0x?}");
-        return;
-    }
 
-    let zbuf: ZBuf = sample.into();
-    let dds_req_buf = zbuf.contiguous();
-    let is_little_endian =
-        is_cdr_little_endian(&dds_req_buf).expect("Shouldn't happen: sample.len >= 20");
-    let request_id = CddsRequestHeader::from_slice(
-        dds_req_buf[4..20]
-            .try_into()
-            .expect("Shouldn't happen: sample.len >= 20"),
-        is_little_endian,
-    );
+    let z_bytes: ZBytes = sample.into();
+    let slice: ZSlice = z_bytes.into();
 
-    // route request buffer stripped from request_id (client_id + sequence_number)
+    // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
+    let (payload, request_id, header) = match (
+        slice.subslice(20..slice.len()), // payload from index 20
+        slice.subslice(4..20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
+        slice.subslice(0..4),            // header: 4 bytes
+        is_cdr_little_endian(slice.as_ref()), // check endianness flag
+    ) {
+        (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
+            let request_id = CddsRequestHeader::from_slice(request_id, is_little_endian);
+            (header, request_id, payload)
+        }
+        _ => {
+            tracing::warn!("{route_id}: received invalid request: {sample:0x?} (less than 20 bytes) dropping it");
+            return;
+        }
+    };
+
+    // route request buffer stripped from request_id
     let mut zenoh_req_buf = ZBuf::empty();
-    let slice: ZSlice = dds_req_buf.into_owned().into();
-    // copy CDR Header
-    zenoh_req_buf.push_zslice(slice.subslice(0, 4).unwrap());
-    // copy Request payload, skiping client_id + sequence_number
-    zenoh_req_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+    zenoh_req_buf.push_zslice(header);
+    zenoh_req_buf.push_zslice(payload);
 
     if *LOG_PAYLOAD {
         tracing::debug!("{route_id}: routing request {request_id} from DDS to Zenoh (timeout:{query_timeout:#?}) - payload: {zenoh_req_buf:02x?}");
@@ -379,8 +391,8 @@ fn route_dds_request_to_zenoh(
 
     if let Err(e) = zsession
         .get(zenoh_key_expr)
-        .with_value(zenoh_req_buf)
-        .with_attachment(request_id.as_attachment())
+        .payload(zenoh_req_buf)
+        .attachment(request_id.as_attachment())
         .allowed_destination(Locality::Remote)
         .timeout(query_timeout)
         .with({
@@ -388,7 +400,7 @@ fn route_dds_request_to_zenoh(
             let route_id2 = route_id.to_string();
             let reply_received1 = Arc::new(AtomicBool::new(false));
             let reply_received2 = reply_received1.clone();
-            CallbackPair {
+            CallbackDrop {
                 callback: move |reply| {
                         if !reply_received1.swap(true, std::sync::atomic::Ordering::Relaxed) {
                             route_zenoh_reply_to_dds(&route_id1, reply, request_id, rep_writer)
@@ -406,39 +418,9 @@ fn route_dds_request_to_zenoh(
                 },
             }
         })
-        .res_sync()
+        .wait()
     {
         tracing::warn!("{route_id}: routing request {request_id} from DDS to Zenoh failed: {e}");
-    }
-}
-
-// TODO: remove and replace with Zenoh's CallbackPair when https://github.com/eclipse-zenoh/zenoh/pull/653 is available
-struct CallbackPair<Callback, DropFn>
-where
-    DropFn: FnMut() + Send + Sync + 'static,
-{
-    pub callback: Callback,
-    pub drop: DropFn,
-}
-
-impl<Callback, DropCallback> Drop for CallbackPair<Callback, DropCallback>
-where
-    DropCallback: FnMut() + Send + Sync + 'static,
-{
-    fn drop(&mut self) {
-        (self.drop)()
-    }
-}
-
-impl<'a, OnEvent, Event, DropCallback> IntoCallbackReceiverPair<'a, Event>
-    for CallbackPair<OnEvent, DropCallback>
-where
-    OnEvent: Fn(Event) + Send + Sync + 'a,
-    DropCallback: FnMut() + Send + Sync + 'static,
-{
-    type Receiver = ();
-    fn into_cb_receiver_pair(self) -> (Callback<'a, Event>, Self::Receiver) {
-        (Dyn::from(move |x| (self.callback)(x)), ())
     }
 }
 
@@ -448,9 +430,9 @@ fn route_zenoh_reply_to_dds(
     request_id: CddsRequestHeader,
     rep_writer: dds_entity_t,
 ) {
-    match reply.sample {
+    match reply.result() {
         Ok(sample) => {
-            let zenoh_rep_buf = sample.payload.contiguous();
+            let zenoh_rep_buf = sample.payload().into::<Vec<u8>>();
             if zenoh_rep_buf.len() < 4 || zenoh_rep_buf[1] > 1 {
                 tracing::warn!(
                     "{route_id}: received invalid reply from Zenoh for {request_id}: {zenoh_rep_buf:0x?}"
@@ -482,7 +464,7 @@ fn route_zenoh_reply_to_dds(
             }
         }
         Err(val) => {
-            tracing::warn!("{route_id}: received error as reply for {request_id}: {val}");
+            tracing::warn!("{route_id}: received error as reply for {request_id}: {val:?}");
         }
     }
 }

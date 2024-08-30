@@ -11,12 +11,11 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{env, fmt, time::Duration};
+
 use regex::Regex;
 use serde::{de, de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
-use std::env;
-use std::fmt;
-use std::time::Duration;
-use zenoh::prelude::*;
+use zenoh::{key_expr::OwnedKeyExpr, qos::Priority};
 
 pub const DEFAULT_NAMESPACE: &str = "/";
 pub const DEFAULT_NODENAME: &str = "zenoh_bridge_ros2dds";
@@ -25,12 +24,12 @@ pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
+pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
+pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    #[serde(default)]
-    pub id: Option<OwnedKeyExpr>,
     #[serde(default = "default_namespace")]
     pub namespace: String,
     #[serde(default = "default_nodename")]
@@ -61,7 +60,11 @@ pub struct Config {
         deserialize_with = "deserialize_vec_regex_prio",
         serialize_with = "serialize_vec_regex_prio"
     )]
-    pub pub_priorities: Vec<(Regex, Priority)>,
+    pub pub_priorities: Vec<(Regex, (Priority, bool))>,
+    #[serde(default = "default_work_thread_num")]
+    pub work_thread_num: usize,
+    #[serde(default = "default_max_block_thread_num")]
+    pub max_block_thread_num: usize,
     __required__: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_path")]
     __path__: Option<Vec<String>>,
@@ -77,7 +80,7 @@ impl Config {
         None
     }
 
-    pub fn get_pub_priorities(&self, ros2_name: &str) -> Option<Priority> {
+    pub fn get_pub_priority_and_express(&self, ros2_name: &str) -> Option<(Priority, bool)> {
         for (re, p) in &self.pub_priorities {
             if re.is_match(ros2_name) {
                 return Some(*p);
@@ -471,6 +474,14 @@ fn default_transient_local_cache_multiplier() -> usize {
     DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER
 }
 
+fn default_work_thread_num() -> usize {
+    DEFAULT_WORK_THREAD_NUM
+}
+
+fn default_max_block_thread_num() -> usize {
+    DEFAULT_MAX_BLOCK_THREAD_NUM
+}
+
 fn serialize_regex<S>(r: &Option<Regex>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -576,35 +587,53 @@ where
     seq.end()
 }
 
-fn deserialize_vec_regex_prio<'de, D>(deserializer: D) -> Result<Vec<(Regex, Priority)>, D::Error>
+#[allow(clippy::type_complexity)]
+fn deserialize_vec_regex_prio<'de, D>(
+    deserializer: D,
+) -> Result<Vec<(Regex, (Priority, bool))>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let strs: Vec<String> = Deserialize::deserialize(deserializer).unwrap();
-    let mut result: Vec<(Regex, Priority)> = Vec::with_capacity(strs.len());
+    let mut result: Vec<(Regex, (Priority, bool))> = Vec::with_capacity(strs.len());
     for s in strs {
         let i = s.find('=').ok_or_else(|| {
-            de::Error::custom(format!(r#"Invalid list of "<regex>=<int>" elements": {s}"#))
+            de::Error::custom(format!(
+                r#"Invalid list of "<regex>=<int>[:express]" elements": {s}"#
+            ))
         })?;
         let regex = Regex::new(&s[0..i])
             .map_err(|e| de::Error::custom(format!("Invalid regex in '{s}': {e}")))?;
-        let i: u8 = s[i + 1..].parse().map_err(|e| {
-            de::Error::custom(format!("Invalid priority (not an integer) in '{s}': {e}"))
+        let (prio_str, is_express) = match s[i + 1..].strip_suffix(":express") {
+            Some(prio_str) => (prio_str, true),
+            None => (&s[i + 1..], false),
+        };
+        let i: u8 = prio_str.parse().map_err(|e| {
+            de::Error::custom(format!(
+                "Invalid priority (format is not <int>[:express]) in '{s}': {e}"
+            ))
         })?;
         let priority = Priority::try_from(i)
             .map_err(|e| de::Error::custom(format!("Invalid priority in '{s}': {e}")))?;
-        result.push((regex, priority));
+        result.push((regex, (priority, is_express)));
     }
     Ok(result)
 }
 
-fn serialize_vec_regex_prio<S>(v: &Vec<(Regex, Priority)>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_vec_regex_prio<S>(
+    v: &Vec<(Regex, (Priority, bool))>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let mut seq = serializer.serialize_seq(Some(v.len()))?;
-    for (r, p) in v {
-        let s = format!("{}={}", r.as_str(), *p as u8);
+    for (r, (p, is_express)) in v {
+        let s = if *is_express {
+            format!("{}={}:express", r.as_str(), *p as u8)
+        } else {
+            format!("{}={}", r.as_str(), *p as u8)
+        };
         seq.serialize_element(&s)?;
     }
     seq.end()

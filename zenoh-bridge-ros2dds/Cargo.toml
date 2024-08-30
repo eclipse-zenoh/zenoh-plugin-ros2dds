@@ -27,18 +27,18 @@ publish = false
 dds_shm = ["zenoh-plugin-ros2dds/dds_shm"]
 
 [dependencies]
-async-std = { workspace = true, features = ["unstable", "attributes"] }
 async-liveliness-monitor = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
+futures = { workspace = true }
 lazy_static = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 zenoh = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
 zenoh-plugin-ros2dds = { workspace = true }
-zenoh-util = { workspace = true }
 
 [[bin]]
 name = "zenoh-bridge-ros2dds"

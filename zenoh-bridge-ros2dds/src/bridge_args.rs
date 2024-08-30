@@ -11,11 +11,11 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::zenoh_args::CommonArgs;
 use clap::builder::FalseyValueParser;
-use zenoh::config::Config;
-use zenoh::prelude::*;
+use zenoh::{config::Config, prelude::*};
 use zenoh_plugin_trait::Plugin;
+
+use crate::zenoh_args::CommonArgs;
 
 //
 // All Bridge arguments

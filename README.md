@@ -33,7 +33,7 @@ This software is built in 2 ways to choose from:
  - `zenoh-plugin-ros2dds`: a Zenoh plugin - a dynamic library that can be loaded by a Zenoh router
  - `zenoh-bridge-ros2dds`: a standalone executable
 
-The features and configurations descibed in this document applies to both.
+The features and configurations described in this document applies to both.
 Meaning the *"plugin"* and *"bridge"*  words are interchangeables in the rest of this document.
 
 ## How to install it
@@ -80,7 +80,7 @@ Unzip the `zenoh-bridge-ros2dds-<platform>.zip` file, and you can run `./zenoh-b
 
 ## How to build it
 
-> :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in mantaining compatibility between the various git repositories in the Zenoh project.
+> :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in maintaining compatibility between the various git repositories in the Zenoh project.
 
 > :warning: **WARNING** :warning: : As Rust doesn't have a stable ABI, the plugins should be
 built with the exact same Rust version than `zenohd`, and using for `zenoh` dependency the same version (or commit number) than 'zenohd'.
@@ -125,7 +125,7 @@ If you want to cross-compile the package on x86 device for any target, you can u
 rosdep install --from-paths . --ignore-src -r -y
 colcon build --packages-select zenoh_bridge_ros2dds --cmake-args -DCMAKE_BUILD_TYPE=Release  --cmake-args -DCROSS_ARCH=<target>
 ```
-where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architechture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
+where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architecture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
 
 The cross-compilation uses `zig` as a linker. You can install it with instructions in [here](https://ziglang.org/download/). Also, the `zigbuild` package is required to be installed on the target device. You can install it with instructions in [here](https://github.com/rust-cross/cargo-zigbuild#installation).
 
@@ -171,7 +171,7 @@ On the operating host run:
     - `ros2 action list`
 
 Other interconnectivity between the 2 bridges can be configured (e.g. automatic discovery via UDP multicast, interconnection via 1 or more Zenoh routers...).
-See the [Zenoh documentation](https://zenoh.io/docs/getting-started/deployment/) to learn more about the possibile deployments allowed by Zenoh.
+See the [Zenoh documentation](https://zenoh.io/docs/getting-started/deployment/) to learn more about the possible deployments allowed by Zenoh.
 
 
 ## Configuration
@@ -210,7 +210,7 @@ If required, the automatic connection to other discovered bridges (also running 
 ```
 
 Prior to **v0.11.0**, the `zenoh-bridge-ros2dds` was by default started in `peer` mode.  
-It was listening for incoming TCP connections on a random port (chosen by the OS), and was automatically connecting to any discovered brige, router or peer.
+It was listening for incoming TCP connections on a random port (chosen by the OS), and was automatically connecting to any discovered bridge, router or peer.
 
 ## Easy multi-robots via Namespace configuration
 
@@ -228,8 +228,8 @@ NOTE: the bridge prefixes ALL topics/services/actions names with the configured 
 
 ## Admin space
 
-The bridge exposes some internal states via a Zenoh admin space under `@ros2/<id>/**`, where `<id>` is the unique id of the bridge (configurable).  
+The bridge exposes some internal states via a Zenoh admin space under `@/<id>/ros2/**`, where `<id>` is the unique id of the bridge (configurable).  
 This admin space can be queried via Zenoh `get()` operation. If the REST plugin is configured for the bridge for instance via `--rest-http-port 8000` argument, those URLs can be queried:
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/dds/**]() : to get all the DDS Readers/Writers discovered by the bridge
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/node/**]() : to get all ROS nodes with their interfaces discovered by the bridge
-- [http://\<bridge-IP\>:8000/@ros2/\<id\>/route/**]() : to get all routes between ROS interfaces and Zenoh established by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/dds/**]() : to get all the DDS Readers/Writers discovered by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/node/**]() : to get all ROS nodes with their interfaces discovered by the bridge
+- [http://\<bridge-IP\>:8000/@/\<id\>/ros2/route/**]() : to get all routes between ROS interfaces and Zenoh established by the bridge

@@ -15,7 +15,7 @@
 use std::fmt::Display;
 
 use cyclors::qos::Qos;
-use zenoh::prelude::OwnedKeyExpr;
+use zenoh::key_expr::OwnedKeyExpr;
 
 use crate::node_info::*;
 
@@ -60,61 +60,61 @@ impl std::fmt::Display for ROS2DiscoveryEvent {
 #[derive(Debug)]
 pub enum ROS2AnnouncementEvent {
     AnnouncedMsgPub {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
         keyless: bool,
         writer_qos: Qos,
     },
     RetiredMsgPub {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
     AnnouncedMsgSub {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
         keyless: bool,
         reader_qos: Qos,
     },
     RetiredMsgSub {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
     AnnouncedServiceSrv {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
     },
     RetiredServiceSrv {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
     AnnouncedServiceCli {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
     },
     RetiredServiceCli {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
     AnnouncedActionSrv {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
     },
     RetiredActionSrv {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
     AnnouncedActionCli {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
         ros2_type: String,
     },
     RetiredActionCli {
-        plugin_id: OwnedKeyExpr,
+        zenoh_id: OwnedKeyExpr,
         zenoh_key_expr: OwnedKeyExpr,
     },
 }

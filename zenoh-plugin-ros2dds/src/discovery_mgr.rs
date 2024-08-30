@@ -11,25 +11,25 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_discovery::*;
-use crate::discovered_entities::DiscoveredEntities;
-use crate::events::ROS2DiscoveryEvent;
-use crate::ros_discovery::*;
-use async_std::task;
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
+
 use cyclors::dds_entity_t;
 use flume::{unbounded, Receiver, Sender};
-use futures::select;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Duration;
-use zenoh::prelude::keyexpr;
-use zenoh::queryable::Query;
-use zenoh_core::zread;
-use zenoh_core::zwrite;
-use zenoh_util::{TimedEvent, Timer};
+use futures::{executor::block_on, select};
+use tokio::task;
+use zenoh::{
+    internal::{zread, zwrite, TimedEvent, Timer},
+    key_expr::keyexpr,
+    query::Query,
+};
 
-use crate::ChannelEvent;
-use crate::ROS_DISCOVERY_INFO_POLL_INTERVAL_MS;
+use crate::{
+    dds_discovery::*, discovered_entities::DiscoveredEntities, events::ROS2DiscoveryEvent,
+    ros_discovery::*, ChannelEvent, ROS_DISCOVERY_INFO_POLL_INTERVAL_MS,
+};
 
 pub struct DiscoveryMgr {
     pub participant: dds_entity_t,
@@ -141,8 +141,6 @@ impl DiscoveryMgr {
         // pass query to discovered_entities
         let discovered_entities = zread!(self.discovered_entities);
         // TODO: find a better solution than block_on()
-        async_std::task::block_on(
-            discovered_entities.treat_admin_query(query, admin_keyexpr_prefix),
-        );
+        block_on(discovered_entities.treat_admin_query(query, admin_keyexpr_prefix))
     }
 }

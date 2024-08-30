@@ -12,33 +12,44 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
+};
+
 use cyclors::dds_entity_t;
 use serde::Serialize;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::{collections::HashSet, fmt};
-use zenoh::buffers::{ZBuf, ZSlice};
-use zenoh::liveliness::LivelinessToken;
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
-use zenoh::queryable::{Query, Queryable};
-use zenoh_core::zwrite;
+use zenoh::{
+    bytes::ZBytes,
+    internal::{
+        buffers::{Buffer, ZBuf, ZSlice},
+        zwrite,
+    },
+    key_expr::{keyexpr, OwnedKeyExpr},
+    liveliness::LivelinessToken,
+    prelude::*,
+    query::{Query, Queryable},
+};
 
-use crate::dds_types::{DDSRawSample, TypeInfo};
-use crate::dds_utils::{
-    create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-    get_instance_handle, CDR_HEADER_BE, CDR_HEADER_LE,
+use crate::{
+    dds_types::{DDSRawSample, TypeInfo},
+    dds_utils::{
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+        get_instance_handle, is_cdr_little_endian, serialize_entity_guid, CDR_HEADER_BE,
+        CDR_HEADER_LE,
+    },
+    liveliness_mgt::new_ke_liveliness_service_srv,
+    ros2_utils::{
+        is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
+        ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
+    },
+    routes_mgr::Context,
+    serialize_option_as_bool, LOG_PAYLOAD,
 };
-use crate::dds_utils::{is_cdr_little_endian, serialize_entity_guid};
-use crate::liveliness_mgt::new_ke_liveliness_service_srv;
-use crate::ros2_utils::{
-    is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
-    ros2_service_type_to_request_dds_type, CddsRequestHeader, QOS_DEFAULT_SERVICE,
-};
-use crate::routes_mgr::Context;
-use crate::{serialize_option_as_bool, LOG_PAYLOAD};
 
 // a route for a Service Server exposed in Zenoh as a Queryable
 #[derive(Serialize)]
@@ -74,7 +85,7 @@ pub struct RouteServiceSrv<'a> {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken<'a>>,
-    // the list of remote routes served by this route ("<plugin_id>:<zenoh_key_expr>"")
+    // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
@@ -214,7 +225,6 @@ impl RouteServiceSrv<'_> {
             .context
             .zsession
             .declare_keyexpr(self.zenoh_key_expr.clone())
-            .res()
             .await
             .map_err(|e| {
                 format!(
@@ -245,7 +255,6 @@ impl RouteServiceSrv<'_> {
                         req_writer,
                     )
                 })
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -259,7 +268,7 @@ impl RouteServiceSrv<'_> {
         if !is_service_for_action(&self.ros2_name) {
             // create associated LivelinessToken
             let liveliness_ke = new_ke_liveliness_service_srv(
-                &self.context.plugin_id,
+                &self.context.zsession.zid().into_keyexpr(),
                 &self.zenoh_key_expr,
                 &self.ros2_type,
             )?;
@@ -268,7 +277,6 @@ impl RouteServiceSrv<'_> {
             self.liveliness_token = Some(self.context.zsession
                 .liveliness()
                 .declare_token(liveliness_ke)
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -290,16 +298,16 @@ impl RouteServiceSrv<'_> {
     }
 
     #[inline]
-    pub fn add_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn add_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .insert(format!("{plugin_id}:{zenoh_key_expr}"));
+            .insert(format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
     #[inline]
-    pub fn remove_remote_route(&mut self, plugin_id: &str, zenoh_key_expr: &keyexpr) {
+    pub fn remove_remote_route(&mut self, zenoh_id: &str, zenoh_key_expr: &keyexpr) {
         self.remote_routes
-            .remove(&format!("{plugin_id}:{zenoh_key_expr}"));
+            .remove(&format!("{zenoh_id}:{zenoh_key_expr}"));
         tracing::debug!("{self} now serving remote routes {:?}", self.remote_routes);
     }
 
@@ -351,9 +359,9 @@ fn route_zenoh_request_to_dds(
 ) {
     // Get expected endianness from the query value:
     // if any and if long enoough it shall be the Request type encoded as CDR (including 4 bytes header)
-    let is_little_endian = match query.value() {
-        Some(Value { payload, .. }) if payload.len() > 4 => {
-            is_cdr_little_endian(payload.contiguous().as_ref()).unwrap_or(true)
+    let is_little_endian = match query.payload() {
+        Some(value) if value.len() > 4 => {
+            is_cdr_little_endian(value.into::<ZSlice>().as_ref()).unwrap_or(true)
         }
         _ => true,
     };
@@ -373,9 +381,9 @@ fn route_zenoh_request_to_dds(
 
     // prepend request payload with a (client_guid, sequence_number) header as per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    let dds_req_buf = if let Some(value) = query.value() {
+    let dds_req_buf = if let Some(value) = query.payload() {
         // The query comes with some payload. It's expected to be the Request type encoded as CDR (including 4 bytes header)
-        let zenoh_req_buf = &*(value.payload.contiguous());
+        let zenoh_req_buf = value.into::<Vec<u8>>();
         if zenoh_req_buf.len() < 4 || zenoh_req_buf[1] > 1 {
             tracing::warn!("{route_id}: received invalid request: {zenoh_req_buf:0x?}");
             return;
@@ -429,34 +437,37 @@ fn route_dds_reply_to_zenoh(
     queries_in_progress: &mut HashMap<CddsRequestHeader, Query>,
     route_id: &str,
 ) {
-    // reply payload is expected to be the Response type encoded as CDR, including a 4 bytes header,
-    // the request id as header (16 bytes). As per rmw_cyclonedds here:
+    // Reply payload is expected to be the Response type encoded as CDR, including a 4 bytes CDR header,
+    // the 16 bytes request_id (8 bytes client guid + 8 bytes sequence_number), and the reply payload. As per rmw_cyclonedds here:
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
-    if sample.len() < 20 {
-        tracing::warn!("{route_id}: received invalid response from DDS: {sample:0x?}");
-        return;
-    }
 
-    let zbuf: ZBuf = sample.into();
-    let dds_rep_buf = zbuf.contiguous();
-    let cdr_header = &dds_rep_buf[..4];
-    let is_little_endian =
-        is_cdr_little_endian(cdr_header).expect("Shouldn't happen: cdr_header is 4 bytes");
-    let request_id = CddsRequestHeader::from_slice(
-        dds_rep_buf[4..20]
-            .try_into()
-            .expect("Shouldn't happen: slice is 16 bytes"),
-        is_little_endian,
-    );
+    let z_bytes: ZBytes = sample.into();
+    let slice: ZSlice = z_bytes.into();
+
+    // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
+    let (payload, request_id, header) = match (
+        slice.subslice(20..slice.len()), // payload from index 20
+        slice.subslice(4..20).map(|s| s.as_ref().try_into()), // request_id: 16 bytes from index 4
+        slice.subslice(0..4),            // header: 4 bytes
+        is_cdr_little_endian(slice.as_ref()), // check endianness flag
+    ) {
+        (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
+            let request_id = CddsRequestHeader::from_slice(request_id, is_little_endian);
+            (header, request_id, payload)
+        }
+        _ => {
+            tracing::warn!("{route_id}: received invalid request: {sample:0x?} (less than 20 bytes) dropping it");
+            return;
+        }
+    };
 
     // Check if it's one of my queries in progress. Drop otherwise
     match queries_in_progress.remove(&request_id) {
         Some(query) => {
-            use zenoh_core::SyncResolve;
-            let slice: ZSlice = dds_rep_buf.into_owned().into();
+            // route reply buffer stripped from request_id
             let mut zenoh_rep_buf = ZBuf::empty();
-            zenoh_rep_buf.push_zslice(slice.subslice(0, 4).unwrap());
-            zenoh_rep_buf.push_zslice(slice.subslice(20, slice.len()).unwrap());
+            zenoh_rep_buf.push_zslice(header);
+            zenoh_rep_buf.push_zslice(payload);
 
             if *LOG_PAYLOAD {
                 tracing::debug!("{route_id}: routing reply {request_id} from DDS to Zenoh - payload: {zenoh_rep_buf:02x?}");
@@ -467,10 +478,7 @@ fn route_dds_reply_to_zenoh(
                 );
             }
 
-            if let Err(e) = query
-                .reply(Ok(Sample::new(zenoh_key_expr, zenoh_rep_buf)))
-                .res_sync()
-            {
+            if let Err(e) = query.reply(zenoh_key_expr, zenoh_rep_buf).wait() {
                 tracing::warn!("{route_id}: routing reply for request {request_id} from DDS to Zenoh failed: {e}");
             }
         }
