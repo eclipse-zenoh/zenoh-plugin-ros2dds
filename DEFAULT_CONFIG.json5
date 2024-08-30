@@ -161,6 +161,12 @@
   //// For a complete view of configuration possibilities, see https://github.com/eclipse-zenoh/zenoh/blob/main/DEFAULT_CONFIG.json5
   ////
 
+  /// The identifier (as unsigned 128bit integer in hexadecimal lowercase - leading zeros are not accepted)
+  /// that zenoh runtime will use.
+  /// If not set, a random unsigned 128bit integer will be used.
+  /// WARNING: this id must be unique in your zenoh network.
+  // id: "1234567890abcdef",
+
   ////
   //// mode: The bridge's mode (router, peer or client)
   ////

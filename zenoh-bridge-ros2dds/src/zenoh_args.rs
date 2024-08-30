@@ -46,6 +46,10 @@ pub struct CommonArgs {
     /// A configuration file.
     pub config: Option<String>,
     #[arg(short, long)]
+    /// The Zenoh identifier (as an hexadecimal string, in lowercase - e.g.: a0b23...) that this bridge must use. If not set, a random unsigned 128bit integer will be used. Leading zeros are not accepted.
+    /// WARNING: this id must be unique in the system and must be 32 chars maximum (128 bits)!
+    #[arg(short, long)]
+    id: Option<String>,
     /// The Zenoh session mode [default: router].
     pub mode: Option<Wai>,
     #[arg(short = 'e', long)]
@@ -73,9 +77,17 @@ impl From<&CommonArgs> for Config {
             Some(path) => Config::from_file(path).unwrap(),
             None => Config::default(),
         };
+        if let Some(id) = &value.id {
+            let _ = config.set_id(
+                id.parse()
+                    .expect("Error with option --id (expecting a hexadecimal ZenohId)"),
+            );
+        }
         if value.mode.is_some() {
             // apply mode set via command line, overwritting mode set in config file
-            config.set_mode(value.mode.map(Into::into)).unwrap();
+            config
+                .set_mode(value.mode.map(Into::into))
+                .expect("Error with option --mode");
         } else if config.mode().is_none() {
             // no mode set neither via command line, neither in config file - set Router mode by default
             config
