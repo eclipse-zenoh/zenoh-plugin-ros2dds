@@ -28,11 +28,6 @@ use crate::zenoh_args::CommonArgs;
 pub struct BridgeArgs {
     #[command(flatten)]
     pub session_args: CommonArgs,
-    /// The identifier (as an hexadecimal string, with odd number of chars - e.g.: 0A0B23...) that zenohd must use.
-    /// WARNING: this identifier must be unique in the system and must be 16 bytes maximum (32 chars)!
-    /// If not set, a random UUIDv4 will be used.
-    #[arg(short, long, verbatim_doc_comment)]
-    pub id: Option<String>,
     /// A ROS 2 namespace to be used by the "zenoh_bridge_dds" node'
     #[arg(short, long)]
     pub namespace: Option<String>,
@@ -97,7 +92,6 @@ impl From<&BridgeArgs> for Config {
     fn from(args: &BridgeArgs) -> Self {
         let mut config = (&args.session_args).into();
 
-        insert_json5_option(&mut config, "plugins/ros2dds/id", &args.id);
         insert_json5_option(&mut config, "plugins/ros2dds/namespace", &args.namespace);
         if let Some(domain) = args.domain {
             insert_json5(&mut config, "plugins/ros2dds/domain", &domain);
