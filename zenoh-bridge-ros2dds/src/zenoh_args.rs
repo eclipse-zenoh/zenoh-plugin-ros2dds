@@ -46,7 +46,7 @@ pub struct CommonArgs {
     /// A configuration file.
     pub config: Option<String>,
     #[arg(short, long)]
-    /// The Zenoh identifier (as an hexadecimal string, in lowercase - e.g.: a0b23...) that this bridge must use. If not set, a random unsigned 128bit integer will be used.
+    /// The Zenoh identifier (as an hexadecimal string, in lowercase - e.g.: a0b23...) that this bridge must use. If not set, a random unsigned 128bit integer will be used. Leading zeros are not accepted.
     /// WARNING: this id must be unique in the system and must be 32 chars maximum (128 bits)!
     #[arg(short, long)]
     id: Option<String>,
