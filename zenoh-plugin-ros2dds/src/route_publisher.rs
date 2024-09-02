@@ -210,9 +210,11 @@ impl RoutePublisher<'_> {
             .config
             .get_pub_priority_and_express(&ros2_name)
             .unwrap_or_default();
-        println!(
-            "!!!!! {} => {:?} + express:{}",
-            ros2_name, priority, is_express
+        tracing::debug!(
+            "Route Publisher ({ros2_name} -> {zenoh_key_expr}): congestion_ctrl {:?}, priority {:?}, express:{}",
+            congestion_ctrl,
+            priority,
+            is_express
         );
 
         let publisher: Arc<Publisher<'static>> = context
@@ -271,7 +273,7 @@ impl RoutePublisher<'_> {
                     }
                 })
                 .await
-                .map_err(|e| format!("Failed to lisetn of matchibng status changes: {e}",))?
+                .map_err(|e| format!("Failed to listen of matching status changes: {e}",))?
         };
 
         Ok(RoutePublisher {

@@ -117,7 +117,6 @@ impl FromStr for Gid {
 }
 
 mod tests {
-
     #[test]
     fn test_gid() {
         use std::{ops::Deref, str::FromStr};
