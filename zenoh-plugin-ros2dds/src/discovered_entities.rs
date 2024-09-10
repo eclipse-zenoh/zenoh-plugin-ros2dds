@@ -18,7 +18,7 @@ use std::{
 };
 
 use zenoh::{
-    bytes::{Encoding, EncodingBuilderTrait, ZBytes},
+    bytes::{Encoding, ZBytes},
     key_expr::{
         format::{kedefine, keformat},
         keyexpr, OwnedKeyExpr,

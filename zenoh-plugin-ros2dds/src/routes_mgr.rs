@@ -22,7 +22,7 @@ use cyclors::{
 };
 use serde::{Deserialize, Serialize};
 use zenoh::{
-    bytes::{Encoding, EncodingBuilderTrait, ZBytes},
+    bytes::{Encoding, ZBytes},
     internal::zread,
     key_expr::{keyexpr, OwnedKeyExpr},
     query::Query,
