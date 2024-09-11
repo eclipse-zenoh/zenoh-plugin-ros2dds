@@ -981,9 +981,15 @@ dependencies = [
 
 [[package]]
 name = "cyclors"
+<<<<<<< Updated upstream
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d5dd59d4f968f55433ddcf3ceba06a6734d620577ca6ed9f62eacc55f6eb02c"
+=======
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58394847fb240aaeb525aac3d133a8fda8d52d96fa526ba7e4647c87300cb768"
+>>>>>>> Stashed changes
 dependencies = [
  "bincode",
  "bindgen",
