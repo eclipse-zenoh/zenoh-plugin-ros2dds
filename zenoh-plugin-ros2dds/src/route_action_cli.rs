@@ -17,7 +17,6 @@ use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
 };
 
 use crate::{
@@ -27,7 +26,7 @@ use crate::{
 };
 
 #[derive(Serialize)]
-pub struct RouteActionCli<'a> {
+pub struct RouteActionCli {
     // the ROS2 Action name
     ros2_name: String,
     // the ROS2 type
@@ -43,25 +42,25 @@ pub struct RouteActionCli<'a> {
     context: Context,
     is_active: bool,
     #[serde(skip)]
-    route_send_goal: RouteServiceCli<'a>,
+    route_send_goal: RouteServiceCli,
     #[serde(skip)]
-    route_cancel_goal: RouteServiceCli<'a>,
+    route_cancel_goal: RouteServiceCli,
     #[serde(skip)]
-    route_get_result: RouteServiceCli<'a>,
+    route_get_result: RouteServiceCli,
     #[serde(skip)]
-    route_feedback: RouteSubscriber<'a>,
+    route_feedback: RouteSubscriber,
     #[serde(skip)]
-    route_status: RouteSubscriber<'a>,
+    route_status: RouteSubscriber,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl fmt::Display for RouteActionCli<'_> {
+impl fmt::Display for RouteActionCli {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -71,14 +70,14 @@ impl fmt::Display for RouteActionCli<'_> {
     }
 }
 
-impl RouteActionCli<'_> {
+impl RouteActionCli {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,
         context: Context,
-    ) -> Result<RouteActionCli<'a>, String> {
+    ) -> Result<RouteActionCli, String> {
         // configured queries timeout for calls to send_goal service
         let send_goal_queries_timeout = context
             .config

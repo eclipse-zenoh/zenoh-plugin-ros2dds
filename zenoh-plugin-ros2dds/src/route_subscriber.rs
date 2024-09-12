@@ -22,10 +22,10 @@ use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
     pubsub::Subscriber,
     query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
+    Wait,
 };
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
@@ -43,15 +43,15 @@ use crate::{
     KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
-enum ZSubscriber<'a> {
-    Subscriber(Subscriber<'a, ()>),
-    FetchingSubscriber(FetchingSubscriber<'a, ()>),
+enum ZSubscriber {
+    Subscriber(Subscriber<()>),
+    FetchingSubscriber(FetchingSubscriber<()>),
 }
 
 // a route from Zenoh to DDS
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
-pub struct RouteSubscriber<'a> {
+pub struct RouteSubscriber {
     // the ROS2 Subscriber name
     ros2_name: String,
     // the ROS2 type
@@ -64,7 +64,7 @@ pub struct RouteSubscriber<'a> {
     // the zenoh subscriber receiving messages to be re-published by the DDS Writer
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
-    zenoh_subscriber: Option<ZSubscriber<'a>>,
+    zenoh_subscriber: Option<ZSubscriber>,
     // the local DDS Writer created to serve the route (i.e. re-publish to DDS message coming from zenoh)
     #[serde(serialize_with = "serialize_entity_guid")]
     dds_writer: dds_entity_t,
@@ -77,14 +77,14 @@ pub struct RouteSubscriber<'a> {
     keyless: bool,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl Drop for RouteSubscriber<'_> {
+impl Drop for RouteSubscriber {
     fn drop(&mut self) {
         // remove writer's GID from ros_discovery_info message
         match get_guid(&self.dds_writer) {
@@ -99,7 +99,7 @@ impl Drop for RouteSubscriber<'_> {
     }
 }
 
-impl fmt::Display for RouteSubscriber<'_> {
+impl fmt::Display for RouteSubscriber {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -109,7 +109,7 @@ impl fmt::Display for RouteSubscriber<'_> {
     }
 }
 
-impl RouteSubscriber<'_> {
+impl RouteSubscriber {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
         ros2_name: String,
@@ -118,7 +118,7 @@ impl RouteSubscriber<'_> {
         keyless: bool,
         mut writer_qos: Qos,
         context: Context,
-    ) -> Result<RouteSubscriber<'a>, String> {
+    ) -> Result<RouteSubscriber, String> {
         let transient_local = is_transient_local(&writer_qos);
         tracing::debug!("Route Subscriber ({zenoh_key_expr} -> {ros2_name}): creation with type {ros2_type} (transient_local:{transient_local})");
 
@@ -193,7 +193,6 @@ impl RouteSubscriber<'_> {
                 .declare_subscriber(&self.zenoh_key_expr)
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
-                .reliable()
                 .querying()
                 .query_timeout(self.queries_timeout)
                 .query_selector(&query_selector)
@@ -208,7 +207,6 @@ impl RouteSubscriber<'_> {
                 .declare_subscriber(&self.zenoh_key_expr)
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
-                .reliable()
                 .await
                 .map_err(|e| format!("{self}: failed to create Subscriber: {e}"))?;
             Some(ZSubscriber::Subscriber(sub))

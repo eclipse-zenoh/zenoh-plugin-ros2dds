@@ -28,10 +28,10 @@ use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
-    pubsub::Publisher,
+    pubsub::{Publisher, Reliability},
     qos::{CongestionControl, Priority},
     sample::Locality,
+    Wait,
 };
 use zenoh_ext::{PublicationCache, SessionExt};
 
@@ -51,8 +51,8 @@ use crate::{
 
 pub struct ZPublisher {
     publisher: Arc<Publisher<'static>>,
-    _matching_listener: zenoh::pubsub::MatchingListener<'static, ()>,
-    _cache: Option<PublicationCache<'static>>,
+    _matching_listener: zenoh::pubsub::MatchingListener<()>,
+    _cache: Option<PublicationCache>,
     cache_size: usize,
 }
 
@@ -67,7 +67,7 @@ impl Deref for ZPublisher {
 // a route from DDS to Zenoh
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
-pub struct RoutePublisher<'a> {
+pub struct RoutePublisher {
     // the ROS2 Publisher name
     ros2_name: String,
     // the ROS2 type
@@ -103,20 +103,20 @@ pub struct RoutePublisher<'a> {
     _reader_qos: Qos,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl Drop for RoutePublisher<'_> {
+impl Drop for RoutePublisher {
     fn drop(&mut self) {
         self.deactivate_dds_reader();
     }
 }
 
-impl fmt::Display for RoutePublisher<'_> {
+impl fmt::Display for RoutePublisher {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -126,7 +126,7 @@ impl fmt::Display for RoutePublisher<'_> {
     }
 }
 
-impl RoutePublisher<'_> {
+impl RoutePublisher {
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
         ros2_name: String,
@@ -136,7 +136,7 @@ impl RoutePublisher<'_> {
         keyless: bool,
         reader_qos: Qos,
         context: Context,
-    ) -> Result<RoutePublisher<'_>, String> {
+    ) -> Result<RoutePublisher, String> {
         tracing::debug!(
             "Route Publisher ({ros2_name} -> {zenoh_key_expr}): creation with type {ros2_type}"
         );
@@ -217,16 +217,18 @@ impl RoutePublisher<'_> {
             is_express
         );
 
-        let publisher: Arc<Publisher<'static>> = context
-            .zsession
-            .declare_publisher(zenoh_key_expr.clone())
-            .allowed_destination(Locality::Remote)
-            .congestion_control(congestion_ctrl)
-            .express(is_express)
-            .priority(priority)
-            .await
-            .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?
-            .into_arc();
+        let publisher: Arc<Publisher<'static>> = Arc::new(
+            context
+                .zsession
+                .declare_publisher(zenoh_key_expr.clone())
+                .reliability(Reliability::Reliable)
+                .allowed_destination(Locality::Remote)
+                .congestion_control(congestion_ctrl)
+                .express(is_express)
+                .priority(priority)
+                .await
+                .map_err(|e| format!("Failed create Publisher for key {zenoh_key_expr}: {e}",))?,
+        );
 
         // activate/deactivate DDS Reader on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)

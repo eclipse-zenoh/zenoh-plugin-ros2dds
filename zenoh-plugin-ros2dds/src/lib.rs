@@ -41,7 +41,6 @@ use zenoh::{
         keyexpr, OwnedKeyExpr,
     },
     liveliness::LivelinessToken,
-    prelude::*,
     query::Query,
     sample::SampleKind,
     Result as ZResult, Session,
@@ -285,13 +284,13 @@ pub async fn run(runtime: Runtime, config: Config) {
     ros2_plugin.run().await;
 }
 
-pub struct ROS2PluginRuntime<'a> {
+pub struct ROS2PluginRuntime {
     config: Arc<Config>,
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: Arc<Session>,
     participant: dds_entity_t,
-    _member: LivelinessToken<'a>,
+    _member: LivelinessToken,
     // admin space: index is the admin_keyexpr
     // value is the JSon string to return to queries.
     admin_space: HashMap<OwnedKeyExpr, AdminRef>,
@@ -304,7 +303,7 @@ enum AdminRef {
     Version,
 }
 
-impl<'a> ROS2PluginRuntime<'a> {
+impl ROS2PluginRuntime {
     async fn run(&mut self) {
         // Subscribe to all liveliness info from other ROS2 plugins
         let ke_liveliness_all = keformat!(

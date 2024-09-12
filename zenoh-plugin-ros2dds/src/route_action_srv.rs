@@ -17,7 +17,6 @@ use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
 };
 
 use crate::{
@@ -26,7 +25,7 @@ use crate::{
 };
 
 #[derive(Serialize)]
-pub struct RouteActionSrv<'a> {
+pub struct RouteActionSrv {
     // the ROS2 Action name
     ros2_name: String,
     // the ROS2 type
@@ -42,25 +41,25 @@ pub struct RouteActionSrv<'a> {
     context: Context,
     is_active: bool,
     #[serde(skip)]
-    route_send_goal: RouteServiceSrv<'a>,
+    route_send_goal: RouteServiceSrv,
     #[serde(skip)]
-    route_cancel_goal: RouteServiceSrv<'a>,
+    route_cancel_goal: RouteServiceSrv,
     #[serde(skip)]
-    route_get_result: RouteServiceSrv<'a>,
+    route_get_result: RouteServiceSrv,
     #[serde(skip)]
-    route_feedback: RoutePublisher<'a>,
+    route_feedback: RoutePublisher,
     #[serde(skip)]
-    route_status: RoutePublisher<'a>,
+    route_status: RoutePublisher,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl fmt::Display for RouteActionSrv<'_> {
+impl fmt::Display for RouteActionSrv {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -70,14 +69,14 @@ impl fmt::Display for RouteActionSrv<'_> {
     }
 }
 
-impl RouteActionSrv<'_> {
+impl RouteActionSrv {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,
         context: Context,
-    ) -> Result<RouteActionSrv<'a>, String> {
+    ) -> Result<RouteActionSrv, String> {
         let route_send_goal = RouteServiceSrv::create(
             format!("{ros2_name}/{}", *KE_SUFFIX_ACTION_SEND_GOAL),
             format!("{ros2_type}_SendGoal"),

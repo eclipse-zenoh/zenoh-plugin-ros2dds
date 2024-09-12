@@ -83,22 +83,22 @@ pub struct Context {
     pub(crate) ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
 }
 
-pub struct RoutesMgr<'a> {
+pub struct RoutesMgr {
     context: Context,
     // maps of established routes - ecah map indexed by topic/service/action name
-    routes_publishers: HashMap<String, RoutePublisher<'a>>,
-    routes_subscribers: HashMap<String, RouteSubscriber<'a>>,
-    routes_service_srv: HashMap<String, RouteServiceSrv<'a>>,
-    routes_service_cli: HashMap<String, RouteServiceCli<'a>>,
-    routes_action_srv: HashMap<String, RouteActionSrv<'a>>,
-    routes_action_cli: HashMap<String, RouteActionCli<'a>>,
+    routes_publishers: HashMap<String, RoutePublisher>,
+    routes_subscribers: HashMap<String, RouteSubscriber>,
+    routes_service_srv: HashMap<String, RouteServiceSrv>,
+    routes_service_cli: HashMap<String, RouteServiceCli>,
+    routes_action_srv: HashMap<String, RouteActionSrv>,
+    routes_action_cli: HashMap<String, RouteActionCli>,
     // admin space key prefix (stripped in map indexes)
     admin_prefix: OwnedKeyExpr,
     // admin space: index is the admin_keyexpr (relative to admin_prefix)
     admin_space: HashMap<OwnedKeyExpr, RouteRef>,
 }
 
-impl<'a> RoutesMgr<'a> {
+impl<'a> RoutesMgr {
     pub fn new(
         config: Arc<Config>,
         zsession: Arc<Session>,
@@ -106,7 +106,7 @@ impl<'a> RoutesMgr<'a> {
         discovered_entities: Arc<RwLock<DiscoveredEntities>>,
         ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
         admin_prefix: OwnedKeyExpr,
-    ) -> RoutesMgr<'a> {
+    ) -> RoutesMgr {
         let context = Context {
             config,
             zsession,
@@ -560,7 +560,7 @@ impl<'a> RoutesMgr<'a> {
         keyless: bool,
         reader_qos: Qos,
         admin_space_ref: bool,
-    ) -> Result<&mut RoutePublisher<'a>, String> {
+    ) -> Result<&mut RoutePublisher, String> {
         match self.routes_publishers.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr
@@ -598,7 +598,7 @@ impl<'a> RoutesMgr<'a> {
         keyless: bool,
         writer_qos: Qos,
         admin_space_ref: bool,
-    ) -> Result<&mut RouteSubscriber<'a>, String> {
+    ) -> Result<&mut RouteSubscriber, String> {
         match self.routes_subscribers.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr
@@ -633,7 +633,7 @@ impl<'a> RoutesMgr<'a> {
         ros2_name: String,
         ros2_type: String,
         admin_space_ref: bool,
-    ) -> Result<&mut RouteServiceSrv<'a>, String> {
+    ) -> Result<&mut RouteServiceSrv, String> {
         match self.routes_service_srv.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr
@@ -667,7 +667,7 @@ impl<'a> RoutesMgr<'a> {
         ros2_name: String,
         ros2_type: String,
         admin_space_ref: bool,
-    ) -> Result<&mut RouteServiceCli<'a>, String> {
+    ) -> Result<&mut RouteServiceCli, String> {
         match self.routes_service_cli.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
@@ -703,7 +703,7 @@ impl<'a> RoutesMgr<'a> {
         &mut self,
         ros2_name: String,
         ros2_type: String,
-    ) -> Result<&mut RouteActionSrv<'a>, String> {
+    ) -> Result<&mut RouteActionSrv, String> {
         match self.routes_action_srv.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
@@ -733,7 +733,7 @@ impl<'a> RoutesMgr<'a> {
         &mut self,
         ros2_name: String,
         ros2_type: String,
-    ) -> Result<&mut RouteActionCli<'a>, String> {
+    ) -> Result<&mut RouteActionCli, String> {
         match self.routes_action_cli.entry(ros2_name.clone()) {
             Entry::Vacant(entry) => {
                 // ROS2 topic name => Zenoh key expr : strip '/' prefix
