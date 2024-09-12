@@ -188,11 +188,11 @@
   //// peers, or client can use to establish a zenoh session.
   //// In 'router' mode (default) the zenoh-bridge-ros2dds is listening by default on `tcp/0.0.0.0:7447` (`0.0.0.0` meaning all the available network interfaces)
   ////
-  listen: {
-    endpoints: [
-      // "<proto>/<ip>:<port>"
-    ]
-  },
+  // listen: {
+  //  endpoints: [
+  //    // "<proto>/<ip>:<port>"
+  //  ]
+  //},
 
   ////
   //// Configure the scouting mechanisms and their behaviours
