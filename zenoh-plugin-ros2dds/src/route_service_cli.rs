@@ -30,10 +30,9 @@ use zenoh::{
     internal::buffers::{Buffer, ZBuf, ZSlice},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
     query::Reply,
     sample::Locality,
-    Session,
+    Session, Wait,
 };
 
 use crate::{
@@ -54,7 +53,7 @@ use crate::{
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
-pub struct RouteServiceCli<'a> {
+pub struct RouteServiceCli {
     // the ROS2 Service name
     ros2_name: String,
     // the ROS2 type
@@ -78,20 +77,20 @@ pub struct RouteServiceCli<'a> {
     rep_writer: Arc<AtomicDDSEntity>,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl Drop for RouteServiceCli<'_> {
+impl Drop for RouteServiceCli {
     fn drop(&mut self) {
         self.deactivate();
     }
 }
 
-impl fmt::Display for RouteServiceCli<'_> {
+impl fmt::Display for RouteServiceCli {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -101,7 +100,7 @@ impl fmt::Display for RouteServiceCli<'_> {
     }
 }
 
-impl RouteServiceCli<'_> {
+impl RouteServiceCli {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
         ros2_name: String,
@@ -110,7 +109,7 @@ impl RouteServiceCli<'_> {
         type_info: Option<Arc<TypeInfo>>,
         queries_timeout: Duration,
         context: Context,
-    ) -> Result<RouteServiceCli<'a>, String> {
+    ) -> Result<RouteServiceCli, String> {
         tracing::debug!(
             "Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): creation with type {ros2_type} (queries_timeout={queries_timeout:#?})"
         );

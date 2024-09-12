@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use clap::builder::FalseyValueParser;
-use zenoh::{config::Config, prelude::*};
+use zenoh::config::Config;
 use zenoh_plugin_trait::Plugin;
 
 use crate::zenoh_args::CommonArgs;

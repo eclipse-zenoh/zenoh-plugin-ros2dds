@@ -31,8 +31,8 @@ use zenoh::{
     },
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
     query::{Query, Queryable},
+    Wait,
 };
 
 use crate::{
@@ -53,7 +53,7 @@ use crate::{
 
 // a route for a Service Server exposed in Zenoh as a Queryable
 #[derive(Serialize)]
-pub struct RouteServiceSrv<'a> {
+pub struct RouteServiceSrv {
     // the ROS2 Service name
     ros2_name: String,
     // the ROS2 type
@@ -66,7 +66,7 @@ pub struct RouteServiceSrv<'a> {
     // the zenoh queryable used to expose the service server in zenoh.
     // `None` when route is created on a remote announcement and no local ROS2 Service Server discovered yet
     #[serde(rename = "is_active", serialize_with = "serialize_option_as_bool")]
-    zenoh_queryable: Option<Queryable<'a, ()>>,
+    zenoh_queryable: Option<Queryable<()>>,
     // the local DDS Writer sending requests to the service server
     #[serde(serialize_with = "serialize_entity_guid")]
     req_writer: dds_entity_t,
@@ -84,14 +84,14 @@ pub struct RouteServiceSrv<'a> {
     queries_in_progress: Arc<RwLock<HashMap<CddsRequestHeader, Query>>>,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
-    liveliness_token: Option<LivelinessToken<'a>>,
+    liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
 }
 
-impl Drop for RouteServiceSrv<'_> {
+impl Drop for RouteServiceSrv {
     fn drop(&mut self) {
         // remove writer's GID from ros_discovery_info message
         match get_guid(&self.req_writer) {
@@ -113,7 +113,7 @@ impl Drop for RouteServiceSrv<'_> {
     }
 }
 
-impl fmt::Display for RouteServiceSrv<'_> {
+impl fmt::Display for RouteServiceSrv {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -123,7 +123,7 @@ impl fmt::Display for RouteServiceSrv<'_> {
     }
 }
 
-impl RouteServiceSrv<'_> {
+impl RouteServiceSrv {
     #[allow(clippy::too_many_arguments)]
     pub async fn create<'a>(
         ros2_name: String,
@@ -131,7 +131,7 @@ impl RouteServiceSrv<'_> {
         zenoh_key_expr: OwnedKeyExpr,
         type_info: &Option<Arc<TypeInfo>>,
         context: Context,
-    ) -> Result<RouteServiceSrv<'a>, String> {
+    ) -> Result<RouteServiceSrv, String> {
         let route_id = format!("Route Service Server (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr})");
         tracing::debug!("{route_id}: creation with type {ros2_type}");
 
