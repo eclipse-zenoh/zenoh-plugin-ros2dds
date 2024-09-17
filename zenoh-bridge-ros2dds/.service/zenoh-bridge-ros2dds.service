@@ -15,7 +15,10 @@ RestartKillSignal=SIGINT
 Restart=on-failure
 RestartSec=2
 User=zenoh-bridge-ros2dds
+StandardOutput=syslog
+StandardError=syslog
 SyslogIdentifier=zenoh-bridge-ros2dds
+
 [Install]
 WantedBy=multi-user.target
 
