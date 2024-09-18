@@ -764,7 +764,7 @@ impl<'a> RoutesMgr {
 
         // get the list of sub-key expressions that will match the same stored keys than
         // the selector, if those keys had the admin_keyexpr_prefix.
-        let sub_kes = selector.key_expr.strip_prefix(&self.admin_prefix);
+        let sub_kes = selector.key_expr().strip_prefix(&self.admin_prefix);
         if sub_kes.is_empty() {
             tracing::error!("Received query for admin space: '{}' - but it's not prefixed by admin_keyexpr_prefix='{}'", selector, &self.admin_prefix);
             return;
