@@ -18,9 +18,10 @@ use bridge_args::BridgeArgs;
 use clap::Parser;
 use ros_args::RosArgs;
 use zenoh::{
-    config::{Config, ModeDependentValue},
+    config::Config,
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
 };
+use zenoh_config::ModeDependentValue;
 use zenoh_plugin_trait::Plugin;
 
 mod bridge_args;

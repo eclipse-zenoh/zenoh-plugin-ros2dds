@@ -44,9 +44,11 @@ tokio = { version = "1.35.1", default-features = false } # Default features are 
 tracing = "0.1"
 zenoh = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
   "internal",
+  "internal_config",
   "unstable",
   "plugins",
 ] }
+zenoh-config = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
 zenoh-ext = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
   "unstable",
 ] }
