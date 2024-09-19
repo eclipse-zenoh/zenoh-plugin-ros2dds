@@ -23,7 +23,8 @@ case "$1" in
     userdel zenoh-bridge-ros2dds > /dev/null 2>&1 || true
     rm -rf /etc/zenoh-bridge-ros2dds
     ;;
-
+    upgrade)
+    ;;
     *)
         echo "postrm called with unknown argument \`$1'" >&2
         exit 1
