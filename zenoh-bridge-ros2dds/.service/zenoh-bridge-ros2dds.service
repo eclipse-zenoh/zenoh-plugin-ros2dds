@@ -8,16 +8,15 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=RUST_LOG=info
-ExecStart = /usr/bin/zenoh-bridge-ros2dds -c /etc/zenoh-bridge-ros2dds/conf.json5
+ExecStart =+/usr/bin/zenoh-bridge-ros2dds -c /etc/zenoh-bridge-ros2dds/conf.json5
 KillMode=mixed
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 Restart=on-failure
 RestartSec=2
-PermissionsStartOnly=true
 User=zenoh-bridge-ros2dds
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=zenoh-bridge-ros2dds
 [Install]
 WantedBy=multi-user.target
