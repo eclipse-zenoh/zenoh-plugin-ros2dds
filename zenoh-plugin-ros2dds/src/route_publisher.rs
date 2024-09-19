@@ -28,8 +28,8 @@ use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    pubsub::{Publisher, Reliability},
-    qos::{CongestionControl, Priority},
+    pubsub::Publisher,
+    qos::{CongestionControl, Priority, Reliability},
     sample::Locality,
     Wait,
 };
