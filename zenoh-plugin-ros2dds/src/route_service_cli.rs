@@ -364,9 +364,9 @@ fn route_dds_request_to_zenoh(
         slice.subslice(0..4),            // header: 4 bytes
         is_cdr_little_endian(slice.as_ref()), // check endianness flag
     ) {
-        (Some(header), Some(Ok(request_id)), Some(payload), Some(is_little_endian)) => {
+        (Some(payload), Some(Ok(request_id)), Some(header), Some(is_little_endian)) => {
             let request_id = CddsRequestHeader::from_slice(request_id, is_little_endian);
-            (header, request_id, payload)
+            (payload, request_id, header)
         }
         _ => {
             tracing::warn!("{route_id}: received invalid request: {sample:0x?} (less than 20 bytes) dropping it");
