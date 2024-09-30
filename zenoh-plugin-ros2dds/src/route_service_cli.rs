@@ -355,7 +355,7 @@ fn route_dds_request_to_zenoh(
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
 
     let z_bytes: ZBytes = sample.into();
-    let slice: ZSlice = z_bytes.into();
+    let slice: ZSlice = ZBuf::from(z_bytes).to_zslice();
 
     // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
     let (payload, request_id, header) = match (
@@ -376,6 +376,7 @@ fn route_dds_request_to_zenoh(
 
     // route request buffer stripped from request_id
     let mut zenoh_req_buf = ZBuf::empty();
+
     zenoh_req_buf.push_zslice(header);
     zenoh_req_buf.push_zslice(payload);
 
@@ -431,7 +432,7 @@ fn route_zenoh_reply_to_dds(
 ) {
     match reply.result() {
         Ok(sample) => {
-            let zenoh_rep_buf = sample.payload().into::<Vec<u8>>();
+            let zenoh_rep_buf = sample.payload().to_bytes();
             if zenoh_rep_buf.len() < 4 || zenoh_rep_buf[1] > 1 {
                 tracing::warn!(
                     "{route_id}: received invalid reply from Zenoh for {request_id}: {zenoh_rep_buf:0x?}"

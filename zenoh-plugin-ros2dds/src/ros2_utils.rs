@@ -228,7 +228,13 @@ impl CddsRequestHeader {
         buf[16] = self.is_little_endian as u8;
 
         hashmap.insert(ATTACHMENT_KEY_REQUEST_HEADER, buf);
-        ZBytes::from_iter(hashmap.iter())
+
+        let mut writer = ZBytes::writer();
+        for (k, v) in hashmap.iter() {
+            writer.append(ZBytes::from(k));
+            writer.append(ZBytes::from(v));
+        }
+        writer.finish()
     }
 }
 
@@ -236,8 +242,8 @@ impl TryFrom<&ZBytes> for CddsRequestHeader {
     type Error = ZError;
 
     fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
-        let hashmap: HashMap<[u8; 3], [u8; 17]> =
-            HashMap::from_iter(value.iter::<([u8; 3], [u8; 17])>().map(Result::unwrap));
+        let hashmap: HashMap<[u8; 3], [u8; 17]> = zenoh_ext::z_deserialize(value).unwrap();
+
         match hashmap.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
             Some(buf) => {
                 if buf.len() == 17 {

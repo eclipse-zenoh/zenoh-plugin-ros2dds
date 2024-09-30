@@ -601,8 +601,8 @@ impl ROS2PluginRuntime {
     async fn send_admin_reply(&self, query: &Query, key_expr: &keyexpr, admin_ref: &AdminRef) {
         let z_bytes: ZBytes = match admin_ref {
             AdminRef::Version => match serde_json::to_value(ROS2Plugin::PLUGIN_LONG_VERSION) {
-                Ok(v) => match ZBytes::try_from(v) {
-                    Ok(value) => value,
+                Ok(v) => match serde_json::to_vec(&v) {
+                    Ok(bytes) => ZBytes::from(bytes),
                     Err(e) => {
                         tracing::warn!("Error transforming JSON to ZBytes: {}", e);
                         return;
@@ -614,8 +614,8 @@ impl ROS2PluginRuntime {
                 }
             },
             AdminRef::Config => match serde_json::to_value(&*self.config) {
-                Ok(v) => match ZBytes::try_from(v) {
-                    Ok(value) => value,
+                Ok(v) => match serde_json::to_vec(&v) {
+                    Ok(bytes) => ZBytes::from(bytes),
                     Err(e) => {
                         tracing::warn!("Error transforming JSON to ZBytes: {}", e);
                         return;
