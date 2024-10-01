@@ -792,10 +792,10 @@ impl<'a> RoutesMgr {
         match self.get_entity_json_value(route_ref) {
             Ok(Some(v)) => {
                 let admin_keyexpr = &self.admin_prefix / key_expr;
-                match ZBytes::try_from(v) {
-                    Ok(payload) => {
+                match serde_json::to_vec(&v) {
+                    Ok(bytes) => {
                         if let Err(e) = query
-                            .reply(admin_keyexpr, payload)
+                            .reply(admin_keyexpr, ZBytes::from(bytes))
                             .encoding(Encoding::APPLICATION_JSON)
                             .await
                         {

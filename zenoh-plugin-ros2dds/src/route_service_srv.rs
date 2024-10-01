@@ -361,7 +361,7 @@ fn route_zenoh_request_to_dds(
     // if any and if long enoough it shall be the Request type encoded as CDR (including 4 bytes header)
     let is_little_endian = match query.payload() {
         Some(value) if value.len() > 4 => {
-            is_cdr_little_endian(value.into::<ZSlice>().as_ref()).unwrap_or(true)
+            is_cdr_little_endian(value.to_bytes().as_ref()).unwrap_or(true)
         }
         _ => true,
     };
@@ -383,7 +383,7 @@ fn route_zenoh_request_to_dds(
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
     let dds_req_buf = if let Some(value) = query.payload() {
         // The query comes with some payload. It's expected to be the Request type encoded as CDR (including 4 bytes header)
-        let zenoh_req_buf = value.into::<Vec<u8>>();
+        let zenoh_req_buf = value.to_bytes();
         if zenoh_req_buf.len() < 4 || zenoh_req_buf[1] > 1 {
             tracing::warn!("{route_id}: received invalid request: {zenoh_req_buf:0x?}");
             return;
@@ -442,7 +442,7 @@ fn route_dds_reply_to_zenoh(
     // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/serdata.hpp#L73
 
     let z_bytes: ZBytes = sample.into();
-    let slice: ZSlice = z_bytes.into();
+    let slice: ZSlice = ZBuf::from(z_bytes).to_zslice();
 
     // Decompose the slice into 3 sub-slices (4 bytes header, 16 bytes request_id and payload)
     let (payload, request_id, header) = match (

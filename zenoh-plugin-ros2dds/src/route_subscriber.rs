@@ -357,7 +357,7 @@ fn route_zenoh_message_to_dds(s: Sample, ros2_name: &str, data_writer: dds_entit
     }
 
     unsafe {
-        let bs = s.payload().into();
+        let bs = s.payload().to_bytes().to_vec();
         // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
         // the only way to correctly releasing it is to create a vec using from_raw_parts
         // and then have its destructor do the cleanup.

@@ -13,7 +13,6 @@
 //
 
 use std::{
-    collections::HashMap,
     env::VarError,
     sync::atomic::{AtomicU32, Ordering},
 };
@@ -220,15 +219,15 @@ impl CddsRequestHeader {
     }
 
     pub fn as_attachment(&self) -> ZBytes {
-        let mut hashmap = HashMap::new();
-
         // concat header + endianness flag
         let mut buf = [0u8; 17];
         buf[0..16].copy_from_slice(&self.header);
         buf[16] = self.is_little_endian as u8;
 
-        hashmap.insert(ATTACHMENT_KEY_REQUEST_HEADER, buf);
-        ZBytes::from_iter(hashmap.iter())
+        let mut writer = ZBytes::writer();
+        writer.append(ZBytes::from(ATTACHMENT_KEY_REQUEST_HEADER));
+        writer.append(ZBytes::from(buf));
+        writer.finish()
     }
 }
 
@@ -236,23 +235,34 @@ impl TryFrom<&ZBytes> for CddsRequestHeader {
     type Error = ZError;
 
     fn try_from(value: &ZBytes) -> Result<Self, Self::Error> {
-        let hashmap: HashMap<[u8; 3], [u8; 17]> =
-            HashMap::from_iter(value.iter::<([u8; 3], [u8; 17])>().map(Result::unwrap));
-        match hashmap.get(&ATTACHMENT_KEY_REQUEST_HEADER) {
-            Some(buf) => {
-                if buf.len() == 17 {
-                    let header: [u8; 16] = buf[0..16]
-                        .try_into()
-                        .expect("Shouldn't happen: buf is 17 bytes");
-                    Ok(CddsRequestHeader {
-                        header,
-                        is_little_endian: buf[16] != 0,
-                    })
-                } else {
-                    bail!("Attachment 'header' is not 16 bytes: {buf:02x?}")
-                }
+        let bytes = value.to_bytes();
+
+        let header = match bytes.get(0..ATTACHMENT_KEY_REQUEST_HEADER.len()) {
+            Some(header) => header,
+            None => bail!("No 'key request header' bytes found in attachment"),
+        };
+
+        if header != ATTACHMENT_KEY_REQUEST_HEADER {
+            bail!(
+                "Initial {:?} bytes do not match ATTACHMENT_KEY_REQUEST_HEADER",
+                ATTACHMENT_KEY_REQUEST_HEADER.len()
+            )
+        }
+
+        if let Some(buf) = bytes.get(ATTACHMENT_KEY_REQUEST_HEADER.len()..) {
+            if buf.len() == 17 {
+                let header: [u8; 16] = buf[0..16]
+                    .try_into()
+                    .expect("Shouldn't happen: buf is 17 bytes");
+                Ok(CddsRequestHeader {
+                    header,
+                    is_little_endian: buf[16] != 0,
+                })
+            } else {
+                bail!("Attachment 'header' is not 16 bytes: {buf:02x?}")
             }
-            None => bail!("No 'header' key found in Attachment"),
+        } else {
+            bail!("Could not Read Remaining Attachment Buffer")
         }
     }
 }
