@@ -4383,7 +4383,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "ahash",
  "async-trait",
@@ -4451,7 +4451,7 @@ dependencies = [
 [[package]]
 name = "zenoh-buffers"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "zenoh-collections",
 ]
@@ -4459,7 +4459,7 @@ dependencies = [
 [[package]]
 name = "zenoh-codec"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "tracing",
  "uhlc",
@@ -4470,12 +4470,12 @@ dependencies = [
 [[package]]
 name = "zenoh-collections"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 
 [[package]]
 name = "zenoh-config"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "json5",
  "num_cpus",
@@ -4496,7 +4496,7 @@ dependencies = [
 [[package]]
 name = "zenoh-core"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "lazy_static",
  "tokio",
@@ -4507,7 +4507,7 @@ dependencies = [
 [[package]]
 name = "zenoh-crypto"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "aes 0.8.4",
  "hmac 0.12.1",
@@ -4520,7 +4520,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "bincode",
  "flume",
@@ -4537,7 +4537,7 @@ dependencies = [
 [[package]]
 name = "zenoh-keyexpr"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "hashbrown",
  "keyed-set",
@@ -4551,7 +4551,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "zenoh-config",
  "zenoh-link-commons",
@@ -4568,7 +4568,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-commons"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "flume",
@@ -4591,7 +4591,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-quic"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4616,7 +4616,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tcp"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "socket2 0.5.7",
@@ -4633,7 +4633,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tls"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4660,7 +4660,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-udp"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "socket2 0.5.7",
@@ -4679,7 +4679,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-unixsock_stream"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "nix",
@@ -4697,7 +4697,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-ws"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -4717,7 +4717,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4728,7 +4728,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "anyhow",
  "async-std",
@@ -4778,7 +4778,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "git-version",
  "libloading",
@@ -4794,7 +4794,7 @@ dependencies = [
 [[package]]
 name = "zenoh-protocol"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "const_format",
  "rand 0.8.5",
@@ -4808,7 +4808,7 @@ dependencies = [
 [[package]]
 name = "zenoh-result"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "anyhow",
 ]
@@ -4816,7 +4816,7 @@ dependencies = [
 [[package]]
 name = "zenoh-runtime"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "lazy_static",
  "ron",
@@ -4829,7 +4829,7 @@ dependencies = [
 [[package]]
 name = "zenoh-sync"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "event-listener 5.3.1",
  "futures",
@@ -4842,7 +4842,7 @@ dependencies = [
 [[package]]
 name = "zenoh-task"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "futures",
  "tokio",
@@ -4855,7 +4855,7 @@ dependencies = [
 [[package]]
 name = "zenoh-transport"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "crossbeam-utils",
@@ -4888,7 +4888,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "1.0.0-dev"
-source = "git+https://github.com/ZettaScaleLabs/zenoh.git?branch=serialization_ext2#2acefcd4aa04d022aac63d8c1efe7beed852d2a1"
+source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#c040abdb12d1afccb90131d9a9712e38437426d7"
 dependencies = [
  "async-trait",
  "const_format",
