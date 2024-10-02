@@ -192,6 +192,7 @@ impl RouteSubscriber {
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
                 .callback(subscriber_callback)
+                .undeclare_on_drop(true)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .querying()
                 .query_timeout(self.queries_timeout)
@@ -206,6 +207,7 @@ impl RouteSubscriber {
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
                 .callback(subscriber_callback)
+                .undeclare_on_drop(true)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .await
                 .map_err(|e| format!("{self}: failed to create Subscriber: {e}"))?;
