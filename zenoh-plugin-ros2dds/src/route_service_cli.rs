@@ -264,7 +264,7 @@ impl RouteServiceCli {
         let rep_writer = self.rep_writer.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
         if rep_writer != DDS_ENTITY_NULL {
             // remove writer's GID from ros_discovery_info message
-            match get_guid(&req_reader) {
+            match get_guid(&rep_writer) {
                 Ok(gid) => self.context.ros_discovery_mgr.remove_dds_writer(gid),
                 Err(e) => tracing::warn!("{self}: {e}"),
             }

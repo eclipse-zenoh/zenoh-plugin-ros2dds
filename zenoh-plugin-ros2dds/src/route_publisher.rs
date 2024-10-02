@@ -274,6 +274,7 @@ impl RoutePublisher {
                         }
                     }
                 })
+                .undeclare_on_drop(true)
                 .await
                 .map_err(|e| format!("Failed to listen of matching status changes: {e}",))?
         };
