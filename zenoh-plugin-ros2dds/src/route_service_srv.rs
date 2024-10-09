@@ -255,7 +255,6 @@ impl RouteServiceSrv {
                         req_writer,
                     )
                 })
-                .undeclare_on_drop(true)
                 .await
                 .map_err(|e| {
                     format!(
