@@ -21,7 +21,7 @@ edition = "2021"
 homepage = "http://zenoh.io"
 license = "EPL-2.0 OR Apache-2.0"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
-version = "1.0.0-dev"
+version = "1.0.0"
 
 [workspace.dependencies]
 async-liveliness-monitor = "0.1.1"
