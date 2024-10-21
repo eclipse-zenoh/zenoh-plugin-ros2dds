@@ -42,17 +42,17 @@ serde = "1.0.154"
 serde_json = "1.0.114"
 tokio = { version = "1.35.1", default-features = false } # Default features are disabled due to some crates' requirements
 tracing = "0.1"
-zenoh = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
+zenoh = { version = "1.0.0", features = [
   "plugins",
   "unstable",
 ] }
-zenoh-config = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-ext = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
+zenoh-config = { version = "1.0.0", default-features = false }
+zenoh-ext = { version = "1.0.0", features = [
   "unstable",
 ] }
-zenoh-plugin-ros2dds = { version = "1.0.0-dev", path = "zenoh-plugin-ros2dds/", default-features = false }
-zenoh-plugin-rest = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false, features=["static_plugin"]}
-zenoh-plugin-trait = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
+zenoh-plugin-ros2dds = { version = "1.0.0", path = "zenoh-plugin-ros2dds/", default-features = false }
+zenoh-plugin-rest = { version = "1.0.0", default-features = false, features=["static_plugin"]}
+zenoh-plugin-trait = { version = "1.0.0", default-features = false }
 
 
 [profile.release]
