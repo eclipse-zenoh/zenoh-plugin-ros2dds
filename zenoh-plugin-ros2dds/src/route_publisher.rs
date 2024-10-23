@@ -51,7 +51,7 @@ use crate::{
 
 pub struct ZPublisher {
     publisher: Arc<Publisher<'static>>,
-    _matching_listener: zenoh::pubsub::MatchingListener<()>,
+    matching_listener: Option<zenoh::pubsub::MatchingListener<()>>,
     _cache: Option<PublicationCache>,
     cache_size: usize,
 }
@@ -113,6 +113,13 @@ pub struct RoutePublisher {
 impl Drop for RoutePublisher {
     fn drop(&mut self) {
         self.deactivate_dds_reader();
+        let matching_listener =
+            std::mem::replace(&mut self.zenoh_publisher.matching_listener, None);
+        if let Some(matching_listener) = matching_listener {
+            if let Err(e) = matching_listener.undeclare().wait() {
+                tracing::warn!("Unable to undeclare matching_listener: {e:?}");
+            }
+        }
     }
 }
 
@@ -285,7 +292,7 @@ impl RoutePublisher {
             context,
             zenoh_publisher: ZPublisher {
                 publisher,
-                _matching_listener: matching_listener,
+                matching_listener: Some(matching_listener),
                 _cache: cache,
                 cache_size,
             },
