@@ -11,54 +11,33 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::task::sleep;
 use cdr::{CdrLe, Infinite};
-use clap::{App, Arg};
 use serde::Serialize;
 use std::time::Duration;
-use zenoh::config::Config;
-use zenoh::prelude::r#async::*;
+use tokio::time::sleep;
 
 #[derive(Serialize, PartialEq, Debug)]
 struct Message {
     data: String,
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     // Initiate logging
     env_logger::init();
 
-    let config = parse_args();
-
     println!("Opening session...");
-    let session = zenoh::open(config).res().await.unwrap();
+    let session = zenoh::open(zenoh::Config::default()).await.unwrap();
 
-    let publisher = session.declare_publisher("chatter").res().await.unwrap();
+    let publisher = session.declare_publisher("chatter").await.unwrap();
 
-    for idx in 0..u32::MAX {
+    for idx in 1..u32::MAX {
         sleep(Duration::from_secs(1)).await;
         let message = Message {
             data: format!("Hello World:{idx:4}"),
         };
         let buf = cdr::serialize::<_, _, CdrLe>(&message, Infinite).unwrap();
         println!("Publishing: '{}')...", message.data);
-        publisher.put(buf).res().await.unwrap();
+        publisher.put(buf).await.unwrap();
     }
-}
-
-fn parse_args() -> Config {
-    let args = App::new("zenoh talker example")
-        .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
-        ))
-        .get_matches();
-
-    let config = if let Some(conf_file) = args.value_of("config") {
-        Config::from_file(conf_file).unwrap()
-    } else {
-        Config::default()
-    };
-
-    config
 }

@@ -3,12 +3,15 @@ name = "rust_examples"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+unstable = ["zenoh/unstable"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [workspace]
 [dependencies]
 async-std = { version = "1.12.0" }
 futures = { version = "0.3.28" }
-zenoh = { version = "0.10.1-rc" }
+zenoh = { version = "1.0.0" }
 clap = { version = "4.4.11", features = ["derive"] }
 env_logger = { version = "0.10.0" }
 serde = {version = "1" }

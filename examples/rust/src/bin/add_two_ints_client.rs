@@ -12,10 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use cdr::{CdrLe, Infinite};
-use clap::{App, Arg};
 use serde::{Deserialize, Serialize};
-use zenoh::config::Config;
-use zenoh::prelude::r#async::*;
 
 #[derive(Serialize, PartialEq, Debug)]
 struct AddTwoIntsRequest {
@@ -28,26 +25,19 @@ struct AddTwoIntsResponse {
     sum: i64,
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let config = parse_args();
-
-    let session = zenoh::open(config).res().await.unwrap();
+    let session = zenoh::open(zenoh::Config::default()).await.unwrap();
 
     let req = AddTwoIntsRequest { a: 2, b: 3 };
     let buf = cdr::serialize::<_, _, CdrLe>(&req, Infinite).unwrap();
-    let replies = session
-        .get("add_two_ints")
-        .with_value(buf)
-        .res()
-        .await
-        .unwrap();
+    let replies = session.get("add_two_ints").payload(buf).await.unwrap();
 
     while let Ok(reply) = replies.recv_async().await {
         match cdr::deserialize_from::<_, AddTwoIntsResponse, _>(
-            reply.sample.unwrap().payload.reader(),
+            reply.result().unwrap().payload().reader(),
             cdr::size::Infinite,
         ) {
             Ok(res) => {
@@ -56,20 +46,4 @@ async fn main() {
             Err(e) => log::warn!("Error decoding message: {}", e),
         }
     }
-}
-
-fn parse_args() -> Config {
-    let args = App::new("zenoh sub example")
-        .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
-        ))
-        .get_matches();
-
-    let config = if let Some(conf_file) = args.value_of("config") {
-        Config::from_file(conf_file).unwrap()
-    } else {
-        Config::default()
-    };
-
-    config
 }
