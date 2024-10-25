@@ -14,13 +14,13 @@
 use cdr::{CdrLe, Infinite};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug)]
 struct AddTwoIntsRequest {
     a: i64,
     b: i64,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Debug)]
 struct AddTwoIntsResponse {
     sum: i64,
 }
@@ -31,17 +31,25 @@ async fn main() {
 
     let session = zenoh::open(zenoh::Config::default()).await.unwrap();
 
-    let req = AddTwoIntsRequest { a: 2, b: 3 };
-    let buf = cdr::serialize::<_, _, CdrLe>(&req, Infinite).unwrap();
-    let replies = session.get("add_two_ints").payload(buf).await.unwrap();
+    let liveliness = session.liveliness().declare_token("@/f2f0382de97ce1ddc0e6738833feb2b9/@ros2_lv/SS/add_two_ints/example_interfaces§srv§AddTwoInts").await.unwrap();
 
-    while let Ok(reply) = replies.recv_async().await {
-        match cdr::deserialize_from::<_, AddTwoIntsResponse, _>(
-            reply.result().unwrap().payload().reader(),
+    let queryable = session
+        .declare_queryable("add_two_ints")
+        .complete(true)
+        .await
+        .unwrap();
+
+    while let Ok(query) = queryable.recv_async().await {
+        match cdr::deserialize_from::<_, AddTwoIntsRequest, _>(
+            query.payload().unwrap().reader(),
             cdr::size::Infinite,
         ) {
             Ok(res) => {
-                println!("Result of add_two_ints: {}", res.sum);
+                let reply = AddTwoIntsResponse { sum: res.a + res.b };
+                println!("Result of add_two_ints: {}", reply.sum);
+                let payload = cdr::serialize::<_, _, CdrLe>(&reply, Infinite).unwrap();
+                let key_expr = "add_two_ints";
+                query.reply(key_expr, payload).await.unwrap();
             }
             Err(e) => log::warn!("Error decoding message: {}", e),
         }

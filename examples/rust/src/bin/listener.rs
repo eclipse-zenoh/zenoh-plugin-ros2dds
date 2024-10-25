@@ -11,52 +11,29 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use clap::{App, Arg};
 use serde::Deserialize;
-use zenoh::config::Config;
-use zenoh::prelude::r#async::*;
 
 #[derive(Deserialize, PartialEq, Debug)]
 struct Message {
     data: String,
 }
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     // Initiate logging
     env_logger::init();
 
-    let config = parse_args();
-
     println!("Opening session...");
-    let session = zenoh::open(config).res().await.unwrap();
+    let session = zenoh::open(zenoh::Config::default()).await.unwrap();
 
-    let subscriber = session.declare_subscriber("chatter").res().await.unwrap();
+    let subscriber = session.declare_subscriber("chatter").await.unwrap();
 
     while let Ok(sample) = subscriber.recv_async().await {
-        match cdr::deserialize_from::<_, Message, _>(
-            sample.value.payload.reader(),
-            cdr::size::Infinite,
-        ) {
+        match cdr::deserialize_from::<_, Message, _>(sample.payload().reader(), cdr::size::Infinite)
+        {
             Ok(msg) => {
                 println!("I heard: [{}]", msg.data);
             }
             Err(e) => log::warn!("Error decoding message: {}", e),
         }
     }
-}
-
-fn parse_args() -> Config {
-    let args = App::new("zenoh sub example")
-        .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
-        ))
-        .get_matches();
-
-    let config = if let Some(conf_file) = args.value_of("config") {
-        Config::from_file(conf_file).unwrap()
-    } else {
-        Config::default()
-    };
-
-    config
 }

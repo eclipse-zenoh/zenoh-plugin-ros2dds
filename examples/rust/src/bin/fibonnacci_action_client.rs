@@ -12,10 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use cdr::{CdrLe, Infinite};
-use clap::{App, Arg};
 use serde::{Deserialize, Serialize};
-use zenoh::config::Config;
-use zenoh::prelude::r#async::*;
 
 #[derive(Deserialize, PartialEq, Debug)]
 struct Time {
@@ -52,19 +49,17 @@ struct FibonacciFeedback {
     partial_sequence: Vec<i32>,
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let config = parse_args();
-
-    let session = zenoh::open(config).res().await.unwrap();
+    let session = zenoh::open(zenoh::Config::default()).await.unwrap();
 
     let _subscriber = session
         .declare_subscriber("fibonacci/_action/feedback")
         .callback(|sample| {
             match cdr::deserialize_from::<_, FibonacciFeedback, _>(
-                sample.value.payload.reader(),
+                sample.payload().reader(),
                 cdr::size::Infinite,
             ) {
                 Ok(msg) => {
@@ -76,7 +71,6 @@ async fn main() {
                 Err(e) => log::warn!("Error decoding message: {}", e),
             };
         })
-        .res()
         .await
         .unwrap();
 
@@ -90,14 +84,13 @@ async fn main() {
     println!("Sending goal");
     let replies = session
         .get("fibonacci/_action/send_goal")
-        .with_value(buf)
-        .res()
+        .payload(buf)
         .await
         .unwrap();
 
     while let Ok(reply) = replies.recv_async().await {
         match cdr::deserialize_from::<_, FibonacciSendGoalResponse, _>(
-            reply.sample.unwrap().payload.reader(),
+            reply.result().unwrap().payload().reader(),
             cdr::size::Infinite,
         ) {
             Ok(res) => {
@@ -116,13 +109,12 @@ async fn main() {
     let buf = cdr::serialize::<_, _, CdrLe>(&req, Infinite).unwrap();
     let replies = session
         .get("fibonacci/_action/get_result")
-        .with_value(buf)
-        .res()
+        .payload(buf)
         .await
         .unwrap();
     while let Ok(reply) = replies.recv_async().await {
         match cdr::deserialize_from::<_, FibonacciGetResultResponse, _>(
-            reply.sample.unwrap().payload.reader(),
+            reply.result().unwrap().payload().reader(),
             cdr::size::Infinite,
         ) {
             Ok(res) => {
@@ -131,20 +123,4 @@ async fn main() {
             Err(e) => log::warn!("Error decoding message: {}", e),
         }
     }
-}
-
-fn parse_args() -> Config {
-    let args = App::new("zenoh sub example")
-        .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
-        ))
-        .get_matches();
-
-    let config = if let Some(conf_file) = args.value_of("config") {
-        Config::from_file(conf_file).unwrap()
-    } else {
-        Config::default()
-    };
-
-    config
 }
