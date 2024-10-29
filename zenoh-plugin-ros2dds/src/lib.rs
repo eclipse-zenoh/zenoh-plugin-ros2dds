@@ -72,7 +72,8 @@ use config::Config;
 
 use crate::{
     dds_utils::get_guid, discovery_mgr::DiscoveryMgr, events::ROS2DiscoveryEvent,
-    liveliness_mgt::*, ros_discovery::RosDiscoveryInfoMgr, routes_mgr::RoutesMgr,
+    liveliness_mgt::*, ros2_utils::ros_distro_is_less_than, ros_discovery::RosDiscoveryInfoMgr,
+    routes_mgr::RoutesMgr,
 };
 
 lazy_static::lazy_static! {
@@ -128,7 +129,19 @@ kedefine!(
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY_BEFORE_HUMBLE: &str = r#"<CycloneDDS><Domain><General>
+                                                                    <Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces>
+                                                                </General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY_AFTER_IRON: &str = r#"<CycloneDDS><Domain>
+                                                                <General>
+                                                                    <AllowMulticast>false</AllowMulticast>
+                                                                </General>
+                                                                <Discovery>
+                                                                    <ParticipantIndex>auto</ParticipantIndex>
+                                                                    <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+                                                                    <Peers><Peer address='localhost'/></Peers>
+                                                                </Discovery>
+                                                             </Domain></CycloneDDS>,"#;
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
 #[cfg(feature = "dds_shm")]
@@ -234,14 +247,25 @@ pub async fn run(runtime: Runtime, config: Config) {
 
     // if "ros_localhost_only" is set, configure CycloneDDS to use only localhost interface
     if config.ros_localhost_only {
-        env::set_var(
-            "CYCLONEDDS_URI",
-            format!(
-                "{}{}",
-                CYCLONEDDS_CONFIG_LOCALHOST_ONLY,
-                env::var("CYCLONEDDS_URI").unwrap_or_default()
-            ),
-        );
+        if ros_distro_is_less_than("iron") {
+            env::set_var(
+                "CYCLONEDDS_URI",
+                format!(
+                    "{}{}",
+                    CYCLONEDDS_CONFIG_LOCALHOST_ONLY_BEFORE_HUMBLE,
+                    env::var("CYCLONEDDS_URI").unwrap_or_default()
+                ),
+            );
+        } else {
+            env::set_var(
+                "CYCLONEDDS_URI",
+                format!(
+                    "{}{}",
+                    CYCLONEDDS_CONFIG_LOCALHOST_ONLY_AFTER_IRON,
+                    env::var("CYCLONEDDS_URI").unwrap_or_default()
+                ),
+            );
+        }
     }
 
     // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory
