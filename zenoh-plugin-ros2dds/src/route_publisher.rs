@@ -113,8 +113,7 @@ pub struct RoutePublisher {
 impl Drop for RoutePublisher {
     fn drop(&mut self) {
         self.deactivate_dds_reader();
-        let matching_listener =
-            std::mem::replace(&mut self.zenoh_publisher.matching_listener, None);
+        let matching_listener = self.zenoh_publisher.matching_listener.take();
         if let Some(matching_listener) = matching_listener {
             if let Err(e) = matching_listener.undeclare().wait() {
                 tracing::warn!("Unable to undeclare matching_listener: {e:?}");
