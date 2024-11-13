@@ -709,9 +709,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
-    use super::RosAutomaticDiscoveryRange;
     use test_case::test_case;
+
+    use super::{Config, RosAutomaticDiscoveryRange};
 
     #[test]
     fn test_allowance() {
