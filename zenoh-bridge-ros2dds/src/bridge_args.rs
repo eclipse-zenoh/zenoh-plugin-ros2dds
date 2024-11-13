@@ -43,6 +43,12 @@ pub struct BridgeArgs {
         verbatim_doc_comment
     )]
     pub ros_localhost_only: bool,
+    /// Configure CycloneDDS to apply ROS_AUTOMATIC_DISCOVREY_RANGE. The argument only takes effect after ROS 2 Iron.
+    #[arg(long, env("ROS_AUTOMATIC_DISCOVERY_RANGE"))]
+    pub ros_automatic_discovery_range: Option<String>,
+    /// Configure CycloneDDS to apply ROS_STATIC_PEERS. The argument only takes effect after ROS 2 Iron.
+    #[arg(long, env("ROS_STATIC_PEERS"))]
+    pub ros_static_peers: Option<String>,
     /// Configure CycloneDDS to use Iceoryx shared memory. If not set, CycloneDDS will instead use any shared memory settings defined in "$CYCLONEDDS_URI" configuration.
     #[cfg(feature = "dds_shm")]
     #[arg(long)]
@@ -100,6 +106,16 @@ impl From<&BridgeArgs> for Config {
             &mut config,
             "plugins/ros2dds/ros_localhost_only",
             &args.ros_localhost_only,
+        );
+        insert_json5_option(
+            &mut config,
+            "plugins/ros2dds/ros_automatic_discovery_range",
+            &args.ros_automatic_discovery_range,
+        );
+        insert_json5_option(
+            &mut config,
+            "plugins/ros2dds/ros_static_peers",
+            &args.ros_static_peers,
         );
         #[cfg(feature = "dds_shm")]
         {

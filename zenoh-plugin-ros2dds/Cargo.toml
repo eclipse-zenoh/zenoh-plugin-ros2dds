@@ -46,6 +46,7 @@ lazy_static = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+test-case = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 zenoh = { workspace = true }

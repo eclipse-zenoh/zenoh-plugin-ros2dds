@@ -68,7 +68,7 @@ mod route_service_cli;
 mod route_service_srv;
 mod route_subscriber;
 mod routes_mgr;
-use config::Config;
+use config::{Config, RosAutomaticDiscoveryRange};
 
 use crate::{
     dds_utils::get_guid, discovery_mgr::DiscoveryMgr, events::ROS2DiscoveryEvent,
@@ -129,19 +129,9 @@ kedefine!(
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY_BEFORE_HUMBLE: &str = r#"<CycloneDDS><Domain><General>
-                                                                    <Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces>
-                                                                </General></Domain></CycloneDDS>,"#;
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY_AFTER_IRON: &str = r#"<CycloneDDS><Domain>
-                                                                <General>
-                                                                    <AllowMulticast>false</AllowMulticast>
-                                                                </General>
-                                                                <Discovery>
-                                                                    <ParticipantIndex>auto</ParticipantIndex>
-                                                                    <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
-                                                                    <Peers><Peer address='localhost'/></Peers>
-                                                                </Discovery>
-                                                             </Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General>
+                                                      <Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces>
+                                                  </General></Domain></CycloneDDS>,"#;
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
 #[cfg(feature = "dds_shm")]
@@ -188,6 +178,71 @@ impl Plugin for ROS2Plugin {
 }
 impl PluginControl for ROS2Plugin {}
 impl RunningPluginTrait for ROS2Plugin {}
+
+fn create_cyclonedds_config(
+    ros_automatic_discovery_range: RosAutomaticDiscoveryRange,
+    ros_static_peers: Vec<String>,
+) -> String {
+    let mut config = String::new();
+    // Refer to https://github.com/ros2/rmw_cyclonedds/blob/c9e7001e6bf5373bdf1931535354b52eeddb2053/rmw_cyclonedds_cpp/src/rmw_node.cpp#L1134
+    let add_localhost_as_static_peer: bool;
+    let add_static_peers: bool;
+    let disable_multicast: bool;
+    match ros_automatic_discovery_range {
+        RosAutomaticDiscoveryRange::Subnet => {
+            add_localhost_as_static_peer = false;
+            add_static_peers = true;
+            disable_multicast = false;
+        }
+        RosAutomaticDiscoveryRange::SystemDefault => {
+            add_localhost_as_static_peer = false;
+            add_static_peers = false;
+            disable_multicast = false;
+        }
+        RosAutomaticDiscoveryRange::Localhost => {
+            add_localhost_as_static_peer = true;
+            add_static_peers = true;
+            disable_multicast = true;
+        }
+        RosAutomaticDiscoveryRange::Off => {
+            add_localhost_as_static_peer = false;
+            add_static_peers = false;
+            disable_multicast = true;
+        }
+    };
+    if add_localhost_as_static_peer || add_static_peers || disable_multicast {
+        config += "<CycloneDDS><Domain>";
+
+        if disable_multicast {
+            config += "<General><AllowMulticast>false</AllowMulticast></General>";
+        }
+
+        let discovery_off = disable_multicast && !add_localhost_as_static_peer && !add_static_peers;
+        if discovery_off {
+            config += "<Discovery><ParticipantIndex>none</ParticipantIndex>";
+            config += &format!("<Tag>ros_discovery_off_{}</Tag>", std::process::id());
+        } else {
+            config += "<Discovery><ParticipantIndex>auto</ParticipantIndex>";
+            config += "<MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>";
+        }
+
+        if (add_static_peers && !ros_static_peers.is_empty()) || add_localhost_as_static_peer {
+            config += "<Peers>";
+            if add_localhost_as_static_peer {
+                config += "<Peer address=\"localhost\"/>";
+            }
+            for peer in ros_static_peers {
+                config += "<Peer address=\"";
+                config += &peer;
+                config += "\"/>";
+            }
+            config += "</Peers>";
+        }
+
+        config += "</Discovery></Domain></CycloneDDS>,";
+    }
+    config
+}
 
 pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
@@ -245,27 +300,42 @@ pub async fn run(runtime: Runtime, config: Config) {
         }
     };
 
-    // if "ros_localhost_only" is set, configure CycloneDDS to use only localhost interface
-    if config.ros_localhost_only {
-        if ros_distro_is_less_than("iron") {
+    // Dynamic Discovery is changed after iron. Need to check the ROS 2 version.
+    // https://docs.ros.org/en/rolling/Tutorials/Advanced/Improved-Dynamic-Discovery.html
+    if ros_distro_is_less_than("iron") {
+        // if "ros_localhost_only" is set, configure CycloneDDS to use only localhost interface
+        if config.ros_localhost_only {
             env::set_var(
                 "CYCLONEDDS_URI",
                 format!(
                     "{}{}",
-                    CYCLONEDDS_CONFIG_LOCALHOST_ONLY_BEFORE_HUMBLE,
-                    env::var("CYCLONEDDS_URI").unwrap_or_default()
-                ),
-            );
-        } else {
-            env::set_var(
-                "CYCLONEDDS_URI",
-                format!(
-                    "{}{}",
-                    CYCLONEDDS_CONFIG_LOCALHOST_ONLY_AFTER_IRON,
+                    CYCLONEDDS_CONFIG_LOCALHOST_ONLY,
                     env::var("CYCLONEDDS_URI").unwrap_or_default()
                 ),
             );
         }
+    } else {
+        let (ros_automatic_discovery_range, ros_static_peers) = if config.ros_localhost_only {
+            // If ROS_LOCALHOST_ONLY is set, need to transform into new environmental variables
+            // Refer to https://github.com/ros2/ros2_documentation/pull/3519#discussion_r1186541935
+            (Some(RosAutomaticDiscoveryRange::Localhost), None)
+        } else {
+            (
+                config.ros_automatic_discovery_range.clone(),
+                config.ros_static_peers.clone(),
+            )
+        };
+        env::set_var(
+            "CYCLONEDDS_URI",
+            format!(
+                "{}{}",
+                create_cyclonedds_config(
+                    ros_automatic_discovery_range.unwrap_or(RosAutomaticDiscoveryRange::Subnet),
+                    ros_static_peers.unwrap_or(Vec::new())
+                ),
+                env::var("CYCLONEDDS_URI").unwrap_or_default()
+            ),
+        );
     }
 
     // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory

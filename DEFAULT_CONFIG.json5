@@ -37,6 +37,28 @@
       // ros_localhost_only: true,
 
       ////
+      //// ros_automatic_discovery_range: controls how far ROS nodes will try to discover each other.
+      ////                                Valid options are:
+      ////                                * "SUBNET" is the default, and for DDS based middleware it means it will discover any node reachable via multicast.
+      ////                                * "LOCALHOST" means a node will only try to discover other nodes on the same machine.
+      ////                                * "OFF" means the node won’t discover any other nodes, even on the same machine.
+      ////                                * "SYSTEM_DEFAULT" means “don’t change any discovery settings”.
+      ////
+      ////                                Note that this is only available with ROS 2 Iron and later version
+      ////                                For more information: https://docs.ros.org/en/rolling/Tutorials/Advanced/Improved-Dynamic-Discovery.html
+      ////
+      // ros_automatic_discovery_range: "SUBNET",
+
+      ////
+      //// ros_static_peers: is a semicolon (;) separated list of addresses that ROS should try to discover nodes on.
+      ////                   This allows connecting to nodes on specific machines (as long as their discovery range is not set to OFF).
+      ////
+      ////                   Note that this is only available with ROS 2 Iron and later version
+      ////                   For more information: https://docs.ros.org/en/rolling/Tutorials/Advanced/Improved-Dynamic-Discovery.html
+      ////
+      // ros_static_peers: "192.168.1.1;192.168.1.2",
+
+      ////
       //// shm_enabled: If set to true, the DDS implementation will use Iceoryx shared memory.
       ////              Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
       ////              By default set to false.
