@@ -303,6 +303,14 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Dynamic Discovery is changed after iron. Need to check the ROS 2 version.
     // https://docs.ros.org/en/rolling/Tutorials/Advanced/Improved-Dynamic-Discovery.html
     if ros_distro_is_less_than("iron") {
+        if config.ros_automatic_discovery_range.is_some() {
+            tracing::warn!("ROS_AUTOMATIC_DISCOVERY_RANGE will be ignored since it's not supported before ROS 2 Iron");
+        }
+        if config.ros_static_peers.is_some() {
+            tracing::warn!(
+                "ROS_STATIC_PEERS will be ignored since it's not supported before ROS 2 Iron"
+            );
+        }
         // if "ros_localhost_only" is set, configure CycloneDDS to use only localhost interface
         if config.ros_localhost_only {
             env::set_var(
@@ -318,6 +326,8 @@ pub async fn run(runtime: Runtime, config: Config) {
         let (ros_automatic_discovery_range, ros_static_peers) = if config.ros_localhost_only {
             // If ROS_LOCALHOST_ONLY is set, need to transform into new environmental variables
             // Refer to https://github.com/ros2/ros2_documentation/pull/3519#discussion_r1186541935
+            tracing::warn!("ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.");
+            tracing::warn!("'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.");
             (Some(RosAutomaticDiscoveryRange::Localhost), None)
         } else {
             (

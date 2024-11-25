@@ -501,15 +501,15 @@ where
     D: Deserializer<'de>,
 {
     let discovery_range: String = Deserialize::deserialize(deserializer).unwrap();
-    Ok(Some(match discovery_range.as_str() {
-        "SUBNET" => RosAutomaticDiscoveryRange::Subnet,
-        "LOCALHOST" => RosAutomaticDiscoveryRange::Localhost,
-        "OFF" => RosAutomaticDiscoveryRange::Off,
-        "SYSTEM_DEFAULT" => RosAutomaticDiscoveryRange::SystemDefault,
-        unknown => {
-            panic!(r#"Invalid parameter {unknown} for ROS_AUTOMATICALLY_DISCOVERY_RANGE"#)
-        }
-    }))
+    match discovery_range.as_str() {
+        "SUBNET" => Ok(Some(RosAutomaticDiscoveryRange::Subnet)),
+        "LOCALHOST" => Ok(Some(RosAutomaticDiscoveryRange::Localhost)),
+        "OFF" => Ok(Some(RosAutomaticDiscoveryRange::Off)),
+        "SYSTEM_DEFAULT" => Ok(Some(RosAutomaticDiscoveryRange::SystemDefault)),
+        unknown => Err(de::Error::custom(format!(
+            r#"Invalid parameter {unknown} for ROS_AUTOMATICALLY_DISCOVERY_RANGE"#
+        ))),
+    }
 }
 
 fn deserialize_static_peers<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
@@ -528,7 +528,6 @@ where
     } else {
         Ok(Some(peer_list))
     }
-    //deserializer.deserialize_option(OptPathVisitor)
 }
 
 fn default_transient_local_cache_multiplier() -> usize {
