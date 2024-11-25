@@ -38,6 +38,13 @@ pub struct Config {
     pub domain: u32,
     #[serde(default = "default_localhost_only")]
     pub ros_localhost_only: bool,
+    #[serde(
+        default = "default_automatic_discovery_range",
+        deserialize_with = "deserialize_automatic_discovery_range"
+    )]
+    pub ros_automatic_discovery_range: Option<RosAutomaticDiscoveryRange>,
+    #[serde(default, deserialize_with = "deserialize_static_peers")]
+    pub ros_static_peers: Option<Vec<String>>,
     #[serde(default, flatten)]
     pub allowance: Option<Allowance>,
     #[serde(
@@ -466,8 +473,61 @@ fn default_reliable_routes_blocking() -> bool {
     DEFAULT_RELIABLE_ROUTES_BLOCKING
 }
 
+#[derive(Deserialize, Debug, Serialize, Eq, PartialEq, Clone, Copy)]
+pub enum RosAutomaticDiscoveryRange {
+    Subnet,
+    Localhost,
+    Off,
+    SystemDefault,
+}
+
 fn default_localhost_only() -> bool {
     env::var("ROS_LOCALHOST_ONLY").as_deref() == Ok("1")
+}
+
+fn default_automatic_discovery_range() -> Option<RosAutomaticDiscoveryRange> {
+    Some(match env::var("ROS_AUTOMATIC_DISCOVERY_RANGE").as_deref() {
+        Ok("LOCALHOST") => RosAutomaticDiscoveryRange::Localhost,
+        Ok("OFF") => RosAutomaticDiscoveryRange::Localhost,
+        Ok("SYSTEM_DEFAULT") => RosAutomaticDiscoveryRange::SystemDefault,
+        _ => RosAutomaticDiscoveryRange::Subnet,
+    })
+}
+
+fn deserialize_automatic_discovery_range<'de, D>(
+    deserializer: D,
+) -> Result<Option<RosAutomaticDiscoveryRange>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let discovery_range: String = Deserialize::deserialize(deserializer).unwrap();
+    match discovery_range.as_str() {
+        "SUBNET" => Ok(Some(RosAutomaticDiscoveryRange::Subnet)),
+        "LOCALHOST" => Ok(Some(RosAutomaticDiscoveryRange::Localhost)),
+        "OFF" => Ok(Some(RosAutomaticDiscoveryRange::Off)),
+        "SYSTEM_DEFAULT" => Ok(Some(RosAutomaticDiscoveryRange::SystemDefault)),
+        unknown => Err(de::Error::custom(format!(
+            r#"Invalid parameter {unknown} for ROS_AUTOMATICALLY_DISCOVERY_RANGE"#
+        ))),
+    }
+}
+
+fn deserialize_static_peers<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let peers: String = Deserialize::deserialize(deserializer).unwrap();
+    let mut peer_list: Vec<String> = Vec::new();
+    for peer in peers.split(';') {
+        if peer != "" {
+            peer_list.push(peer.to_owned());
+        }
+    }
+    if peer_list.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(peer_list))
+    }
 }
 
 fn default_transient_local_cache_multiplier() -> usize {
@@ -648,7 +708,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use test_case::test_case;
+
+    use super::{Config, RosAutomaticDiscoveryRange};
 
     #[test]
     fn test_allowance() {
@@ -861,5 +923,36 @@ mod tests {
 
         assert_eq!(__path__, None);
         assert_eq!(__required__, None);
+    }
+
+    #[test_case("{}", Some(RosAutomaticDiscoveryRange::Subnet); "Empty tests")]
+    #[test_case(r#"{"ros_automatic_discovery_range": "SUBNET"}"#, Some(RosAutomaticDiscoveryRange::Subnet); "SUBNET tests")]
+    #[test_case(r#"{"ros_automatic_discovery_range": "LOCALHOST"}"#, Some(RosAutomaticDiscoveryRange::Localhost); "LOCALHOST tests")]
+    #[test_case(r#"{"ros_automatic_discovery_range": "OFF"}"#, Some(RosAutomaticDiscoveryRange::Off); "OFF tests")]
+    #[test_case(r#"{"ros_automatic_discovery_range": "SYSTEM_DEFAULT"}"#, Some(RosAutomaticDiscoveryRange::SystemDefault); "SYSTEM_DEFAULT tests")]
+    fn test_ros_automatic_discovery_range(
+        config: &str,
+        result: Option<RosAutomaticDiscoveryRange>,
+    ) {
+        let config = serde_json::from_str::<Config>(config);
+        println!(">>> {:?}", config);
+        assert!(config.is_ok());
+        let Config {
+            ros_automatic_discovery_range,
+            ..
+        } = config.unwrap();
+        assert_eq!(ros_automatic_discovery_range, result);
+    }
+
+    #[test_case("{}", None; "Empty tests")]
+    #[test_case(r#"{"ros_static_peers": "127.0.0.1"}"#, Some(vec!["127.0.0.1".to_owned()]); "Single peer")]
+    #[test_case(r#"{"ros_static_peers": "192.168.1.1;192.168.1.2"}"#, Some(vec!["192.168.1.1".to_owned(), "192.168.1.2".to_owned()]); "Multiple peers")]
+    fn test_ros_static_peers(config: &str, result: Option<Vec<String>>) {
+        let config = serde_json::from_str::<Config>(config);
+        assert!(config.is_ok());
+        let Config {
+            ros_static_peers, ..
+        } = config.unwrap();
+        assert_eq!(ros_static_peers, result);
     }
 }

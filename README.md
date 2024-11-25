@@ -150,7 +150,7 @@ A typical usage is to run 1 bridge in a robot, and 1 bridge in another host moni
 It's important to make sure that NO DDS communication can occur between 2 hosts that are bridged by `zenoh-bridge-ros2dds`. Otherwise, some duplicate or looping traffic can occur.  
 To make sure of this, you can either:
 
-- define `ROS_LOCALHOST_ONLY=1`.  
+- use ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST after Iron and ROS_LOCALHOST_ONLY=1 before Iron.  
   Preferably, enable MULTICAST on the loopback interface with this command (on Linux): `sudo ip l set lo multicast on`
 - use different `ROS_DOMAIN_ID` on each hosts
 - use a `CYCLONEDDS_URI` that configures CycloneDDS to only use internal interfaces to the robot. This configuration has to be used for all ROS Nodes as well as for the bridge.  
