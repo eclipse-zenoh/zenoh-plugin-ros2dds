@@ -146,6 +146,16 @@
       //   }
       // },
 
+      //// transient_local_cache_multiplier: multiplier used for the size of a PublicationCache on a route serving a TRANSIENT_LOCAL Publisher.
+      ////                                   When discovering a TRANSIENT_LOCAL Publisher, the plugin creates a route with a PublicationCache
+      ////                                   that will cache the publications for late joiner bridges serving late joiners Subscribers.
+      ////                                   The size of the cache has to be at least equal to the history_length QoS of the Publisher.
+      ////                                   But as the plugin creates 1 router per topic, it could serve several Publishers.
+      ////                                   Hence the size of the PublicationCache is computed as history_length*transient_local_cache_multiplier.
+      ////                                   Meaning if you have more than 10 TRANSIENT_LOCAL Publishers on a same topic, you need to increase this multiplier.
+      ////                                   
+      transient_local_cache_multiplier: 530,
+
       ////
       //// This plugin uses Tokio (https://tokio.rs/) for asynchronous programming. 
       //// When running as a plugin within a Zenoh router, the plugin creates its own Runtime managing 2 pools of threads:
