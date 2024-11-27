@@ -71,8 +71,12 @@ mod routes_mgr;
 use config::{Config, RosAutomaticDiscoveryRange};
 
 use crate::{
-    dds_utils::get_guid, discovery_mgr::DiscoveryMgr, events::ROS2DiscoveryEvent,
-    liveliness_mgt::*, ros2_utils::ros_distro_is_less_than, ros_discovery::RosDiscoveryInfoMgr,
+    dds_utils::get_guid,
+    discovery_mgr::DiscoveryMgr,
+    events::ROS2DiscoveryEvent,
+    liveliness_mgt::*,
+    ros2_utils::{key_expr_to_ros2_name, ros_distro_is_less_than},
+    ros_discovery::RosDiscoveryInfoMgr,
     routes_mgr::RoutesMgr,
 };
 
@@ -520,9 +524,13 @@ impl ROS2PluginRuntime {
                                         // parse it and pass ROS2AnnouncementEvent to RoutesMgr
                                         match self.parse_announcement_event(ke, &remaining.as_str()[..3], evt.kind()) {
                                             Ok(evt) => {
-                                                tracing::info!("Remote bridge {zenoh_id} {evt}");
-                                                routes_mgr.on_ros_announcement_event(evt).await
-                                                    .unwrap_or_else(|e| tracing::warn!("Error treating announcement event: {e}"));
+                                                if self.is_announcement_allowed(&evt) {
+                                                    tracing::info!("Remote bridge {zenoh_id} {evt} - Allowed");
+                                                    routes_mgr.on_ros_announcement_event(evt).await
+                                                        .unwrap_or_else(|e| tracing::warn!("Error treating announcement event: {e}"));
+                                                } else {
+                                                    tracing::debug!("Remote bridge {zenoh_id} {evt} - Matching entity denied per config");
+                                                }
                                             },
                                             Err(e) =>
                                                 tracing::warn!("Received unexpected liveliness key expression '{ke}': {e}")
@@ -677,6 +685,39 @@ impl ROS2PluginRuntime {
                 DiscoveredActionCli(_, iface) | UndiscoveredActionCli(_, iface) => {
                     allowance.is_action_cli_allowed(&iface.name)
                 }
+            }
+        } else {
+            // no allow/deny configured => allow all
+            true
+        }
+    }
+
+    // Check if a remote announcement by another bridge is allowed, depending on the matching entity allowance in config.
+    // E.g. a remote announcement of a Publisher on /abc is allowed only if a Subscriber on /abc is allowed in the local config.
+    fn is_announcement_allowed(&self, evt: &ROS2AnnouncementEvent) -> bool {
+        if let Some(allowance) = &self.config.allowance {
+            use ROS2AnnouncementEvent::*;
+            match evt {
+                AnnouncedMsgPub { zenoh_key_expr, .. } | RetiredMsgPub { zenoh_key_expr, .. } => {
+                    allowance
+                        .is_subscriber_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config))
+                }
+                AnnouncedMsgSub { zenoh_key_expr, .. } | RetiredMsgSub { zenoh_key_expr, .. } => {
+                    allowance
+                        .is_publisher_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config))
+                }
+                AnnouncedServiceSrv { zenoh_key_expr, .. }
+                | RetiredServiceSrv { zenoh_key_expr, .. } => allowance
+                    .is_service_cli_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config)),
+                AnnouncedServiceCli { zenoh_key_expr, .. }
+                | RetiredServiceCli { zenoh_key_expr, .. } => allowance
+                    .is_service_srv_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config)),
+                AnnouncedActionSrv { zenoh_key_expr, .. }
+                | RetiredActionSrv { zenoh_key_expr, .. } => allowance
+                    .is_action_cli_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config)),
+                AnnouncedActionCli { zenoh_key_expr, .. }
+                | RetiredActionCli { zenoh_key_expr, .. } => allowance
+                    .is_action_srv_allowed(&key_expr_to_ros2_name(zenoh_key_expr, &self.config)),
             }
         } else {
             // no allow/deny configured => allow all
