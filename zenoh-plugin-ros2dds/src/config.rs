@@ -493,7 +493,9 @@ fn default_automatic_discovery_range() -> Option<RosAutomaticDiscoveryRange> {
         Ok("OFF") => Some(RosAutomaticDiscoveryRange::Localhost),
         Ok("SYSTEM_DEFAULT") => Some(RosAutomaticDiscoveryRange::SystemDefault),
         Ok(value) => {
-            warn!(r#"Invalid value for environment variable ROS_AUTOMATIC_DISCOVERY_RANGE ("{value}"). Using "SUBNET" instead "#);
+            warn!(
+                r#"Invalid value for environment variable ROS_AUTOMATIC_DISCOVERY_RANGE ("{value}"). Using "SUBNET" instead "#
+            );
             Some(RosAutomaticDiscoveryRange::Subnet)
         }
         Err(_) => None,
@@ -525,7 +527,7 @@ where
     let peers: String = Deserialize::deserialize(deserializer).unwrap();
     let mut peer_list: Vec<String> = Vec::new();
     for peer in peers.split(';') {
-        if peer != "" {
+        if !peer.is_empty() {
             peer_list.push(peer.to_owned());
         }
     }
