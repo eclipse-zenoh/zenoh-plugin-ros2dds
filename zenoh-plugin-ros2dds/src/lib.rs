@@ -331,7 +331,7 @@ pub async fn run(runtime: Runtime, config: Config) {
             (Some(RosAutomaticDiscoveryRange::Localhost), None)
         } else {
             (
-                config.ros_automatic_discovery_range.clone(),
+                config.ros_automatic_discovery_range,
                 config.ros_static_peers.clone(),
             )
         };

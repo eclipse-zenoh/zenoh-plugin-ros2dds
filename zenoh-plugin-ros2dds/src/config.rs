@@ -15,6 +15,7 @@ use std::{env, fmt, time::Duration};
 
 use regex::Regex;
 use serde::{de, de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use tracing::warn;
 use zenoh::{key_expr::OwnedKeyExpr, qos::Priority};
 
 pub const DEFAULT_NAMESPACE: &str = "/";
@@ -486,12 +487,19 @@ fn default_localhost_only() -> bool {
 }
 
 fn default_automatic_discovery_range() -> Option<RosAutomaticDiscoveryRange> {
-    Some(match env::var("ROS_AUTOMATIC_DISCOVERY_RANGE").as_deref() {
-        Ok("LOCALHOST") => RosAutomaticDiscoveryRange::Localhost,
-        Ok("OFF") => RosAutomaticDiscoveryRange::Localhost,
-        Ok("SYSTEM_DEFAULT") => RosAutomaticDiscoveryRange::SystemDefault,
-        _ => RosAutomaticDiscoveryRange::Subnet,
-    })
+    match env::var("ROS_AUTOMATIC_DISCOVERY_RANGE").as_deref() {
+        Ok("SUBNET") => Some(RosAutomaticDiscoveryRange::Subnet),
+        Ok("LOCALHOST") => Some(RosAutomaticDiscoveryRange::Localhost),
+        Ok("OFF") => Some(RosAutomaticDiscoveryRange::Localhost),
+        Ok("SYSTEM_DEFAULT") => Some(RosAutomaticDiscoveryRange::SystemDefault),
+        Ok(value) => {
+            warn!(
+                r#"Invalid value for environment variable ROS_AUTOMATIC_DISCOVERY_RANGE ("{value}"). Using "SUBNET" instead "#
+            );
+            Some(RosAutomaticDiscoveryRange::Subnet)
+        }
+        Err(_) => None,
+    }
 }
 
 fn deserialize_automatic_discovery_range<'de, D>(
@@ -507,7 +515,7 @@ where
         "OFF" => Ok(Some(RosAutomaticDiscoveryRange::Off)),
         "SYSTEM_DEFAULT" => Ok(Some(RosAutomaticDiscoveryRange::SystemDefault)),
         unknown => Err(de::Error::custom(format!(
-            r#"Invalid parameter {unknown} for ROS_AUTOMATICALLY_DISCOVERY_RANGE"#
+            r#"Invalid parameter "{unknown}" for ROS_AUTOMATICALLY_DISCOVERY_RANGE"#
         ))),
     }
 }
@@ -519,7 +527,7 @@ where
     let peers: String = Deserialize::deserialize(deserializer).unwrap();
     let mut peer_list: Vec<String> = Vec::new();
     for peer in peers.split(';') {
-        if peer != "" {
+        if !peer.is_empty() {
             peer_list.push(peer.to_owned());
         }
     }
@@ -925,7 +933,7 @@ mod tests {
         assert_eq!(__required__, None);
     }
 
-    #[test_case("{}", Some(RosAutomaticDiscoveryRange::Subnet); "Empty tests")]
+    #[test_case("{}", None; "Empty tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "SUBNET"}"#, Some(RosAutomaticDiscoveryRange::Subnet); "SUBNET tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "LOCALHOST"}"#, Some(RosAutomaticDiscoveryRange::Localhost); "LOCALHOST tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "OFF"}"#, Some(RosAutomaticDiscoveryRange::Off); "OFF tests")]
