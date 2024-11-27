@@ -933,7 +933,7 @@ mod tests {
         assert_eq!(__required__, None);
     }
 
-    #[test_case("{}", Some(RosAutomaticDiscoveryRange::Subnet); "Empty tests")]
+    #[test_case("{}", None; "Empty tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "SUBNET"}"#, Some(RosAutomaticDiscoveryRange::Subnet); "SUBNET tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "LOCALHOST"}"#, Some(RosAutomaticDiscoveryRange::Localhost); "LOCALHOST tests")]
     #[test_case(r#"{"ros_automatic_discovery_range": "OFF"}"#, Some(RosAutomaticDiscoveryRange::Off); "OFF tests")]
