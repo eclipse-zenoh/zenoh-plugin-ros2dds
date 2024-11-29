@@ -213,7 +213,7 @@ impl DiscoveredEntities {
                 {
                     // update the NodeInfo with this Reader's info
                     node.undiscovered_reader.remove(i);
-                    event = node.update_with_writer(&reader);
+                    event = node.update_with_reader(&reader);
                     break;
                 }
             }
