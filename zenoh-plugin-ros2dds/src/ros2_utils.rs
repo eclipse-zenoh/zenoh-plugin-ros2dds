@@ -14,6 +14,7 @@
 
 use std::{
     env::VarError,
+    str,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -39,6 +40,11 @@ pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
 
 // ROS_DISTRO value assumed if the environment variable is not set
 pub const ASSUMED_ROS_DISTRO: &str = "iron";
+
+// Separator used by ROS 2 in USER_DATA QoS
+pub const USER_DATA_PROPS_SEPARATOR: char = ';';
+// Key for type hash used by ROS 2 in USER_DATA QoS
+pub const USER_DATA_KEYHASH_KEY: &str = "typehash=";
 
 lazy_static::lazy_static!(
     pub static ref ROS_DISTRO: String = get_ros_distro();
@@ -391,6 +397,20 @@ pub fn check_ros_name(name: &str) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+pub fn extract_type_hash(qos: &Qos) -> Option<String> {
+    if let Some(v) = &qos.user_data {
+        if let Ok(s) = str::from_utf8(v) {
+            if let Some(mut start) = s.find(USER_DATA_KEYHASH_KEY) {
+                start += USER_DATA_KEYHASH_KEY.len();
+                if let Some(end) = s[start..].find(USER_DATA_PROPS_SEPARATOR) {
+                    return Some(s[start..(start + end)].into());
+                }
+            }
+        }
+    }
+    None
 }
 
 lazy_static::lazy_static!(
