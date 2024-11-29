@@ -221,9 +221,8 @@ pub fn qos_to_key_expr(keyless: bool, qos: &Qos) -> OwnedKeyExpr {
 
     // Since Iron USER_DATA QoS contains the type_hash and must be forwarded to remote bridge for Reader/Writer creation
     if !ros_distro_is_less_than("iron") {
-        write!(w, ":").unwrap();
         if let Some(v) = &qos.user_data {
-            write!(&mut w, "{}", String::from_utf8_lossy(v)).unwrap();
+            write!(&mut w, ":{}", String::from_utf8_lossy(v)).unwrap();
         }
     }
 
