@@ -352,7 +352,10 @@ fn ros2_action_feedback_default_qos() -> Qos {
         //       However, `rmw_cyclonedds_cpp` doesn't do any type checking (yet).
         //       And the way to forward the type hash for actions (and services) raise questions
         //       that are described in https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/pull/349
-        insert_type_hash(&mut qos, "RIHS01_0000000000000000000000000000000000000000000000000000000000000000");
+        insert_type_hash(
+            &mut qos,
+            "RIHS01_0000000000000000000000000000000000000000000000000000000000000000",
+        );
     }
     qos
 }
