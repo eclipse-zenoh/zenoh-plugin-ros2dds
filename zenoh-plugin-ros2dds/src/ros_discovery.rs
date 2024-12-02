@@ -42,12 +42,12 @@ use crate::{
 };
 use crate::{
     dds_utils::{ddsrt_iov_len_from_usize, delete_dds_entity, get_guid},
-    ros2_utils::{USER_DATA_KEYHASH_KEY, USER_DATA_PROPS_SEPARATOR},
+    ros2_utils::{USER_DATA_PROPS_SEPARATOR, USER_DATA_TYPEHASH_KEY},
 };
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
-// Type hash required since Iron in Reader/Writer USER_DATA QoS
+// Type hash for rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_ in Iron and Jazzy (might change in future versions)
 const ROS_DISCOVERY_INFO_TYPE_HASH: &str =
     "RIHS01_91a0593bacdcc50ea9bdcf849a938b128412cc1ea821245c663bcd26f83c295e";
 
@@ -97,7 +97,7 @@ impl RosDiscoveryInfoMgr {
         let user_data_qos: Option<Vec<u8>> = if ros_distro_is_less_than("iron") {
             None
         } else {
-            let mut s = USER_DATA_KEYHASH_KEY.to_string();
+            let mut s = USER_DATA_TYPEHASH_KEY.to_string();
             s.push_str(ROS_DISCOVERY_INFO_TYPE_HASH);
             s.push(USER_DATA_PROPS_SEPARATOR);
             Some(s.into_bytes())

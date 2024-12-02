@@ -37,6 +37,9 @@ use crate::{config::Config, dds_utils::get_guid};
 
 pub const ROS2_ACTION_CANCEL_GOAL_SRV_TYPE: &str = "action_msgs/srv/CancelGoal";
 pub const ROS2_ACTION_STATUS_MSG_TYPE: &str = "action_msgs/msg/GoalStatusArray";
+// Type hash for action_msgs/msg/GoalStatusArray in Iron and Jazzy (might change in future versions)
+pub const ROS2_ACTION_STATUS_MSG_TYPE_HASH: &str =
+    "RIHS01_91a0593bacdcc50ea9bdcf849a938b128412cc1ea821245c663bcd26f83c295e";
 
 // ROS_DISTRO value assumed if the environment variable is not set
 pub const ASSUMED_ROS_DISTRO: &str = "iron";
@@ -44,7 +47,7 @@ pub const ASSUMED_ROS_DISTRO: &str = "iron";
 // Separator used by ROS 2 in USER_DATA QoS
 pub const USER_DATA_PROPS_SEPARATOR: char = ';';
 // Key for type hash used by ROS 2 in USER_DATA QoS
-pub const USER_DATA_KEYHASH_KEY: &str = "typehash=";
+pub const USER_DATA_TYPEHASH_KEY: &str = "typehash=";
 
 lazy_static::lazy_static!(
     pub static ref ROS_DISTRO: String = get_ros_distro();
@@ -318,7 +321,7 @@ fn ros2_service_default_qos() -> Qos {
 }
 
 fn ros2_action_feedback_default_qos() -> Qos {
-    Qos {
+    let mut qos = Qos {
         history: Some(History {
             kind: HistoryKind::KEEP_LAST,
             depth: 10,
@@ -343,13 +346,21 @@ fn ros2_action_feedback_default_qos() -> Qos {
             kind: IgnoreLocalKind::PARTICIPANT,
         }),
         ..Default::default()
+    };
+    if !ros_distro_is_less_than("iron") {
+        // NOTE: the type hash should be a real one instead of this invalid type hash.
+        //       However, `rmw_cyclonedds_cpp` doesn't do any type checking (yet).
+        //       And the way to forward the type hash for actions (and services) raise questions
+        //       that are described in https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/pull/349
+        insert_type_hash(&mut qos, "RIHS01_0000000000000000000000000000000000000000000000000000000000000000");
     }
+    qos
 }
 
 fn ros2_action_status_default_qos() -> Qos {
     // Default Status topic QoS copied from:
     // https://github.com/ros2/rcl/blob/8f7f4f0804a34ee9d9ecd2d7e75a57ce2b7ced5d/rcl_action/include/rcl_action/default_qos.h#L30
-    Qos {
+    let mut qos = Qos {
         durability: Some(Durability {
             kind: DurabilityKind::TRANSIENT_LOCAL,
         }),
@@ -373,7 +384,12 @@ fn ros2_action_status_default_qos() -> Qos {
             kind: IgnoreLocalKind::PARTICIPANT,
         }),
         ..Default::default()
+    };
+    if !ros_distro_is_less_than("iron") {
+        // add type_hash in USER_DATA QoS
+        insert_type_hash(&mut qos, ROS2_ACTION_STATUS_MSG_TYPE_HASH);
     }
+    qos
 }
 
 pub fn is_service_for_action(ros2_service_name: &str) -> bool {
@@ -402,8 +418,8 @@ pub fn check_ros_name(name: &str) -> Result<(), String> {
 pub fn extract_type_hash(qos: &Qos) -> Option<String> {
     if let Some(v) = &qos.user_data {
         if let Ok(s) = str::from_utf8(v) {
-            if let Some(mut start) = s.find(USER_DATA_KEYHASH_KEY) {
-                start += USER_DATA_KEYHASH_KEY.len();
+            if let Some(mut start) = s.find(USER_DATA_TYPEHASH_KEY) {
+                start += USER_DATA_TYPEHASH_KEY.len();
                 if let Some(end) = s[start..].find(USER_DATA_PROPS_SEPARATOR) {
                     return Some(s[start..(start + end)].into());
                 }
@@ -411,6 +427,16 @@ pub fn extract_type_hash(qos: &Qos) -> Option<String> {
         }
     }
     None
+}
+
+pub fn insert_type_hash(qos: &mut Qos, type_hash: &str) {
+    let mut s = USER_DATA_TYPEHASH_KEY.to_string();
+    s.push_str(type_hash);
+    s.push(USER_DATA_PROPS_SEPARATOR);
+    match qos.user_data {
+        Some(ref mut v) => v.extend(s.into_bytes().iter()),
+        None => qos.user_data = Some(s.into_bytes()),
+    }
 }
 
 lazy_static::lazy_static!(
