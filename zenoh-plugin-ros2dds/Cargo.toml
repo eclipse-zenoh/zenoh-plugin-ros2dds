@@ -31,6 +31,7 @@ default = ["dynamic_plugin"]
 stats = ["zenoh/stats"]
 dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
+ros_test = ["r2r"]
 
 [dependencies]
 async-trait = { workspace = true }
@@ -43,6 +44,7 @@ futures = { workspace = true }
 git-version = { workspace = true }
 hex = { workspace = true }
 lazy_static = { workspace = true }
+r2r = { version = "0.9", optional = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -50,6 +52,7 @@ test-case = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 zenoh = { workspace = true }
+zenoh-config = { workspace = true }
 zenoh-ext = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
 

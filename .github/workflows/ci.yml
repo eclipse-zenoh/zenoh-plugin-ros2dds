@@ -63,6 +63,33 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
+  build_test_ros2:
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+    steps:
+    - uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: jazzy
+
+    - uses: actions/checkout@v4
+
+    - name: Install ACL
+      run: sudo apt-get -y install libacl1-dev
+
+    - name: Install Rust toolchain
+      run: |
+        rustup show
+        rustup component add rustfmt clippy
+
+    - name: Code format check
+      run: cargo fmt --features ros_test --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
+    - name: Clippy
+      run: cargo clippy --features ros_test --all --examples -- -D warnings
+
+    - name: Run ROS tests (enable feature ros_test)
+      run: cargo test --features ros_test --verbose
+
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
   # from branches where specific status checks have passed. These checks are
