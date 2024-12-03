@@ -942,8 +942,11 @@ mod tests {
         config: &str,
         result: Option<RosAutomaticDiscoveryRange>,
     ) {
+        // Avoid the current environmental variables affect the result
+        // In ROS 2 Jazzy environment, ROS_AUTOMATIC_DISCOVERY_RANGE will be set to SUBNET automatically
+        // This will cause the empty config test fail.
+        std::env::remove_var("ROS_AUTOMATIC_DISCOVERY_RANGE");
         let config = serde_json::from_str::<Config>(config);
-        println!(">>> {:?}", config);
         assert!(config.is_ok());
         let Config {
             ros_automatic_discovery_range,
@@ -956,6 +959,8 @@ mod tests {
     #[test_case(r#"{"ros_static_peers": "127.0.0.1"}"#, Some(vec!["127.0.0.1".to_owned()]); "Single peer")]
     #[test_case(r#"{"ros_static_peers": "192.168.1.1;192.168.1.2"}"#, Some(vec!["192.168.1.1".to_owned(), "192.168.1.2".to_owned()]); "Multiple peers")]
     fn test_ros_static_peers(config: &str, result: Option<Vec<String>>) {
+        // Avoid the current environmental variables affect the result
+        std::env::remove_var("ROS_STATIC_PEERS");
         let config = serde_json::from_str::<Config>(config);
         assert!(config.is_ok());
         let Config {
