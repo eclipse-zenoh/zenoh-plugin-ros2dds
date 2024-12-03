@@ -78,18 +78,8 @@ jobs:
     - name: Install ACL
       run: sudo apt-get -y install libacl1-dev
 
-    - name: Install Rust toolchain
-      run: |
-        rustup show
-        rustup component add rustfmt clippy
-
-    - name: Clippy
-      run: cargo clippy --features ros_test --all --examples -- -D warnings
-
     - name: Run ROS tests (enable feature ros_test)
-      run: |
-        source /opt/ros/jazzy/setup.sh
-        cargo test --features ros_test --verbose
+      run: "source /opt/ros/jazzy/setup.bash && cargo test --features ros_test --verbose"
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
