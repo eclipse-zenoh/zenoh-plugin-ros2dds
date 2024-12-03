@@ -21,6 +21,8 @@ use zenoh::key_expr::{
     keyexpr, OwnedKeyExpr,
 };
 
+use crate::ros2_utils::ros_distro_is_less_than;
+
 const SLASH_REPLACEMSNT_CHAR: &str = "§";
 
 kedefine!(
@@ -195,7 +197,7 @@ fn unescape_slashes(ke: &keyexpr) -> OwnedKeyExpr {
 // NOTE: only significant Qos for ROS2 are serialized
 // See https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Quality-of-Service-Settings.html
 //
-// format: "<keyless>:<ReliabilityKind>:<DurabilityKind>:<HistoryKid>,<HistoryDepth>"
+// format: "<keyless>:<ReliabilityKind>:<DurabilityKind>:<HistoryKid>,<HistoryDepth>[:<UserData>]"
 // where each element is "" if default QoS, or an integer in case of enum, and 'K' for !keyless
 pub fn qos_to_key_expr(keyless: bool, qos: &Qos) -> OwnedKeyExpr {
     use std::io::Write;
@@ -217,6 +219,13 @@ pub fn qos_to_key_expr(keyless: bool, qos: &Qos) -> OwnedKeyExpr {
         write!(&mut w, "{},{}", *kind as isize, depth).unwrap();
     }
 
+    // Since Iron USER_DATA QoS contains the type_hash and must be forwarded to remote bridge for Reader/Writer creation
+    if !ros_distro_is_less_than("iron") {
+        if let Some(v) = &qos.user_data {
+            write!(&mut w, ":{}", String::from_utf8_lossy(v)).unwrap();
+        }
+    }
+
     unsafe {
         let s: String = String::from_utf8_unchecked(w);
         OwnedKeyExpr::from_string_unchecked(s)
@@ -225,8 +234,8 @@ pub fn qos_to_key_expr(keyless: bool, qos: &Qos) -> OwnedKeyExpr {
 
 fn key_expr_to_qos(ke: &keyexpr) -> Result<(bool, Qos), String> {
     let elts: Vec<&str> = ke.split(':').collect();
-    if elts.len() != 4 {
-        return Err(format!("Internal Error: unexpected QoS expression: '{ke}' - 4 elements between : were expected"));
+    if elts.len() < 4 {
+        return Err(format!("Internal Error: unexpected QoS expression: '{ke}' - at least 4 elements between ':' were expected"));
     }
     let mut qos = Qos::default();
     let keyless = elts[0].is_empty();
@@ -252,6 +261,10 @@ fn key_expr_to_qos(ke: &keyexpr) -> Result<(bool, Qos), String> {
             Some((Ok(k), Ok(depth))) => qos.history = Some(History {kind: HistoryKind::from(&k), depth }),
             _ => return Err(format!("Internal Error: unexpected QoS expression: '{ke}' - failed to parse History in 4th element")),
         }
+    }
+    // The USER_DATA might be present as 5th element
+    if elts.len() > 4 && !elts[4].is_empty() {
+        qos.user_data = Some(elts[4].into());
     }
 
     Ok((keyless, qos))

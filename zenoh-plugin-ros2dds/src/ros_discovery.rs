@@ -34,16 +34,22 @@ use zenoh::{
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_utils::{ddsrt_iov_len_from_usize, delete_dds_entity, get_guid};
 use crate::{
     dds_types::DDSRawSample,
     gid::Gid,
     ros2_utils::{ros_distro_is_less_than, ROS_DISTRO},
     ChannelEvent, ROS_DISCOVERY_INFO_PUSH_INTERVAL_MS,
 };
+use crate::{
+    dds_utils::{ddsrt_iov_len_from_usize, delete_dds_entity, get_guid},
+    ros2_utils::{USER_DATA_PROPS_SEPARATOR, USER_DATA_TYPEHASH_KEY},
+};
 
 pub const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
+// Type hash for rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_ in Iron and Jazzy (might change in future versions)
+const ROS_DISCOVERY_INFO_TYPE_HASH: &str =
+    "RIHS01_91a0593bacdcc50ea9bdcf849a938b128412cc1ea821245c663bcd26f83c295e";
 
 pub struct RosDiscoveryInfoMgr {
     reader: dds_entity_t,
@@ -87,6 +93,16 @@ impl RosDiscoveryInfoMgr {
             .unwrap()
             .into_raw();
 
+        // Since Iron, the Reader/Writer on `ros_discovery_info` topic are expected to have the type hash in USER_DATA QoS
+        let user_data_qos: Option<Vec<u8>> = if ros_distro_is_less_than("iron") {
+            None
+        } else {
+            let mut s = USER_DATA_TYPEHASH_KEY.to_string();
+            s.push_str(ROS_DISCOVERY_INFO_TYPE_HASH);
+            s.push(USER_DATA_PROPS_SEPARATOR);
+            Some(s.into_bytes())
+        };
+
         unsafe {
             // Create topic (for reader/writer creation)
             let t = cdds_create_blob_topic(participant, cton, ctyn, true);
@@ -108,6 +124,7 @@ impl RosDiscoveryInfoMgr {
             qos.ignore_local = Some(IgnoreLocal {
                 kind: IgnoreLocalKind::PARTICIPANT,
             });
+            qos.user_data = user_data_qos.clone();
             let qos_native = qos.to_qos_native();
             let reader = dds_create_reader(participant, t, qos_native, std::ptr::null());
             Qos::delete_qos_native(qos_native);
@@ -137,6 +154,7 @@ impl RosDiscoveryInfoMgr {
             qos.ignore_local = Some(IgnoreLocal {
                 kind: IgnoreLocalKind::PARTICIPANT,
             });
+            qos.user_data = user_data_qos.clone();
             let qos_native = qos.to_qos_native();
             let writer = dds_create_writer(participant, t, qos_native, std::ptr::null());
             Qos::delete_qos_native(qos_native);
