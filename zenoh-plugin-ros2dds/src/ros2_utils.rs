@@ -418,19 +418,20 @@ pub fn check_ros_name(name: &str) -> Result<(), String> {
     }
 }
 
-pub fn extract_type_hash(qos: &Qos) -> Option<String> {
-    if let Some(v) = &qos.user_data {
-        if let Ok(s) = str::from_utf8(v) {
-            if let Some(mut start) = s.find(USER_DATA_TYPEHASH_KEY) {
-                start += USER_DATA_TYPEHASH_KEY.len();
-                if let Some(end) = s[start..].find(USER_DATA_PROPS_SEPARATOR) {
-                    return Some(s[start..(start + end)].into());
-                }
-            }
-        }
-    }
-    None
-}
+/// For potential use later (type_hash in admin space?)
+// pub fn extract_type_hash(qos: &Qos) -> Option<String> {
+//     if let Some(v) = &qos.user_data {
+//         if let Ok(s) = str::from_utf8(v) {
+//             if let Some(mut start) = s.find(USER_DATA_TYPEHASH_KEY) {
+//                 start += USER_DATA_TYPEHASH_KEY.len();
+//                 if let Some(end) = s[start..].find(USER_DATA_PROPS_SEPARATOR) {
+//                     return Some(s[start..(start + end)].into());
+//                 }
+//             }
+//         }
+//     }
+//     None
+// }
 
 pub fn insert_type_hash(qos: &mut Qos, type_hash: &str) {
     let mut s = USER_DATA_TYPEHASH_KEY.to_string();
