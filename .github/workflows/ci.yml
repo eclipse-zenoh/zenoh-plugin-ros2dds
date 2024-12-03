@@ -73,6 +73,7 @@ jobs:
         required-ros-distributions: jazzy
 
     - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
     - name: Install ACL
       run: sudo apt-get -y install libacl1-dev
