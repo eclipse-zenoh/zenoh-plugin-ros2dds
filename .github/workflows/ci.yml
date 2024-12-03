@@ -87,7 +87,9 @@ jobs:
       run: cargo clippy --features ros_test --all --examples -- -D warnings
 
     - name: Run ROS tests (enable feature ros_test)
-      run: cargo test --features ros_test --verbose
+      run: |
+        source /opt/ros/jazzy/setup.sh
+        cargo test --features ros_test --verbose
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
