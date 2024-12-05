@@ -63,7 +63,8 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-  build_test_ros2_humble:
+  system_tests_with_ros2_humble:
+    name: System tests with ROS 2 Humble
     runs-on: ubuntu-latest
     container:
       image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
@@ -82,7 +83,8 @@ jobs:
       shell: bash
       run: "source /opt/ros/humble/setup.bash && cargo test --features ros_test --verbose"
 
-  build_test_ros2_jazzy:
+  system_tests_with_ros2_jazzy:
+    name: System tests with ROS 2 Jazzy
     runs-on: ubuntu-latest
     container:
       image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest

@@ -44,7 +44,7 @@ futures = { workspace = true }
 git-version = { workspace = true }
 hex = { workspace = true }
 lazy_static = { workspace = true }
-r2r = { version = "0.9", optional = true }
+r2r = { workspace = true, optional = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
