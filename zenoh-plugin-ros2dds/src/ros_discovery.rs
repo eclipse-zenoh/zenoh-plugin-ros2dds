@@ -600,21 +600,23 @@ where
 
 mod tests {
     #[test]
-    #[ignore]
-    // Test ignored as it cannot be run at the same time than test_serde_after_iron()
-    // Both need different ROS_DISTRO env var, that cannot be changed between the 2 tests
-    // Run this test individually or with `cargo test -- --ignored``
     fn test_serde_prior_to_iron() {
         use std::str::FromStr;
 
         use super::*;
         use crate::ros2_utils::get_ros_distro;
 
+        let distro = get_ros_distro();
+        println!("ROS_DISTRO={}", distro);
+        if !ros_distro_is_less_than("iron") {
+            println!("The current ROS Distro is not prior to iron. Skip the test.");
+            return;
+        }
+
         // ros_discovery_message sent by a component_container node on Humble started as such:
         //   - ros2 run rclcpp_components component_container --ros-args --remap __ns:=/TEST
         //   - ros2 component load /TEST/ComponentManager composition composition::Listener
         //   - ros2 component load /TEST/ComponentManager composition composition::Talker
-        std::env::set_var("ROS_DISTRO", "humble");
         let ros_discovery_info_cdr: Vec<u8> = hex::decode(
             "000100000110de17b1eaf995400c9ac8000001c1000000000000000003000000\
             060000002f5445535400000011000000436f6d706f6e656e744d616e61676572\
@@ -654,7 +656,6 @@ mod tests {
         )
         .unwrap();
 
-        println!("ROS_DISTRO={}", get_ros_distro());
         let part_info: ParticipantEntitiesInfo = cdr::deserialize(&ros_discovery_info_cdr).unwrap();
         println!("{:?}", part_info);
 
@@ -693,11 +694,17 @@ mod tests {
         use super::*;
         use crate::ros2_utils::get_ros_distro;
 
+        let distro = get_ros_distro();
+        println!("ROS_DISTRO={}", distro);
+        if ros_distro_is_less_than("iron") {
+            println!("The current ROS Distro is prior to iron. Skip the test.");
+            return;
+        }
+
         // ros_discovery_message sent by a component_container node on Iron started as such:
         //   - ros2 run rclcpp_components component_container --ros-args --remap __ns:=/TEST
         //   - ros2 component load /TEST/ComponentManager composition composition::Listener
         //   - ros2 component load /TEST/ComponentManager composition composition::Talker
-        std::env::set_var("ROS_DISTRO", "iron");
         let ros_discovery_info_cdr: Vec<u8> = hex::decode(
             "00010000010f20a26b2fbd8000000000000001c103000000060000002f544553\
             5400000011000000436f6d706f6e656e744d616e616765720000000005000000\
@@ -729,7 +736,6 @@ mod tests {
         )
         .unwrap();
 
-        println!("ROS_DISTRO={}", get_ros_distro());
         let part_info: ParticipantEntitiesInfo = cdr::deserialize(&ros_discovery_info_cdr).unwrap();
         println!("{:?}", part_info);
 
