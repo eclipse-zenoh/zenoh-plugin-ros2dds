@@ -29,6 +29,10 @@ mod ros_test {
     // The test TEST_PAYLOAD
     const TEST_PAYLOAD: &str = "Hello World";
 
+    fn init_env() {
+        std::env::set_var("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp");
+    }
+
     async fn create_bridge() {
         let mut plugins_mgr = PluginsManager::static_plugins_only();
         plugins_mgr
@@ -51,6 +55,7 @@ mod ros_test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_zenoh_pub_ros_sub() {
+        init_env();
         let (tx, rx) = channel();
 
         // Create zenoh-bridge-ros2dds
@@ -95,6 +100,7 @@ mod ros_test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_ros_pub_zenoh_sub() {
+        init_env();
         // Create zenoh-bridge-ros2dds
         tokio::spawn(create_bridge());
 
