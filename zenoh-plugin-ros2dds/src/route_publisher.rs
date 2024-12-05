@@ -51,7 +51,7 @@ use crate::{
 
 pub struct ZPublisher {
     publisher: Arc<Publisher<'static>>,
-    matching_listener: Option<zenoh::pubsub::MatchingListener<()>>,
+    matching_listener: Option<zenoh::matching::MatchingListener<()>>,
     _cache: Option<PublicationCache>,
     cache_size: usize,
 }
@@ -257,7 +257,7 @@ impl RoutePublisher {
 
                     move |status| {
                         tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
-                        if status.matching_subscribers() {
+                        if status.matching() {
                             if let Err(e) = activate_dds_reader(
                                 &dds_reader,
                                 &ros2_name,
