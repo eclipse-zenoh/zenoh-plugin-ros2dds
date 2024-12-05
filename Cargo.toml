@@ -36,7 +36,6 @@ futures = "0.3.26"
 git-version = "0.3.5"
 hex = "0.4.3"
 lazy_static = "1.4.0"
-r2r = "0.9"
 regex = "1.7.1"
 rustc_version = "0.4"
 serde = "1.0.154"
@@ -55,6 +54,9 @@ zenoh-ext = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zen
 zenoh-plugin-ros2dds = { version = "1.0.0-dev", path = "zenoh-plugin-ros2dds/", default-features = false }
 zenoh-plugin-rest = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false, features=["static_plugin"]}
 zenoh-plugin-trait = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
+
+# r2r is for tests only. See in in zenoh-plugins-ros2dds/Cargo.toml
+r2r = "0.9"
 
 
 [profile.release]
