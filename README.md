@@ -117,6 +117,21 @@ cargo build --release
 The standalone executable binary `zenoh-bridge-ros2dds` and a plugin shared library (`*.so` on Linux, `*.dylib` on Mac OS, `*.dll` on Windows)
 to be dynamically loaded by the zenoh router `zenohd` will be generated in the `target/release` subdirectory.
 
+ configured via the `CYCLONEDDS_URI` instead.
+* In forward discovery mode DDS samples will not be forwarded via Zenoh unless the DDS data type is memcpy safe. A data type is memcpy safe if it does not contain indirections.
+
+### DDS Library Symbol Prefixing
+
+DDS support is provided by the [cyclors crate](https://crates.io/crates/cyclors). As this crate contains C code, symbol clashes may occur when loading the plugin statically with other plugins which use a different version of the ```cyclors``` crate (e.g. the ```zenoh-plugin-dds``` plugin).
+
+To allow multiple versions of the ```cyclors``` crate to be loaded at the same time the symbols within the crate can be prefixed with the crate version. The optional ```prefix_symbols``` feature can be used to build the ROS2 plugin with prefixed DDS library symbols. e.g.
+
+```bash
+$ cargo build --features prefix_symbols
+```
+
+**Note:** The ```prefix_symbols``` feature cannot be used at the same time as the ```dds_shm``` feature.
+
 ## ROS 2 package
 
 You can also build `zenoh-bridge-ros2dds` as a ROS package running:
