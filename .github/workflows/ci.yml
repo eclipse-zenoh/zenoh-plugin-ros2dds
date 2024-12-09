@@ -38,6 +38,13 @@ jobs:
         if: startsWith(matrix.os,'ubuntu')
         run: sudo apt-get -y install libacl1-dev
 
+      - name: Install LLVM toolchain
+        if: startsWith(matrix.os,'macos')
+        run: |
+          brew install llvm@19
+          ls /opt/homebrew/opt/llvm@19/bin
+          echo "/opt/homebrew/opt/llvm@19/bin" >> $GITHUB_PATH
+
       - name: Install Rust toolchain
         run: |
           rustup show
@@ -54,14 +61,26 @@ jobs:
       - name: Build zenoh-plugin-ros2dds (with dds_shm)
         run: cargo build -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
 
+      - name: Build zenoh-plugin-ros2dds (with prefix_symbols)
+        run: cargo build -p zenoh-plugin-ros2dds --features prefix_symbols --verbose --all-targets
+
       - name: Build zenoh-bridge-ros2dds
         run: cargo build -p zenoh-bridge-ros2dds  --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds (with dds_shm)
         run: cargo build -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
 
+      - name: Build zenoh-bridge-ros2dds (with prefix_symbols)
+        run: cargo build -p zenoh-bridge-ros2dds --features prefix_symbols  --verbose --all-targets
+
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Run tests (with dds_shm)
+        run: cargo test --features dds_shm --verbose
+
+      - name: Run tests (with prefix_symbols)
+        run: cargo test --features prefix_symbols --verbose
 
   system_tests_with_ros2_humble:
     name: System tests with ROS 2 Humble
