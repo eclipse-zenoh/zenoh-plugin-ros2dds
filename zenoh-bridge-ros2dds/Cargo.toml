@@ -25,6 +25,7 @@ publish = false
 
 [features]
 dds_shm = ["zenoh-plugin-ros2dds/dds_shm"]
+prefix_symbols = ["zenoh-plugin-ros2dds/prefix_symbols"]
 
 [dependencies]
 async-liveliness-monitor = { workspace = true }
