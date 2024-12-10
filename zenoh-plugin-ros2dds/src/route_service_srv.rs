@@ -226,12 +226,7 @@ impl RouteServiceSrv {
             .zsession
             .declare_keyexpr(self.zenoh_key_expr.clone())
             .await
-            .map_err(|e| {
-                format!(
-                    "Route Publisher (ROS:{} -> Zenoh:{}): failed to declare KeyExpr: {e}",
-                    self.ros2_name, self.zenoh_key_expr
-                )
-            })?;
+            .map_err(|e| format!("{self}: failed to declare KeyExpr: {e}"))?;
 
         // create the zenoh Queryable
         // if Reader is TRANSIENT_LOCAL, use a PublicationCache to store historical data
