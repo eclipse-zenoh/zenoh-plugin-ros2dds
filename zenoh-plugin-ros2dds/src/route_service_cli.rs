@@ -287,7 +287,7 @@ impl RouteServiceCli {
     }
 }
 
-#[allow(clippy::too_many_arguments)] 
+#[allow(clippy::too_many_arguments)]
 fn activate(
     rep_writer: &Arc<AtomicDDSEntity>,
     req_reader: &Arc<AtomicDDSEntity>,
