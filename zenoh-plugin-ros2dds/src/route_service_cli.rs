@@ -287,6 +287,7 @@ impl RouteServiceCli {
     }
 }
 
+#[allow(clippy::too_many_arguments)] 
 fn activate(
     rep_writer: &Arc<AtomicDDSEntity>,
     req_reader: &Arc<AtomicDDSEntity>,
@@ -313,7 +314,7 @@ fn activate(
 
     // create DDS Writer to send replies coming from Zenoh to the Client
     let rep_topic_name = format!("rr{}Reply", ros2_name);
-    let rep_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
+    let rep_type_name = ros2_service_type_to_reply_dds_type(ros2_type);
     let dds_writer = create_dds_writer(
         context.participant,
         rep_topic_name,
@@ -338,14 +339,14 @@ fn activate(
 
     // create DDS Reader to receive requests and route them to Zenoh
     let req_topic_name = format!("rq{}Request", ros2_name);
-    let req_type_name = ros2_service_type_to_request_dds_type(&ros2_type);
+    let req_type_name = ros2_service_type_to_request_dds_type(ros2_type);
     let zquerier = zenoh_querier.clone();
     let route_id2 = route_id.to_owned();
     let dds_reader = create_dds_reader(
         context.participant,
         req_topic_name,
         req_type_name,
-        &type_info,
+        type_info,
         true,
         qos,
         None,
