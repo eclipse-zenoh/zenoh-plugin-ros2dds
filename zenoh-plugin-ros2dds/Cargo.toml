@@ -32,9 +32,6 @@ stats = ["zenoh/stats"]
 dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
 
-# TODO: The ros_test should be re-enabled as soon the r2r dependency is removed from the build of zenoh-plugin-ros2dds
-# ros_test = ["r2r"]
-
 [dependencies]
 async-trait = { workspace = true }
 bincode = { workspace = true }
@@ -56,12 +53,6 @@ zenoh = { workspace = true }
 zenoh-config = { workspace = true }
 zenoh-ext = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
-
-# r2r is for tests only. It has to be optional because its building requires a full ROS 2 environement
-# However "optional" is not supported for "dev-dependencies".
-# Hence it's declared as a dependency but active only with "ros_test" feature
-# r2r = { workspace = true, optional = true }
-
 
 [build-dependencies]
 rustc_version = { workspace = true }

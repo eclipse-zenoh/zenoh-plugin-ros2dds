@@ -63,45 +63,45 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-  # system_tests_with_ros2_humble:
-  #   name: System tests with ROS 2 Humble
-  #   runs-on: ubuntu-latest
-  #   container:
-  #     image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
-  #   steps:
-  #   - uses: ros-tooling/setup-ros@v0.7
-  #     with:
-  #       required-ros-distributions: humble
+  system_tests_with_ros2_humble:
+    name: System tests with ROS 2 Humble
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+    steps:
+    - uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: humble
 
-  #   - uses: actions/checkout@v4
-  #   - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #   - name: Install ACL
-  #     run: sudo apt-get -y install libacl1-dev
+    - name: Install ACL
+      run: sudo apt-get -y install libacl1-dev
 
-  #   - name: Run ROS tests (enable feature ros_test)
-  #     shell: bash
-  #     run: "source /opt/ros/humble/setup.bash && cargo test --features ros_test --verbose"
+    - name: Run ROS tests
+      shell: bash
+      run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose"
 
-  # system_tests_with_ros2_jazzy:
-  #   name: System tests with ROS 2 Jazzy
-  #   runs-on: ubuntu-latest
-  #   container:
-  #     image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
-  #   steps:
-  #   - uses: ros-tooling/setup-ros@v0.7
-  #     with:
-  #       required-ros-distributions: jazzy
+  system_tests_with_ros2_jazzy:
+    name: System tests with ROS 2 Jazzy
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+    steps:
+    - uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: jazzy
 
-  #   - uses: actions/checkout@v4
-  #   - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #   - name: Install ACL
-  #     run: sudo apt-get -y install libacl1-dev
+    - name: Install ACL
+      run: sudo apt-get -y install libacl1-dev
 
-  #   - name: Run ROS tests (enable feature ros_test)
-  #     shell: bash
-  #     run: "source /opt/ros/jazzy/setup.bash && cargo test --features ros_test --verbose"
+    - name: Run ROS tests
+      shell: bash
+      run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose"
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
