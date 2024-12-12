@@ -46,7 +46,7 @@ jobs:
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
       - name: Clippy
-        run: cargo clippy --all --examples -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- --deny warnings
 
       - name: Build zenoh-plugin-ros2dds
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
@@ -63,45 +63,59 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-  # system_tests_with_ros2_humble:
-  #   name: System tests with ROS 2 Humble
-  #   runs-on: ubuntu-latest
-  #   container:
-  #     image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
-  #   steps:
-  #   - uses: ros-tooling/setup-ros@v0.7
-  #     with:
-  #       required-ros-distributions: humble
+  system_tests_with_ros2_humble:
+    name: System tests with ROS 2 Humble
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+    steps:
+    - uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: humble
 
-  #   - uses: actions/checkout@v4
-  #   - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #   - name: Install ACL
-  #     run: sudo apt-get -y install libacl1-dev
+    - name: Install ACL
+      run: sudo apt-get -y install libacl1-dev
 
-  #   - name: Run ROS tests (enable feature ros_test)
-  #     shell: bash
-  #     run: "source /opt/ros/humble/setup.bash && cargo test --features ros_test --verbose"
+    - name: Code format check
+      shell: bash
+      run: 'source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
+    - name: Clippy
+      shell: bash
+      run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo clippy --tests -- --deny warnings"
 
-  # system_tests_with_ros2_jazzy:
-  #   name: System tests with ROS 2 Jazzy
-  #   runs-on: ubuntu-latest
-  #   container:
-  #     image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
-  #   steps:
-  #   - uses: ros-tooling/setup-ros@v0.7
-  #     with:
-  #       required-ros-distributions: jazzy
+    - name: Run ROS tests
+      shell: bash
+      run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose"
 
-  #   - uses: actions/checkout@v4
-  #   - uses: actions-rust-lang/setup-rust-toolchain@v1
+  system_tests_with_ros2_jazzy:
+    name: System tests with ROS 2 Jazzy
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-jazzy-ros-base-latest
+    steps:
+    - uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: jazzy
 
-  #   - name: Install ACL
-  #     run: sudo apt-get -y install libacl1-dev
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #   - name: Run ROS tests (enable feature ros_test)
-  #     shell: bash
-  #     run: "source /opt/ros/jazzy/setup.bash && cargo test --features ros_test --verbose"
+    - name: Install ACL
+      run: sudo apt-get -y install libacl1-dev
+
+    - name: Code format check
+      shell: bash
+      run: 'source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
+    - name: Clippy
+      shell: bash
+      run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo clippy --tests -- --deny warnings"
+
+    - name: Run ROS tests
+      shell: bash
+      run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose"
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
