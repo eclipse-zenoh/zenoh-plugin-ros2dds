@@ -1004,7 +1004,8 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.4"
-source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=issue-24-0_2_1-combined#915a2bf59f4acafbf3ea59f7b0b3a7d5b865374a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "120b2e3a975f8ae729a9ab152fe9702c695466b3b1e2711c8871d5cb882a5223"
 dependencies = [
  "bincode",
  "bindgen",
@@ -3856,7 +3857,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "static_assertions",
 ]
 
