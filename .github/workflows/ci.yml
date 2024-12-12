@@ -53,7 +53,7 @@ jobs:
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- --deny warnings
+        run: cargo clippy --workspace --all-targets --features stats,dynamic_plugin,dds_shm -- --deny warnings
 
       - name: Build zenoh-plugin-ros2dds
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
