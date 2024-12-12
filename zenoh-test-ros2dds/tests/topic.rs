@@ -12,51 +12,25 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+pub mod common;
+
 use std::{sync::mpsc::channel, time::Duration};
 
 use futures::StreamExt;
 use r2r::{self, QosProfile};
-use zenoh::{
-    config::Config,
-    internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
-};
-use zenoh_config::ModeDependentValue;
 
 // The test topic
 const TEST_TOPIC: &str = "test_topic";
 // The test TEST_PAYLOAD
 const TEST_PAYLOAD: &str = "Hello World";
 
-fn init_env() {
-    std::env::set_var("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp");
-}
-
-async fn create_bridge() {
-    let mut plugins_mgr = PluginsManager::static_plugins_only();
-    plugins_mgr.declare_static_plugin::<zenoh_plugin_ros2dds::ROS2Plugin, &str>("ros2dds", true);
-    let mut config = Config::default();
-    config.insert_json5("plugins/ros2dds", "{}").unwrap();
-    config
-        .timestamping
-        .set_enabled(Some(ModeDependentValue::Unique(true)))
-        .unwrap();
-    config.adminspace.set_enabled(true).unwrap();
-    config.plugins_loading.set_enabled(true).unwrap();
-    let mut runtime = RuntimeBuilder::new(config)
-        .plugins_manager(plugins_mgr)
-        .build()
-        .await
-        .unwrap();
-    runtime.start().await.unwrap();
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn test_zenoh_pub_ros_sub() {
-    init_env();
+    common::init_env();
     let (tx, rx) = channel();
 
     // Create zenoh-bridge-ros2dds
-    tokio::spawn(create_bridge());
+    tokio::spawn(common::create_bridge());
 
     // ROS subscriber
     let ctx = r2r::Context::create().unwrap();
@@ -94,9 +68,9 @@ async fn test_zenoh_pub_ros_sub() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_ros_pub_zenoh_sub() {
-    init_env();
+    common::init_env();
     // Create zenoh-bridge-ros2dds
-    tokio::spawn(create_bridge());
+    tokio::spawn(common::create_bridge());
 
     // Zenoh subscriber
     let session = zenoh::open(zenoh::Config::default()).await.unwrap();
