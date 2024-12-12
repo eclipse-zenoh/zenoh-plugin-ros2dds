@@ -80,6 +80,7 @@ jobs:
       run: sudo apt-get -y install libacl1-dev
 
     - name: Code format check
+      shell: bash
       run: 'source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
     - name: Clippy
       shell: bash
@@ -106,6 +107,7 @@ jobs:
       run: sudo apt-get -y install libacl1-dev
 
     - name: Code format check
+      shell: bash
       run: 'source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
     - name: Clippy
       shell: bash
