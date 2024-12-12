@@ -46,7 +46,7 @@ jobs:
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
       - name: Clippy
-        run: cargo clippy --all --examples -- -D warnings
+        run: cargo clippy --all-targets --all-features -- --deny warnings
 
       - name: Build zenoh-plugin-ros2dds
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
@@ -79,6 +79,12 @@ jobs:
     - name: Install ACL
       run: sudo apt-get -y install libacl1-dev
 
+    - name: Code format check
+      run: 'source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
+    - name: Clippy
+      shell: bash
+      run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo clippy --tests -- --deny warnings"
+
     - name: Run ROS tests
       shell: bash
       run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose"
@@ -98,6 +104,12 @@ jobs:
 
     - name: Install ACL
       run: sudo apt-get -y install libacl1-dev
+
+    - name: Code format check
+      run: 'source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
+    - name: Clippy
+      shell: bash
+      run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo clippy --tests -- --deny warnings"
 
     - name: Run ROS tests
       shell: bash
