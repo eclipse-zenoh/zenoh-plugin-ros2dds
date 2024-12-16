@@ -88,6 +88,7 @@ jobs:
 
     - name: Run ROS tests
       shell: bash
+      # Note that we limit only one test item tested at the same time to avoid the confliction between bridges
       run: "source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose -- --test-threads=1"
 
   system_tests_with_ros2_jazzy:
@@ -115,6 +116,7 @@ jobs:
 
     - name: Run ROS tests
       shell: bash
+      # Note that we limit only one test item tested at the same time to avoid the confliction between bridges
       run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose -- --test-threads=1"
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
