@@ -31,6 +31,7 @@ default = ["dynamic_plugin"]
 stats = ["zenoh/stats"]
 dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
+prefix_symbols = ["cyclors/prefix_symbols"]
 
 [dependencies]
 async-trait = { workspace = true }
