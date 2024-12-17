@@ -9,7 +9,7 @@ Wants=network-online.target
 Type=simple
 Environment=RUST_LOG=info
 ExecStart =+/usr/bin/zenoh-bridge-ros2dds -c /etc/zenoh-bridge-ros2dds/conf.json5
-KillMode=mixed
+KillMode=control-group
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 Restart=on-failure
