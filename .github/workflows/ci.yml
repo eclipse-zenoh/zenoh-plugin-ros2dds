@@ -138,6 +138,15 @@ jobs:
       # Note that we limit only one test item tested at the same time to avoid the confliction between bridges
       run: "source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo test --verbose -- --test-threads=1"
 
+  markdown_lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          config: '.markdownlint.yaml'
+          globs: '**/README.md'
+
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
   # from branches where specific status checks have passed. These checks are
@@ -146,7 +155,7 @@ jobs:
   ci:
     name: CI status checks
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, system_tests_with_ros2_humble, system_tests_with_ros2_jazzy, markdown_lint]
     if: always()
     steps:
       - name: Check whether all jobs pass
