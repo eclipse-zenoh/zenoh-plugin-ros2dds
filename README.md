@@ -124,7 +124,7 @@ DDS support is provided by the [cyclors crate](https://crates.io/crates/cyclors)
 To allow multiple versions of the ```cyclors``` crate to be loaded at the same time the symbols within the crate can be prefixed with the crate version. The optional ```prefix_symbols``` feature can be used to build the ROS2 plugin with prefixed DDS library symbols. e.g.
 
 ```bash
-$ cargo build --features prefix_symbols
+cargo build --features prefix_symbols
 ```
 
 **Note:** The ```prefix_symbols``` feature cannot be used at the same time as the ```dds_shm``` feature.
