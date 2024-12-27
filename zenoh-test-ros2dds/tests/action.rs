@@ -182,23 +182,18 @@ fn test_zenoh_client_ros_action() {
             .unwrap();
         let sequence = action_result.clone();
         tokio::spawn(async move {
-            loop {
-                match action_server.next().await {
-                    Some(req) => {
-                        println!(
-                            r#"Receive goal request with order {}, goal id: {}"#,
-                            req.goal.order, req.uuid
-                        );
-                        assert_eq!(req.goal.order, action_request);
-                        let (mut recv_goal, mut _cancel) = req.accept().unwrap();
-                        recv_goal
-                            .succeed(r2r::example_interfaces::action::Fibonacci::Result {
-                                sequence: sequence.clone(),
-                            })
-                            .unwrap();
-                    }
-                    None => break,
-                }
+            while let Some(req) = action_server.next().await {
+                println!(
+                    r#"Receive goal request with order {}, goal id: {}"#,
+                    req.goal.order, req.uuid
+                );
+                assert_eq!(req.goal.order, action_request);
+                let (mut recv_goal, mut _cancel) = req.accept().unwrap();
+                recv_goal
+                    .succeed(r2r::example_interfaces::action::Fibonacci::Result {
+                        sequence: sequence.clone(),
+                    })
+                    .unwrap();
             }
         });
 
@@ -219,7 +214,7 @@ fn test_zenoh_client_ros_action() {
 
         // Send Zenoh action request
         let req = FibonacciSendGoal {
-            goal_id: goal_id.clone(),
+            goal_id,
             goal: action_request,
         };
         let buf = cdr::serialize::<_, _, cdr::CdrLe>(&req, cdr::Infinite).unwrap();
@@ -231,9 +226,7 @@ fn test_zenoh_client_ros_action() {
         println!("The result of SendGoal: {:?}", reply.accept);
 
         // Get the result from ROS 2 action server
-        let req = ActionResultRequest {
-            goal_id: goal_id.clone(),
-        };
+        let req = ActionResultRequest { goal_id };
         let buf = cdr::serialize::<_, _, cdr::CdrLe>(&req, cdr::Infinite).unwrap();
         let recv_handler = get_result_client.get().payload(buf).wait().unwrap();
         let reply_sample = recv_handler.recv().unwrap();
