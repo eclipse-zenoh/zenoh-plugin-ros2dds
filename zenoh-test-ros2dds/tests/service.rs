@@ -37,7 +37,6 @@ struct AddTwoIntsReply {
 
 #[test]
 fn test_ros_client_zenoh_service() {
-    // Run the bridge for MQTT and Zenoh
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -110,7 +109,6 @@ fn test_ros_client_zenoh_service() {
 
 #[test]
 fn test_zenoh_client_ros_service() {
-    // Run the bridge for MQTT and Zenoh
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let (sender, receiver) = std::sync::mpsc::channel();
