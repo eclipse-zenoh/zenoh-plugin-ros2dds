@@ -65,6 +65,7 @@ fn test_ros_client_zenoh_action() {
 
         // Zenoh action server
         // Note that we just create send_goal and get_result to implement the minimal action server
+        // TODO: We should also test `_action/feedback`
         let session = zenoh::open(zenoh::Config::default()).await.unwrap();
         let send_goal_expr = TEST_ACTION_R2Z.to_string() + "/_action/send_goal";
         let get_result_expr = TEST_ACTION_R2Z.to_string() + "/_action/get_result";
