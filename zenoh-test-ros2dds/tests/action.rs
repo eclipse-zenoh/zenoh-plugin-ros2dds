@@ -55,7 +55,7 @@ fn test_ros_client_zenoh_action() {
 
     let (sender, receiver) = std::sync::mpsc::channel();
 
-    rt.block_on(async {
+    rt.spawn(async {
         common::init_env();
 
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
@@ -159,7 +159,7 @@ fn test_zenoh_client_ros_action() {
 
     let (sender, receiver) = std::sync::mpsc::channel();
 
-    rt.block_on(async {
+    rt.spawn(async {
         common::init_env();
 
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
