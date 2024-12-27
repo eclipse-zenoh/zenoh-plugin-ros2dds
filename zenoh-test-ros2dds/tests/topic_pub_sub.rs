@@ -61,7 +61,7 @@ async fn test_zenoh_pub_ros_sub() {
     });
     node.spin_once(std::time::Duration::from_millis(100));
     let data = rx
-        .recv_timeout(Duration::from_secs(3))
+        .recv_timeout(common::DEFAULT_TIMEOUT)
         .expect("Receiver timeout");
     assert_eq!(data, TEST_PAYLOAD);
 }
@@ -93,7 +93,7 @@ async fn test_ros_pub_zenoh_sub() {
     publisher.publish(&msg).unwrap();
 
     // Check Zenoh subscriber will receive the data
-    tokio::time::timeout(Duration::from_secs(3), async {
+    tokio::time::timeout(common::DEFAULT_TIMEOUT, async {
         let sample = subscriber.recv_async().await.unwrap();
         let result: Result<String, _> =
             cdr::deserialize_from(sample.payload().reader(), cdr::size::Infinite);

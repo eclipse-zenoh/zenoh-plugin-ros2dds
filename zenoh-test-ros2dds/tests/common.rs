@@ -11,12 +11,15 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::time;
 
 use zenoh::{
     config::Config,
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
 };
 use zenoh_config::ModeDependentValue;
+
+pub static DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(60);
 
 pub fn init_env() {
     std::env::set_var("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp");
