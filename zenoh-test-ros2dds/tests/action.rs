@@ -51,6 +51,7 @@ pub struct FibonacciResult {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_ros_client_zenoh_action() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -88,7 +89,7 @@ fn test_ros_client_zenoh_action() {
                     cdr::serialize::<_, _, cdr::CdrLe>(&send_goal_response, cdr::Infinite).unwrap();
                 query.reply(&send_goal_expr, payload).wait().unwrap();
             })
-            .wait()
+            .await
             .unwrap();
         let sequence = action_result.clone();
         let _get_result_server = session
@@ -104,7 +105,7 @@ fn test_ros_client_zenoh_action() {
                         .unwrap();
                 query.reply(&get_result_expr, payload).wait().unwrap();
             })
-            .wait()
+            .await
             .unwrap();
 
         // ROS action client
@@ -154,6 +155,7 @@ fn test_ros_client_zenoh_action() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_zenoh_client_ros_action() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -205,8 +207,8 @@ fn test_zenoh_client_ros_action() {
         let session = zenoh::open(zenoh::Config::default()).await.unwrap();
         let send_goal_expr = TEST_ACTION_Z2R.to_string() + "/_action/send_goal";
         let get_result_expr = TEST_ACTION_Z2R.to_string() + "/_action/get_result";
-        let send_goal_client = session.declare_querier(send_goal_expr).wait().unwrap();
-        let get_result_client = session.declare_querier(get_result_expr).wait().unwrap();
+        let send_goal_client = session.declare_querier(send_goal_expr).await.unwrap();
+        let get_result_client = session.declare_querier(get_result_expr).await.unwrap();
 
         // Wait for the environment to be ready
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -217,7 +219,7 @@ fn test_zenoh_client_ros_action() {
             goal: action_request,
         };
         let buf = cdr::serialize::<_, _, cdr::CdrLe>(&req, cdr::Infinite).unwrap();
-        let recv_handler = send_goal_client.get().payload(buf).wait().unwrap();
+        let recv_handler = send_goal_client.get().payload(buf).await.unwrap();
         let reply_sample = recv_handler.recv().unwrap();
         let reader = reply_sample.result().unwrap().payload().reader();
         let reply: ActionSendGoalResponse =
@@ -227,7 +229,7 @@ fn test_zenoh_client_ros_action() {
         // Get the result from ROS 2 action server
         let req = ActionResultRequest { goal_id };
         let buf = cdr::serialize::<_, _, cdr::CdrLe>(&req, cdr::Infinite).unwrap();
-        let recv_handler = get_result_client.get().payload(buf).wait().unwrap();
+        let recv_handler = get_result_client.get().payload(buf).await.unwrap();
         let reply_sample = recv_handler.recv().unwrap();
         let reader = reply_sample.result().unwrap().payload().reader();
         let reply: FibonacciResult = cdr::deserialize_from(reader, cdr::size::Infinite).unwrap();

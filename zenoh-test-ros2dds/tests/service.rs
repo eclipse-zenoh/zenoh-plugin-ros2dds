@@ -36,6 +36,7 @@ struct AddTwoIntsReply {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_ros_client_zenoh_service() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -108,6 +109,7 @@ fn test_ros_client_zenoh_service() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_zenoh_client_ros_service() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
