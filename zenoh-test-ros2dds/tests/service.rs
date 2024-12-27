@@ -92,7 +92,7 @@ fn test_ros_client_zenoh_service() {
         sender.send(()).unwrap();
     });
 
-    let test_result = receiver.recv_timeout(Duration::from_secs(5));
+    let test_result = receiver.recv_timeout(common::DEFAULT_TIMEOUT);
     // Stop the tokio runtime
     // Note that we should shutdown the runtime before doing any check that might panic the test.
     // Otherwise, the tasks inside the runtime will never be completed.
@@ -167,7 +167,7 @@ fn test_zenoh_client_ros_service() {
         sender.send(()).unwrap();
     });
 
-    let test_result = receiver.recv_timeout(Duration::from_secs(5));
+    let test_result = receiver.recv_timeout(common::DEFAULT_TIMEOUT);
     // Stop the tokio runtime
     // Note that we should shutdown the runtime before doing any check that might panic the test.
     // Otherwise, the tasks inside the runtime will never be completed.

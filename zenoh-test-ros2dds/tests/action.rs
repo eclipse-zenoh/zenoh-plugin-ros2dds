@@ -16,6 +16,7 @@ pub mod common;
 
 use std::time::Duration;
 
+use common::DEFAULT_TIMEOUT;
 use futures::StreamExt;
 use r2r::{self};
 use serde_derive::{Deserialize, Serialize};
@@ -57,13 +58,12 @@ fn test_ros_client_zenoh_action() {
 
     rt.spawn(async move {
         common::init_env();
+        // Create zenoh-bridge-ros2dds
+        tokio::spawn(common::create_bridge());
 
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
         let action_request = 5;
         let action_result = vec![0, 1, 1, 2, 3, 5];
-
-        // Create zenoh-bridge-ros2dds
-        tokio::spawn(common::create_bridge());
 
         // Zenoh action server
         // Note that we just create send_goal and get_result to implement the minimal action server
@@ -138,7 +138,7 @@ fn test_ros_client_zenoh_action() {
         sender.send(()).unwrap();
     });
 
-    let test_result = receiver.recv_timeout(Duration::from_secs(5));
+    let test_result = receiver.recv_timeout(DEFAULT_TIMEOUT);
     // Stop the tokio runtime
     // Note that we should shutdown the runtime before doing any check that might panic the test.
     // Otherwise, the tasks inside the runtime will never be completed.
@@ -161,15 +161,14 @@ fn test_zenoh_client_ros_action() {
 
     rt.spawn(async move {
         common::init_env();
+        // Create zenoh-bridge-ros2dds
+        tokio::spawn(common::create_bridge());
 
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
         let action_request = 5;
         let action_result = vec![0, 1, 1, 2, 3, 5];
         // Random goal id
         let goal_id = [1; 16];
-
-        // Create zenoh-bridge-ros2dds
-        tokio::spawn(common::create_bridge());
 
         // ROS action server
         // Note that we ignore the feedback and just return back the result
@@ -239,7 +238,7 @@ fn test_zenoh_client_ros_action() {
         sender.send(()).unwrap();
     });
 
-    let test_result = receiver.recv_timeout(Duration::from_secs(5));
+    let test_result = receiver.recv_timeout(common::DEFAULT_TIMEOUT);
     // Stop the tokio runtime
     // Note that we should shutdown the runtime before doing any check that might panic the test.
     // Otherwise, the tasks inside the runtime will never be completed.
