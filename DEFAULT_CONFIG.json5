@@ -126,13 +126,15 @@
       ////
       //// queries_timeout: Timeouts configuration for various Zenoh queries.
       ////                  Each field is optional. If not set, the 'default' timeout (5.0 seconds by default) applies to all queries.
+      ////                  Note that actions/get_result is the special case, and we need a larger timeout (300.0 seconds by default).
+      ////                  Refer to https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/369#issuecomment-2563725619
       ////                  Each value can be either a float in seconds that will apply as a timeout to all queries,
       ////                  either a list of strings with format "<regex>=<float>" where:
       ////                      - "regex" is a regular expression matching an interface name
       ////                      - "float" is the timeout in seconds
       // queries_timeout: {
       //   //// default timeout that will apply to all query, except the ones specified below
-      //   //// in 'transient_local_subscribers', 'services' and 'actions'
+      //   //// in 'transient_local_subscribers', 'services' and 'actions' (except get_result)
       //   default: 5.0,
       //   //// timeouts for TRANSIENT_LOCAL subscriber when querying publishers for historical publications
       //   transient_local_subscribers: 1.0,

@@ -25,6 +25,10 @@ pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
+// In the ROS 2 action, get_result is sent out first and then wait for the result.
+// It will cause the action client never complete, so we need a larger timeout.
+// Refer to https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/369#issuecomment-2563725619
+pub const DEFAULT_ACTION_GET_RESULT_TIMEOUT: f32 = 300.0;
 pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
 pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
@@ -170,23 +174,16 @@ impl Config {
     pub fn get_queries_timeout_action_get_result(&self, ros2_name: &str) -> Duration {
         match &self.queries_timeout {
             Some(QueriesTimeouts {
-                default,
-                actions: Some(at),
-                ..
+                actions: Some(at), ..
             }) => {
                 for (re, secs) in &at.get_result {
                     if re.is_match(ros2_name) {
                         return Duration::from_secs_f32(*secs);
                     }
                 }
-                Duration::from_secs_f32(*default)
+                Duration::from_secs_f32(DEFAULT_ACTION_GET_RESULT_TIMEOUT)
             }
-            Some(QueriesTimeouts {
-                default,
-                actions: None,
-                ..
-            }) => Duration::from_secs_f32(*default),
-            _ => Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT),
+            _ => Duration::from_secs_f32(DEFAULT_ACTION_GET_RESULT_TIMEOUT),
         }
     }
 }
