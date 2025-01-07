@@ -108,7 +108,6 @@ fn test_zenoh_client_ros_action() {
         });
 
         // Zenoh action client
-        // TODO: We should also test `_action/feedback`
         let session = zenoh::open(zenoh::Config::default()).await.unwrap();
         let send_goal_expr = TEST_ACTION_Z2R.to_string() + "/_action/send_goal";
         let get_result_expr = TEST_ACTION_Z2R.to_string() + "/_action/get_result";
