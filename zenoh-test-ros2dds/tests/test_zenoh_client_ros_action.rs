@@ -47,6 +47,12 @@ pub struct FibonacciResult {
     pub sequence: Vec<i32>,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
+pub struct FibonacciFeedback {
+    pub goal_id: [u8; 16],
+    pub sequence: Vec<i32>,
+}
+
 #[test]
 fn test_zenoh_client_ros_action() {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -61,6 +67,7 @@ fn test_zenoh_client_ros_action() {
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
         let action_request = 5;
         let action_result = vec![0, 1, 1, 2, 3, 5];
+        let feedback = vec![0, 1, 1, 2, 3];
         // Random goal id
         let goal_id = [1; 16];
 
@@ -74,14 +81,19 @@ fn test_zenoh_client_ros_action() {
             )
             .unwrap();
         let sequence = action_result.clone();
+        let feedback_seq = feedback.clone();
         tokio::spawn(async move {
             while let Some(req) = action_server.next().await {
                 println!(
-                    r#"Receive goal request with order {}, goal id: {}"#,
+                    "Receive goal request: order {}, goal id {}",
                     req.goal.order, req.uuid
                 );
                 assert_eq!(req.goal.order, action_request);
                 let (mut recv_goal, mut _cancel) = req.accept().unwrap();
+                let feedback_data = r2r::example_interfaces::action::Fibonacci::Feedback {
+                    sequence: feedback_seq.clone(),
+                };
+                recv_goal.publish_feedback(feedback_data).unwrap();
                 recv_goal
                     .succeed(r2r::example_interfaces::action::Fibonacci::Result {
                         sequence: sequence.clone(),
@@ -96,12 +108,13 @@ fn test_zenoh_client_ros_action() {
         });
 
         // Zenoh action client
-        // TODO: We should also test `_action/feedback`
         let session = zenoh::open(zenoh::Config::default()).await.unwrap();
         let send_goal_expr = TEST_ACTION_Z2R.to_string() + "/_action/send_goal";
         let get_result_expr = TEST_ACTION_Z2R.to_string() + "/_action/get_result";
+        let feedback_expr = TEST_ACTION_Z2R.to_string() + "/_action/feedback";
         let send_goal_client = session.declare_querier(send_goal_expr).await.unwrap();
         let get_result_client = session.declare_querier(get_result_expr).await.unwrap();
+        let subscriber = session.declare_subscriber(feedback_expr).await.unwrap();
 
         // Wait for the environment to be ready
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -117,7 +130,14 @@ fn test_zenoh_client_ros_action() {
         let reader = reply_sample.result().unwrap().payload().reader();
         let reply: ActionSendGoalResponse =
             cdr::deserialize_from(reader, cdr::size::Infinite).unwrap();
-        println!("The result of SendGoal: {:?}", reply.accept);
+        println!("Receive the result of SendGoal: {:?}", reply.accept);
+
+        // Receive feedback
+        let sample = subscriber.recv_async().await.unwrap();
+        let feedback_result: FibonacciFeedback =
+            cdr::deserialize_from(sample.payload().reader(), cdr::size::Infinite).unwrap();
+        println!("Receive feedback {:?}", feedback_result.sequence);
+        assert_eq!(feedback_result.sequence, feedback);
 
         // Get the result from ROS 2 action server
         let req = ActionResultRequest { goal_id };
@@ -126,7 +146,10 @@ fn test_zenoh_client_ros_action() {
         let reply_sample = recv_handler.recv().unwrap();
         let reader = reply_sample.result().unwrap().payload().reader();
         let reply: FibonacciResult = cdr::deserialize_from(reader, cdr::size::Infinite).unwrap();
-        println!("The result: {:?} {:?}", reply.status, reply.sequence);
+        println!(
+            "Receive result: {:?}, status {:?}",
+            reply.sequence, reply.status
+        );
         assert_eq!(reply.sequence, action_result);
 
         // Tell the main test thread, we're completed

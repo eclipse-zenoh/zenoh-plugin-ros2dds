@@ -17,6 +17,7 @@ pub mod common;
 use std::time::Duration;
 
 use common::DEFAULT_TIMEOUT;
+use futures::StreamExt;
 use r2r::{self};
 use serde_derive::{Deserialize, Serialize};
 use zenoh::Wait;
@@ -48,6 +49,12 @@ pub struct FibonacciResult {
     pub sequence: Vec<i32>,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
+pub struct FibonacciFeedback {
+    pub goal_id: [u8; 16],
+    pub sequence: Vec<i32>,
+}
+
 #[test]
 fn test_ros_client_zenoh_action() {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -62,19 +69,29 @@ fn test_ros_client_zenoh_action() {
         // We send request 5 and expect result [0, 1, 1, 2, 3, 5]
         let action_request = 5;
         let action_result = vec![0, 1, 1, 2, 3, 5];
+        let feedback = vec![0, 1, 1, 2, 3];
 
         // Zenoh action server
-        // Note that we just create send_goal and get_result to implement the minimal action server
-        // TODO: We should also test `_action/feedback`
+        // Note that we just create send_goal, get_result and feedback to implement the minimal action server
         let session = zenoh::open(zenoh::Config::default()).await.unwrap();
         let send_goal_expr = TEST_ACTION_R2Z.to_string() + "/_action/send_goal";
         let get_result_expr = TEST_ACTION_R2Z.to_string() + "/_action/get_result";
+        let feedback_expr = TEST_ACTION_R2Z.to_string() + "/_action/feedback";
+        // feedback publisher
+        let feedback_publisher = session
+            .declare_publisher(feedback_expr.clone())
+            .await
+            .unwrap();
+        // send_goal
         let _send_goal_server = session
             .declare_queryable(send_goal_expr.clone())
             .callback(move |query| {
                 let send_goal: FibonacciSendGoal =
                     cdr::deserialize(&query.payload().unwrap().to_bytes()).unwrap();
-                println!("Receive {:?}: {:?}", send_goal.goal_id, send_goal.goal);
+                println!(
+                    "Receive goal request: order {:?}, goal id {:?}",
+                    send_goal.goal, send_goal.goal_id
+                );
                 assert_eq!(send_goal.goal, action_request);
 
                 // Reply to the action client
@@ -89,14 +106,28 @@ fn test_ros_client_zenoh_action() {
             })
             .await
             .unwrap();
-        let sequence = action_result.clone();
+        // get_result
+        let feedback_seq = feedback.clone();
+        let result_seq = action_result.clone();
         let _get_result_server = session
             .declare_queryable(get_result_expr.clone())
             .callback(move |query| {
+                let req_result: ActionResultRequest =
+                    cdr::deserialize(&query.payload().unwrap().to_bytes()).unwrap();
+                // Publish feedback
+                let buf = cdr::serialize::<_, _, cdr::CdrLe>(
+                    &FibonacciFeedback {
+                        goal_id: req_result.goal_id,
+                        sequence: feedback_seq.clone(),
+                    },
+                    cdr::Infinite,
+                )
+                .unwrap();
+                feedback_publisher.put(buf).wait().unwrap();
                 // Reply the get result
                 let get_result_response = FibonacciResult {
                     status: 4,
-                    sequence: sequence.clone(),
+                    sequence: result_seq.clone(),
                 };
                 let payload =
                     cdr::serialize::<_, _, cdr::CdrLe>(&get_result_response, cdr::Infinite)
@@ -127,10 +158,13 @@ fn test_ros_client_zenoh_action() {
         let my_goal = r2r::example_interfaces::action::Fibonacci::Goal {
             order: action_request,
         };
-        let (_goal, result_fut, mut _feedback) =
+        let (_goal, result_fut, mut feedback_fut) =
             client.send_goal_request(my_goal).unwrap().await.unwrap();
+        let feedback_result = feedback_fut.next().await.unwrap();
+        println!("Receive feedback {:?}", feedback_result);
+        assert_eq!(feedback_result.sequence, feedback);
         let (goal_status, result) = result_fut.await.unwrap();
-        println!("Received result {:?}, status {:?}", result, goal_status);
+        println!("Receive result {:?}, status {:?}", result, goal_status);
         assert_eq!(result.sequence, action_result);
 
         // Tell the main test thread, we're completed
