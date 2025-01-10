@@ -401,11 +401,11 @@ fn default_domain() -> u32 {
 }
 
 fn default_queries_timeout() -> Option<QueriesTimeouts> {
-    Some(QueriesTimeouts{
+    Some(QueriesTimeouts {
         default: default_queries_timeout_default(),
         transient_local_subscribers: Vec::new(),
         services: Vec::new(),
-        actions: default_actions_timeout()
+        actions: default_actions_timeout(),
     })
 }
 
