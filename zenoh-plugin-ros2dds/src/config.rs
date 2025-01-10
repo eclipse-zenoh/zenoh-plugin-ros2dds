@@ -63,7 +63,7 @@ pub struct Config {
     pub shm_enabled: bool,
     #[serde(default = "default_transient_local_cache_multiplier")]
     pub transient_local_cache_multiplier: usize,
-    #[serde(default)]
+    #[serde(default = "default_queries_timeout")]
     pub queries_timeout: Option<QueriesTimeouts>,
     #[serde(default = "default_reliable_routes_blocking")]
     pub reliable_routes_blocking: bool,
@@ -191,7 +191,7 @@ impl Config {
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueriesTimeouts {
-    #[serde(default = "default_queries_timeout")]
+    #[serde(default = "default_queries_timeout_default")]
     default: f32,
     #[serde(
         default,
@@ -205,7 +205,7 @@ pub struct QueriesTimeouts {
         serialize_with = "serialize_vec_regex_f32"
     )]
     services: Vec<(Regex, f32)>,
-    #[serde(default)]
+    #[serde(default = "default_actions_timeout")]
     actions: Option<ActionsTimeouts>,
 }
 
@@ -225,7 +225,7 @@ pub struct ActionsTimeouts {
     )]
     cancel_goal: Vec<(Regex, f32)>,
     #[serde(
-        default,
+        default = "default_actions_get_result_timeout",
         deserialize_with = "deserialize_vec_regex_f32",
         serialize_with = "serialize_vec_regex_f32"
     )]
@@ -400,8 +400,29 @@ fn default_domain() -> u32 {
     }
 }
 
-fn default_queries_timeout() -> f32 {
+fn default_queries_timeout() -> Option<QueriesTimeouts> {
+    Some(QueriesTimeouts{
+        default: default_queries_timeout_default(),
+        transient_local_subscribers: Vec::new(),
+        services: Vec::new(),
+        actions: default_actions_timeout()
+    })
+}
+
+fn default_queries_timeout_default() -> f32 {
     DEFAULT_QUERIES_TIMEOUT
+}
+
+fn default_actions_timeout() -> Option<ActionsTimeouts> {
+    Some(ActionsTimeouts {
+        send_goal: Vec::new(),
+        cancel_goal: Vec::new(),
+        get_result: default_actions_get_result_timeout(),
+    })
+}
+
+fn default_actions_get_result_timeout() -> Vec<(Regex, f32)> {
+    vec![(Regex::new(".*").unwrap(), DEFAULT_ACTION_GET_RESULT_TIMEOUT)]
 }
 
 fn deserialize_path<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
