@@ -135,7 +135,7 @@
       ////                      - "float" is the timeout in seconds
       // queries_timeout: {
       //   //// default timeout that will apply to all query, except the ones specified below
-      //   //// in 'transient_local_subscribers', 'services' and 'actions' (except get_result)
+      //   //// in 'transient_local_subscribers', 'services' and 'actions'
       //   default: 5.0,
       //   //// timeouts for TRANSIENT_LOCAL subscriber when querying publishers for historical publications
       //   transient_local_subscribers: 1.0,
@@ -145,7 +145,7 @@
       //   actions: {
       //     send_goal: 1.0,
       //     cancel_goal: 1.0,
-      //     get_result: [".*long_mission=3600", ".*short_action=10.0"],
+      //     get_result: [".*long_mission=3600", ".*short_action=10.0", ".*=300"],
       //   }
       // },
 
