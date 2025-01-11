@@ -125,7 +125,10 @@
 
       ////
       //// queries_timeout: Timeouts configuration for various Zenoh queries.
-      ////                  Each field is optional. If not set, the 'default' timeout (5.0 seconds by default) applies to all queries.
+      ////                  Each field is optional. If not set, the 'default' timeout (5.0 seconds by default) applies to all queries,
+      ////                  except for actions' get_result that is by default configured with a larget timeout (300.0 seconds)
+      ////                  to support actions that last a long time.
+      ////                  Refer to https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/369#issuecomment-2563725619
       ////                  Each value can be either a float in seconds that will apply as a timeout to all queries,
       ////                  either a list of strings with format "<regex>=<float>" where:
       ////                      - "regex" is a regular expression matching an interface name
@@ -142,7 +145,7 @@
       //   actions: {
       //     send_goal: 1.0,
       //     cancel_goal: 1.0,
-      //     get_result: [".*long_mission=3600", ".*short_action=10.0"],
+      //     get_result: [".*long_mission=3600", ".*short_action=10.0", ".*=300"],
       //   }
       // },
 

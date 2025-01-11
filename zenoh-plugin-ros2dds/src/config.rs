@@ -25,6 +25,10 @@ pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_TRANSIENT_LOCAL_CACHE_MULTIPLIER: usize = 10;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
+// In the ROS 2 action, get_result is sent out first and then wait for the result.
+// It will cause the action client never complete, so we need a larger timeout.
+// Refer to https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/issues/369#issuecomment-2563725619
+pub const DEFAULT_ACTION_GET_RESULT_TIMEOUT: f32 = 300.0;
 pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
 pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
@@ -59,7 +63,7 @@ pub struct Config {
     pub shm_enabled: bool,
     #[serde(default = "default_transient_local_cache_multiplier")]
     pub transient_local_cache_multiplier: usize,
-    #[serde(default)]
+    #[serde(default = "default_queries_timeout")]
     pub queries_timeout: Option<QueriesTimeouts>,
     #[serde(default = "default_reliable_routes_blocking")]
     pub reliable_routes_blocking: bool,
@@ -170,23 +174,16 @@ impl Config {
     pub fn get_queries_timeout_action_get_result(&self, ros2_name: &str) -> Duration {
         match &self.queries_timeout {
             Some(QueriesTimeouts {
-                default,
-                actions: Some(at),
-                ..
+                actions: Some(at), ..
             }) => {
                 for (re, secs) in &at.get_result {
                     if re.is_match(ros2_name) {
                         return Duration::from_secs_f32(*secs);
                     }
                 }
-                Duration::from_secs_f32(*default)
+                Duration::from_secs_f32(DEFAULT_ACTION_GET_RESULT_TIMEOUT)
             }
-            Some(QueriesTimeouts {
-                default,
-                actions: None,
-                ..
-            }) => Duration::from_secs_f32(*default),
-            _ => Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT),
+            _ => Duration::from_secs_f32(DEFAULT_ACTION_GET_RESULT_TIMEOUT),
         }
     }
 }
@@ -194,7 +191,7 @@ impl Config {
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueriesTimeouts {
-    #[serde(default = "default_queries_timeout")]
+    #[serde(default = "default_queries_timeout_default")]
     default: f32,
     #[serde(
         default,
@@ -208,7 +205,7 @@ pub struct QueriesTimeouts {
         serialize_with = "serialize_vec_regex_f32"
     )]
     services: Vec<(Regex, f32)>,
-    #[serde(default)]
+    #[serde(default = "default_actions_timeout")]
     actions: Option<ActionsTimeouts>,
 }
 
@@ -228,7 +225,7 @@ pub struct ActionsTimeouts {
     )]
     cancel_goal: Vec<(Regex, f32)>,
     #[serde(
-        default,
+        default = "default_actions_get_result_timeout",
         deserialize_with = "deserialize_vec_regex_f32",
         serialize_with = "serialize_vec_regex_f32"
     )]
@@ -403,8 +400,29 @@ fn default_domain() -> u32 {
     }
 }
 
-fn default_queries_timeout() -> f32 {
+fn default_queries_timeout() -> Option<QueriesTimeouts> {
+    Some(QueriesTimeouts {
+        default: default_queries_timeout_default(),
+        transient_local_subscribers: Vec::new(),
+        services: Vec::new(),
+        actions: default_actions_timeout(),
+    })
+}
+
+fn default_queries_timeout_default() -> f32 {
     DEFAULT_QUERIES_TIMEOUT
+}
+
+fn default_actions_timeout() -> Option<ActionsTimeouts> {
+    Some(ActionsTimeouts {
+        send_goal: Vec::new(),
+        cancel_goal: Vec::new(),
+        get_result: default_actions_get_result_timeout(),
+    })
+}
+
+fn default_actions_get_result_timeout() -> Vec<(Regex, f32)> {
+    vec![(Regex::new(".*").unwrap(), DEFAULT_ACTION_GET_RESULT_TIMEOUT)]
 }
 
 fn deserialize_path<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
