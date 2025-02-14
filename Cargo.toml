@@ -21,7 +21,7 @@ edition = "2021"
 homepage = "http://zenoh.io"
 license = "EPL-2.0 OR Apache-2.0"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
-version = "1.2.0"
+version = "1.2.1"
 
 [workspace.dependencies]
 async-liveliness-monitor = "0.1.1"
@@ -43,19 +43,19 @@ serde_json = "1.0.114"
 test-case = { version = "3.3.1" }
 tokio = { version = "1.35.1", default-features = false } # Default features are disabled due to some crates' requirements
 tracing = "0.1"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", version = "1.2.0", features = [
+zenoh = { version = "1.2.1", features = [
   "plugins",
   "unstable",
-] }
-zenoh-config = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", version = "1.2.0", default-features = false }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", version = "1.2.0", features = [
+] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+zenoh-config = { version = "1.2.1", default-features = false , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+zenoh-ext = { version = "1.2.1", features = [
   "unstable",
-] }
-zenoh-plugin-ros2dds = { version = "1.2.0", path = "zenoh-plugin-ros2dds/", default-features = false }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", version = "1.2.0", default-features = false, features = [
+] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+zenoh-plugin-ros2dds = { version = "1.2.1", path = "zenoh-plugin-ros2dds/", default-features = false }
+zenoh-plugin-rest = { version = "1.2.1", default-features = false, features = [
   "static_plugin",
-] }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", version = "1.2.0", default-features = false }
+] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+zenoh-plugin-trait = { version = "1.2.1", default-features = false , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
 
 [profile.release]
 codegen-units = 1

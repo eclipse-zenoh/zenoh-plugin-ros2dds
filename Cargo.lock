@@ -4553,7 +4553,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-ros2dds"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "async-liveliness-monitor",
  "clap",
@@ -4884,7 +4884,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-ros2dds"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "async-trait",
  "bincode",
