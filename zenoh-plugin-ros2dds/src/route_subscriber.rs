@@ -111,7 +111,7 @@ impl fmt::Display for RouteSubscriber {
 
 impl RouteSubscriber {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
@@ -249,7 +249,7 @@ impl RouteSubscriber {
 
     /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub async fn query_historical_publications<'a>(&mut self, zenoh_id: &keyexpr) {
+    pub async fn query_historical_publications(&mut self, zenoh_id: &keyexpr) {
         if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
             // query all PublicationCaches on "<KE_PREFIX_ADMIN_SPACE>/<zenoh_id>/<KE_PREFIX_PUB_CACHE>/<routing_keyexpr>"
             let query_selector: Selector =
