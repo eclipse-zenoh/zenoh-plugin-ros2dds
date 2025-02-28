@@ -233,7 +233,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         }
     }
     dds_return_loan(dr, samples.as_mut_ptr(), MAX_SAMPLES as i32);
-    Box::into_raw(btx);
+    let _ = Box::into_raw(btx);
 }
 
 fn send_discovery_event(sender: &Sender<DDSDiscoveryEvent>, event: DDSDiscoveryEvent) {

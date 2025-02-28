@@ -98,7 +98,7 @@ pub struct RoutesMgr {
     admin_space: HashMap<OwnedKeyExpr, RouteRef>,
 }
 
-impl<'a> RoutesMgr {
+impl RoutesMgr {
     pub fn new(
         config: Arc<Config>,
         zsession: Arc<Session>,
@@ -142,7 +142,7 @@ impl<'a> RoutesMgr {
                         .writers
                         .iter()
                         .find_map(|w| entities.get_writer(w))
-                        .map(Clone::clone)
+                        .cloned()
                 };
                 match entity {
                     Some(entity) => {
@@ -189,7 +189,7 @@ impl<'a> RoutesMgr {
                         .readers
                         .iter()
                         .find_map(|r| entities.get_reader(r))
-                        .map(Clone::clone)
+                        .cloned()
                 };
                 match entity {
                     Some(entity) => {

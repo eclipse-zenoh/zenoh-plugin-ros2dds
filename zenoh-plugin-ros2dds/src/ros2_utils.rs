@@ -418,7 +418,7 @@ pub fn check_ros_name(name: &str) -> Result<(), String> {
     }
 }
 
-/// For potential use later (type_hash in admin space?)
+// /// For potential use later (type_hash in admin space?)
 // pub fn extract_type_hash(qos: &Qos) -> Option<String> {
 //     if let Some(v) = &qos.user_data {
 //         if let Ok(s) = str::from_utf8(v) {
