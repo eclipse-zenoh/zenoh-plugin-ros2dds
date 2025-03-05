@@ -120,7 +120,6 @@ lazy_static::lazy_static!(
     static ref KE_ANY_1_SEGMENT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("*") };
     static ref KE_ANY_N_SEGMENT: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("**") };
 
-    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("@") };
     static ref KE_PREFIX_PUB_CACHE: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("@ros2_pub_cache") };
 );
 
