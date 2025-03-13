@@ -16,6 +16,9 @@ name = "zenoh-test-ros2dds"
 edition = "2021"
 
 [dependencies]
+zerofrom = "=0.1.5"
+litemap = "=0.7.4"
+base64ct = "=1.6.0"
 cdr = "0.2.4"
 futures = "0.3.26"
 r2r = "0.9"
