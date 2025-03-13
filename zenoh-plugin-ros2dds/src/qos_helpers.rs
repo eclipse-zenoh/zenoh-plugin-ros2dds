@@ -28,15 +28,15 @@ pub fn get_durability_service_or_default(qos: &Qos) -> DurabilityService {
 }
 
 pub fn is_reliable(qos: &Qos) -> bool {
-    qos.reliability.as_ref().map_or(false, |reliability| {
-        reliability.kind == ReliabilityKind::RELIABLE
-    })
+    qos.reliability
+        .as_ref()
+        .is_some_and(|reliability| reliability.kind == ReliabilityKind::RELIABLE)
 }
 
 pub fn is_transient_local(qos: &Qos) -> bool {
-    qos.durability.as_ref().map_or(false, |durability| {
-        durability.kind == DurabilityKind::TRANSIENT_LOCAL
-    })
+    qos.durability
+        .as_ref()
+        .is_some_and(|durability| durability.kind == DurabilityKind::TRANSIENT_LOCAL)
 }
 
 // Copy and adapt Writer's QoS for creation of a matching Reader

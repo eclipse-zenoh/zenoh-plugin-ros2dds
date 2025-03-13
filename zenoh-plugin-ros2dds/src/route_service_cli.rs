@@ -103,7 +103,7 @@ impl fmt::Display for RouteServiceCli {
 
 impl RouteServiceCli {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,

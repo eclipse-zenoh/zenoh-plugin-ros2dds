@@ -57,6 +57,7 @@ pub struct BridgeArgs {
     /// The string must have the format "<regex>=<float>":
     ///   - "regex" is a regular expression matching a Publisher interface name
     ///   - "float" is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.
+    ///
     /// Repeat this option to configure several topics expressions with a max frequency.
     #[arg(long, value_name = "REGEX=FLOAT", verbatim_doc_comment)]
     pub pub_max_frequency: Vec<String>,
