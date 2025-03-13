@@ -129,6 +129,9 @@ jobs:
     - name: Install ACL
       run: sudo apt-get -y install libacl1-dev
 
+    - name: Copy rust-toolchain.toml and Cargo.lock to zenoh-test-ros2dds
+      shell: bash
+      run: 'cp rust-toolchain.toml Cargo.lock zenoh-test-ros2dds/'
     - name: Code format check
       shell: bash
       run: 'source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
