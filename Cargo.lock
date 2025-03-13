@@ -1004,8 +1004,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47550a633d59df47867351d41dd348fc08e3b164303d21d82481998207f09732"
+source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=0.2.x_fix_windows_system_clock#eee3126d578e0d6b96267e7855288cf4497b9398"
 dependencies = [
  "bincode",
  "bindgen",
