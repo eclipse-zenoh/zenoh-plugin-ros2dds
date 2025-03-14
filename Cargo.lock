@@ -1004,7 +1004,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.5"
-source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=0.2.x_fix_windows_system_clock#eee3126d578e0d6b96267e7855288cf4497b9398"
+source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=0.2.x_fix_windows_system_clock#68da63eda571256fbb531675d14b7cd1bd6ec5ec"
 dependencies = [
  "bincode",
  "bindgen",
