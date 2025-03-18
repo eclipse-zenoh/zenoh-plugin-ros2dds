@@ -46,7 +46,7 @@ use crate::{
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     ros_discovery::RosDiscoveryInfoMgr,
     routes_mgr::Context,
-    Config, KE_PREFIX_ADMIN_SPACE, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
+    Config, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
 pub struct ZPublisher {
@@ -185,10 +185,8 @@ impl RoutePublisher {
                         .zsession
                         .declare_publication_cache(&zenoh_key_expr)
                         .history(history)
-                        .queryable_prefix(
-                            *KE_PREFIX_ADMIN_SPACE
-                                / &context.zsession.zid().into_keyexpr()
-                                / *KE_PREFIX_PUB_CACHE,
+                        .queryable_suffix(
+                            *KE_PREFIX_PUB_CACHE / &context.zsession.zid().into_keyexpr(),
                         )
                         .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
                         .await
