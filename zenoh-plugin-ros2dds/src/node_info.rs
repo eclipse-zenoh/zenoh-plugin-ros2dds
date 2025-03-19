@@ -368,8 +368,6 @@ pub struct NodeInfo {
     namespace: Range<usize>,
     #[serde(skip)]
     name: Range<usize>,
-    #[serde(skip)]
-    pub participant: Gid,
     #[serde(rename = "publishers", serialize_with = "serialize_hashmap_values")]
     pub msg_pub: HashMap<String, MsgPub>,
     #[serde(rename = "subscribers", serialize_with = "serialize_hashmap_values")]
@@ -452,7 +450,6 @@ impl NodeInfo {
             fullname,
             namespace,
             name,
-            participant,
             msg_pub: HashMap::new(),
             msg_sub: HashMap::new(),
             service_srv: HashMap::new(),

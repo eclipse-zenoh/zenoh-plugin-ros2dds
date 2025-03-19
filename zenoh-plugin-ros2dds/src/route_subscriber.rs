@@ -241,7 +241,19 @@ impl RouteSubscriber {
         tracing::debug!("{self} deactivate");
         // Drop Zenoh Subscriber and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
-        self.zenoh_subscriber = None;
+        match self.zenoh_subscriber.take() {
+            Some(ZSubscriber::Subscriber(s)) => {
+                if let Err(e) = s.undeclare().wait() {
+                    tracing::debug!("Unable to undeclare subscriber: {:?}", e);
+                }
+            }
+            Some(ZSubscriber::FetchingSubscriber(fs)) => {
+                if let Err(e) = fs.undeclare().wait() {
+                    tracing::debug!("Unable to undeclare fetching subscriber: {:?}", e);
+                }
+            }
+            None => {}
+        };
         self.liveliness_token = None;
     }
 
