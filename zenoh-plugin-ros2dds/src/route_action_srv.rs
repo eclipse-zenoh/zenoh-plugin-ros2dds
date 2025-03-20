@@ -71,7 +71,7 @@ impl fmt::Display for RouteActionSrv {
 
 impl RouteActionSrv {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr_prefix: OwnedKeyExpr,

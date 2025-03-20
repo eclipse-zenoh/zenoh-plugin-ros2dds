@@ -27,8 +27,9 @@ pub struct DdsEntity {
     pub participant_key: Gid,
     pub topic_name: String,
     pub type_name: String,
+    // We are storing the type_info but such information is not propagated for the time being
     #[serde(skip)]
-    pub type_info: Option<Arc<TypeInfo>>,
+    pub _type_info: Option<Arc<TypeInfo>>,
     pub keyless: bool,
     pub qos: Qos,
 }
@@ -169,7 +170,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         topic_name: String::from(topic_name),
                         type_name: String::from(type_name),
                         keyless,
-                        type_info,
+                        _type_info: type_info,
                         qos: Qos::from_qos_native((*sample).qos),
                     };
 
@@ -233,7 +234,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         }
     }
     dds_return_loan(dr, samples.as_mut_ptr(), MAX_SAMPLES as i32);
-    Box::into_raw(btx);
+    let _ = Box::into_raw(btx);
 }
 
 fn send_discovery_event(sender: &Sender<DDSDiscoveryEvent>, event: DDSDiscoveryEvent) {

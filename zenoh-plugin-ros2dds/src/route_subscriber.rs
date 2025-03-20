@@ -111,7 +111,7 @@ impl fmt::Display for RouteSubscriber {
 
 impl RouteSubscriber {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create<'a>(
+    pub async fn create(
         ros2_name: String,
         ros2_type: String,
         zenoh_key_expr: OwnedKeyExpr,
@@ -241,13 +241,25 @@ impl RouteSubscriber {
         tracing::debug!("{self} deactivate");
         // Drop Zenoh Subscriber and Liveliness token
         // The DDS Writer remains to be discovered by local ROS nodes
-        self.zenoh_subscriber = None;
+        match self.zenoh_subscriber.take() {
+            Some(ZSubscriber::Subscriber(s)) => {
+                if let Err(e) = s.undeclare().wait() {
+                    tracing::debug!("Unable to undeclare subscriber: {:?}", e);
+                }
+            }
+            Some(ZSubscriber::FetchingSubscriber(fs)) => {
+                if let Err(e) = fs.undeclare().wait() {
+                    tracing::debug!("Unable to undeclare fetching subscriber: {:?}", e);
+                }
+            }
+            None => {}
+        };
         self.liveliness_token = None;
     }
 
     /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub async fn query_historical_publications<'a>(&mut self, zenoh_id: &keyexpr) {
+    pub async fn query_historical_publications(&mut self, zenoh_id: &keyexpr) {
         if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
             // query all PublicationCaches on "<routing_keyexpr>/<KE_PREFIX_PUB_CACHE>/<zenoh_id>"
             let query_selector: Selector =
