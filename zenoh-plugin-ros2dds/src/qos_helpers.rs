@@ -110,7 +110,10 @@ pub fn adapt_reader_qos_for_writer(qos: &Qos) -> Qos {
             Some(reliability)
         }
         _ => {
-            let mut reliability = Reliability::default();
+            let mut reliability = Reliability {
+                kind: ReliabilityKind::RELIABLE,
+                max_blocking_time: DDS_100MS_DURATION,
+            };
             reliability.max_blocking_time = reliability.max_blocking_time.saturating_add(1);
             Some(reliability)
         }
