@@ -36,7 +36,6 @@ jobs:
 
       # cyclors 0.2.6 does not compile with cmake 4
       - name: Install cmake
-        if: startsWith(matrix.os,'ubuntu')
         uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: '3.31.x'
