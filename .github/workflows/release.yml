@@ -69,7 +69,7 @@ jobs:
       version: ${{ needs.tag.outputs.version }}
       branch: ${{ needs.tag.outputs.branch }}
       # NOTE: x86_64-pc-windows-gnu is not supported by cyclors
-      exclude-builds: '[{ build: { target: "x86_64-pc-windows-gnu", os: "windows-2019" } }]'
+      exclude-builds: '[{ build: { target: "x86_64-pc-windows-gnu", os: "windows-2022" } }]'
       artifact-patterns: |
         ^zenoh-bridge-ros2dds(\.exe)?$
         ^libzenoh_plugin_ros2dds\.(dylib|so)$
