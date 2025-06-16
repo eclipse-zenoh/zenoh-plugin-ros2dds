@@ -78,10 +78,10 @@ impl From<&CommonArgs> for Config {
             None => Config::default(),
         };
         if let Some(id) = &value.id {
-            let _ = config.set_id(
-                id.parse()
-                    .expect("Error with option --id (expecting a hexadecimal ZenohId)"),
-            );
+            let _ = config
+                .set_id(Some(id.parse().expect(
+                    "Error with option --id (expecting a hexadecimal ZenohId)",
+                )));
         }
         if value.mode.is_some() {
             // apply mode set via command line, overwritting mode set in config file
