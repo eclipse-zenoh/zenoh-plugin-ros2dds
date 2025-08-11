@@ -18,17 +18,17 @@ edition = "2021"
 [dependencies]
 cdr = "0.2.4"
 futures = "0.3.26"
-r2r = "0.9"
-serde = "1.0.154"
-serde_derive = "1.0.154"
-serde_json = "1.0.114"
-tokio = { version = "1.35.1", default-features = false } # Default features are disabled due to some crates' requirements
-zenoh = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
+r2r = "0.9.5"
+serde = "1.0.219"
+serde_derive = "1.0.219"
+serde_json = "1.0.142"
+tokio = { version = "1.47.1", default-features = false } # Default features are disabled due to some crates' requirements
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
   "plugins",
   "unstable",
 ] }
-zenoh-config = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-plugin-ros2dds = { version = "1.0.0-dev", path = "../zenoh-plugin-ros2dds/", default-features = false }
+zenoh-config = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
+zenoh-plugin-ros2dds = { path = "../zenoh-plugin-ros2dds/", default-features = false }
 
 # We need an empty workspace to avoid being viewed as a part of zenoh-plugin-ros2dds
 [workspace]
