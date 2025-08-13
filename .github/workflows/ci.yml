@@ -113,6 +113,10 @@ jobs:
     - name: Copy rust-toolchain.toml and Cargo.lock to zenoh-test-ros2dds
       shell: bash
       run: 'cp rust-toolchain.toml Cargo.lock zenoh-test-ros2dds/'
+    # We need this to align the Zenoh version in zenoh-test-ros2dds with zenoh-plugin-ros2dds
+    - name: Align zenoh version in zenoh-test-ros2dds
+      shell: bash
+      run: 'sudo apt-get -y install python3-tomlkit && cd zenoh-test-ros2dds && python align_zenoh.py'
     - name: Code format check
       shell: bash
       run: 'source /opt/ros/humble/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
@@ -150,6 +154,10 @@ jobs:
     - name: Copy rust-toolchain.toml and Cargo.lock to zenoh-test-ros2dds
       shell: bash
       run: 'cp rust-toolchain.toml Cargo.lock zenoh-test-ros2dds/'
+    # We need this to align the Zenoh version in zenoh-test-ros2dds with zenoh-plugin-ros2dds
+    - name: Align zenoh version in zenoh-test-ros2dds
+      shell: bash
+      run: 'sudo apt-get -y install python3-tomlkit && cd zenoh-test-ros2dds && python align_zenoh.py'
     - name: Code format check
       shell: bash
       run: 'source /opt/ros/jazzy/setup.bash && cd zenoh-test-ros2dds && cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"'
