@@ -23,13 +23,11 @@ serde = "1.0.219"
 serde_derive = "1.0.219"
 serde_json = "1.0.142"
 tokio = { version = "1.47.1", default-features = false } # Default features are disabled due to some crates' requirements
-# We don't assign any Zenoh version here, and it will not be limited to a specific version.
-# This will force us to use the same Zenoh version as zenoh-plugin-ros2dds.
-zenoh = { version = "*", features = [
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
   "plugins",
   "unstable",
 ] }
-zenoh-config = { version = "*", default-features = false }
+zenoh-config = { git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
 zenoh-plugin-ros2dds = { path = "../zenoh-plugin-ros2dds/", default-features = false }
 
 # We need an empty workspace to avoid being viewed as a part of zenoh-plugin-ros2dds
