@@ -14,4 +14,5 @@ for dep_name in ["zenoh", "zenoh-config"]:
     target_doc["dependencies"][dep_name] = source_dep
 
 # Write changes back to target
+print(target_doc)
 target_path.write_text(tomlkit.dumps(target_doc))
