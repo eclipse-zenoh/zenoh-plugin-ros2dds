@@ -22,12 +22,10 @@ use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    pubsub::Subscriber,
-    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
     Wait,
 };
-use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
+use zenoh_ext::{AdvancedSubscriber, AdvancedSubscriberBuilderExt, HistoryConfig};
 
 use crate::{
     dds_utils::{
@@ -39,13 +37,11 @@ use crate::{
     qos_helpers::is_transient_local,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     routes_mgr::Context,
-    serialize_option_as_bool, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_PUB_CACHE,
-    LOG_PAYLOAD,
+    serialize_option_as_bool, vec_into_raw_parts, LOG_PAYLOAD,
 };
 
 enum ZSubscriber {
-    Subscriber(Subscriber<()>),
-    FetchingSubscriber(FetchingSubscriber<()>),
+    Subscriber(AdvancedSubscriber<()>),
 }
 
 // a route from Zenoh to DDS
@@ -181,28 +177,24 @@ impl RouteSubscriber {
         // create zenoh subscriber
         // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical messages to write
         self.zenoh_subscriber = if self.transient_local {
-            // query all PublicationCaches on "<routing_keyexpr>/<KE_PREFIX_PUB_CACHE>/*"
-            let query_selector: OwnedKeyExpr =
-                &self.zenoh_key_expr / *KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT;
-            tracing::debug!("{self}: query historical messages from everybody for TRANSIENT_LOCAL Reader on {query_selector}");
             let sub = self
                 .context
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
+                .advanced()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
-                .querying()
                 .query_timeout(self.queries_timeout)
-                .query_selector(&query_selector)
-                .query_accept_replies(ReplyKeyExpr::Any)
+                .history(HistoryConfig::default().detect_late_publishers())
                 .await
                 .map_err(|e| format!("{self}: failed to create FetchingSubscriber: {e}",))?;
-            Some(ZSubscriber::FetchingSubscriber(sub))
+            Some(ZSubscriber::Subscriber(sub))
         } else {
             let sub = self
                 .context
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
+                .advanced()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .await
@@ -247,53 +239,9 @@ impl RouteSubscriber {
                     tracing::debug!("Unable to undeclare subscriber: {:?}", e);
                 }
             }
-            Some(ZSubscriber::FetchingSubscriber(fs)) => {
-                if let Err(e) = fs.undeclare().wait() {
-                    tracing::debug!("Unable to undeclare fetching subscriber: {:?}", e);
-                }
-            }
             None => {}
         };
         self.liveliness_token = None;
-    }
-
-    /// If this route uses a FetchingSubscriber, query for historical publications
-    /// using the specified Selector. Otherwise, do nothing.
-    pub async fn query_historical_publications(&mut self, zenoh_id: &keyexpr) {
-        if let Some(ZSubscriber::FetchingSubscriber(sub)) = &mut self.zenoh_subscriber {
-            // query all PublicationCaches on "<routing_keyexpr>/<KE_PREFIX_PUB_CACHE>/<zenoh_id>"
-            let query_selector: Selector =
-                (&self.zenoh_key_expr / *KE_PREFIX_PUB_CACHE / zenoh_id).into();
-            tracing::debug!("Route Subscriber (Zenoh:{} -> ROS:{}): query historical messages from {zenoh_id} for TRANSIENT_LOCAL Reader on {query_selector}",
-                self.zenoh_key_expr, self.ros2_name
-            );
-
-            if let Err(e) = sub
-                .fetch({
-                    let session = &self.context.zsession;
-                    let query_selector = query_selector.clone();
-                    let queries_timeout = self.queries_timeout;
-                    move |cb| {
-                        session
-                            .get(&query_selector)
-                            .target(QueryTarget::All)
-                            .consolidation(ConsolidationMode::None)
-                            .accept_replies(ReplyKeyExpr::Any)
-                            .timeout(queries_timeout)
-                            .callback(cb)
-                            .wait()
-                    }
-                })
-                .await
-            {
-                tracing::warn!(
-                    "{}: query for historical publications on {} failed: {}",
-                    self,
-                    query_selector,
-                    e
-                );
-            }
-        }
     }
 
     #[inline]

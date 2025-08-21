@@ -547,11 +547,11 @@ impl RoutesMgr {
         Ok(())
     }
 
-    pub async fn query_all_historical_publications(&mut self, zenoh_id: &keyexpr) {
-        for route in self.routes_subscribers.values_mut() {
-            route.query_historical_publications(zenoh_id).await;
-        }
-    }
+    // pub async fn query_all_historical_publications(&mut self, zenoh_id: &keyexpr) {
+    //     // for route in self.routes_subscribers.values_mut() {
+    //     //     route.query_historical_publications(zenoh_id).await;
+    //     // }
+    // }
 
     async fn get_or_create_route_publisher(
         &mut self,

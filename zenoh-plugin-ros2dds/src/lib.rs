@@ -516,7 +516,7 @@ impl ROS2PluginRuntime {
                                     (None, SampleKind::Put) => {
                                         tracing::info!("New ROS 2 bridge detected: {}", zenoh_id);
                                         // make each routes for a TRANSIENT_LOCAL Subscriber to query historical publications from this new plugin
-                                        routes_mgr.query_all_historical_publications(zenoh_id).await;
+                                        // routes_mgr.query_all_historical_publications(zenoh_id).await;
                                     }
                                     // New remote bridge left
                                     (None, SampleKind::Delete) => tracing::info!("Remote ROS 2 bridge left: {}", zenoh_id),
