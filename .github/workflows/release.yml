@@ -45,8 +45,12 @@ jobs:
       live-run: ${{ inputs.live-run || false }}
       version: ${{ inputs.version }}
       branch: ${{ inputs.branch }}
-      bump-deps-version: ${{ inputs.zenoh-version }}
-      bump-deps-pattern: ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
+      bump-deps-version: |
+        ${{ inputs.version }}
+        ${{ inputs.zenoh-version }}
+      bump-deps-pattern: |
+        ^zenoh-plugin-ros2dds$
+        ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
       bump-deps-branch: ${{ inputs.zenoh-version && format('release/{0}', inputs.zenoh-version) || '' }}
     secrets: inherit
 
