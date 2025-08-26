@@ -170,7 +170,7 @@ impl RoutePublisher {
             // In case there are several Writers served by this route, increase the cache size
             history = history.saturating_mul(context.config.transient_local_cache_multiplier);
             tracing::debug!(
-                "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications via a PublicationCache with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
+                "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
             history
