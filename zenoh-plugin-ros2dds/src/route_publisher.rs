@@ -48,12 +48,12 @@ use crate::{
     Config, LOG_PAYLOAD,
 };
 
-pub struct ZPublisherAdv {
+pub struct ZPublisher {
     publisher: Arc<AdvancedPublisher<'static>>,
     matching_listener: Option<zenoh::matching::MatchingListener<()>>,
 }
 
-impl Deref for ZPublisherAdv {
+impl Deref for ZPublisher {
     type Target = Arc<AdvancedPublisher<'static>>;
 
     fn deref(&self) -> &Self::Target {
@@ -77,7 +77,7 @@ pub struct RoutePublisher {
     // the zenoh publisher used to re-publish to zenoh the message received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
     #[serde(skip)]
-    zenoh_publisher: ZPublisherAdv,
+    zenoh_publisher: ZPublisher,
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh message coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     dds_reader: Arc<AtomicDDSEntity>,
@@ -198,13 +198,17 @@ impl RoutePublisher {
             priority,
             is_express
         );
+        
+        let mut publisher_builder = context
+            .zsession
+            .declare_publisher(zenoh_key_expr.clone())
+            .advanced();
+        if transient_local {
+            publisher_builder = publisher_builder.cache(CacheConfig::default().max_samples(cache_size));
+        }
 
         let publisher: Arc<AdvancedPublisher<'static>> = Arc::new(
-            context
-                .zsession
-                .declare_publisher(zenoh_key_expr.clone())
-                .advanced()
-                .cache(CacheConfig::default().max_samples(cache_size))
+            publisher_builder
                 .reliability(Reliability::Reliable)
                 .allowed_destination(Locality::Remote)
                 .congestion_control(congestion_ctrl)
@@ -267,7 +271,7 @@ impl RoutePublisher {
             ros2_type,
             zenoh_key_expr,
             context,
-            zenoh_publisher: ZPublisherAdv {
+            zenoh_publisher: ZPublisher {
                 publisher,
                 matching_listener: Some(matching_listener),
             },
