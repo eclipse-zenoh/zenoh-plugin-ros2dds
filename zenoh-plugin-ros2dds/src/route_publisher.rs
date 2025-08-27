@@ -144,7 +144,7 @@ impl RoutePublisher {
         // create the zenoh Publisher
         // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical messages
         let transient_local: bool = is_transient_local(&reader_qos);
-        let cache_size: usize = if transient_local {
+        let cache_size: Option<usize> = if transient_local {
             #[allow(non_upper_case_globals)]
             let history_qos = get_history_or_default(&reader_qos);
             let durability_service_qos = get_durability_service_or_default(&reader_qos);
@@ -173,9 +173,9 @@ impl RoutePublisher {
                 "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
-            history
+            Some(history)
         } else {
-            1
+            None
         };
 
         // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
@@ -203,8 +203,11 @@ impl RoutePublisher {
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .advanced();
-        if transient_local {
-            publisher_builder = publisher_builder.cache(CacheConfig::default().max_samples(cache_size));
+        match cache_size {
+            Some(size) => {
+                publisher_builder = publisher_builder.cache(CacheConfig::default().max_samples(size));
+            }
+            _ =>(),
         }
 
         let publisher: Arc<AdvancedPublisher<'static>> = Arc::new(

@@ -34,6 +34,7 @@ use crate::{
     },
     liveliness_mgt::new_ke_liveliness_sub,
     qos::Qos,
+    qos::History,
     qos_helpers::is_transient_local,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     routes_mgr::Context,
@@ -177,6 +178,18 @@ impl RouteSubscriber {
         // create zenoh subscriber
         // if Writer is TRANSIENT_LOCAL, use a QueryingSubscriber to fetch remote historical messages to write
         self.zenoh_subscriber = if self.transient_local {
+            let history_config = match &discovered_reader_qos.history {
+                Some(History { depth, .. }) => {
+                    let depth: usize = (*depth).try_into().unwrap_or(usize::MAX);
+                    HistoryConfig::default()
+                        .detect_late_publishers()
+                        .max_samples(depth)
+                }
+                _other => {
+                    HistoryConfig::default()
+                        .detect_late_publishers()
+                }
+            };
             let sub = self
                 .context
                 .zsession
@@ -184,8 +197,8 @@ impl RouteSubscriber {
                 .advanced()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
+                .history(history_config)
                 .query_timeout(self.queries_timeout)
-                .history(HistoryConfig::default().detect_late_publishers())
                 .await
                 .map_err(|e| format!("{self}: failed to create FetchingSubscriber: {e}",))?;
             Some(ZSubscriber::Subscriber(sub))
