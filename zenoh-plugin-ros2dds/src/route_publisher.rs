@@ -198,16 +198,17 @@ impl RoutePublisher {
             priority,
             is_express
         );
-        
+
         let mut publisher_builder = context
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .advanced();
         match cache_size {
             Some(size) => {
-                publisher_builder = publisher_builder.cache(CacheConfig::default().max_samples(size));
+                publisher_builder =
+                    publisher_builder.cache(CacheConfig::default().max_samples(size));
             }
-            _ =>(),
+            _ => (),
         }
 
         let publisher: Arc<AdvancedPublisher<'static>> = Arc::new(

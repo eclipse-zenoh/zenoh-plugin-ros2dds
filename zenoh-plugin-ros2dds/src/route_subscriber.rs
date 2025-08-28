@@ -33,8 +33,8 @@ use crate::{
         serialize_entity_guid,
     },
     liveliness_mgt::new_ke_liveliness_sub,
-    qos::Qos,
     qos::History,
+    qos::Qos,
     qos_helpers::is_transient_local,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     routes_mgr::Context,
@@ -185,10 +185,7 @@ impl RouteSubscriber {
                         .detect_late_publishers()
                         .max_samples(depth)
                 }
-                _other => {
-                    HistoryConfig::default()
-                        .detect_late_publishers()
-                }
+                _other => HistoryConfig::default().detect_late_publishers(),
             };
             let sub = self
                 .context
