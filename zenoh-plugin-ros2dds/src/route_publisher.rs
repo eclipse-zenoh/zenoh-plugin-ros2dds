@@ -51,6 +51,7 @@ use crate::{
 pub struct ZPublisher {
     publisher: Arc<AdvancedPublisher<'static>>,
     matching_listener: Option<zenoh::matching::MatchingListener<()>>,
+    cache_size: usize,
 }
 
 impl Deref for ZPublisher {
@@ -76,7 +77,10 @@ pub struct RoutePublisher {
     context: Context,
     // the zenoh publisher used to re-publish to zenoh the message received by the DDS Reader
     // `None` when route is created on a remote announcement and no local ROS2 Subscriber discovered yet
-    #[serde(skip)]
+    #[serde(
+        rename = "publication_cache_size",
+        serialize_with = "serialize_pub_cache"
+    )]
     zenoh_publisher: ZPublisher,
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh message coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
@@ -144,7 +148,7 @@ impl RoutePublisher {
         // create the zenoh Publisher
         // if Reader shall be TRANSIENT_LOCAL, use a PublicationCache to store historical messages
         let transient_local: bool = is_transient_local(&reader_qos);
-        let cache_size: Option<usize> = if transient_local {
+        let cache_size: usize = if transient_local {
             #[allow(non_upper_case_globals)]
             let history_qos = get_history_or_default(&reader_qos);
             let durability_service_qos = get_durability_service_or_default(&reader_qos);
@@ -173,9 +177,9 @@ impl RoutePublisher {
                 "Route Publisher ({ros2_name} -> {zenoh_key_expr}): caching TRANSIENT_LOCAL publications with history={history} (computed from Reader's QoS: history=({:?},{}), durability_service.max_instances={})",
                 history_qos.kind, history_qos.depth, durability_service_qos.max_instances
             );
-            Some(history)
+            history
         } else {
-            None
+            0
         };
 
         // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
@@ -203,12 +207,10 @@ impl RoutePublisher {
             .zsession
             .declare_publisher(zenoh_key_expr.clone())
             .advanced();
-        match cache_size {
-            Some(size) => {
-                publisher_builder =
-                    publisher_builder.cache(CacheConfig::default().max_samples(size));
-            }
-            _ => (),
+        if transient_local {
+            publisher_builder = publisher_builder
+                .cache(CacheConfig::default().max_samples(cache_size))
+                .publisher_detection();
         }
 
         let publisher: Arc<AdvancedPublisher<'static>> = Arc::new(
@@ -278,6 +280,7 @@ impl RoutePublisher {
             zenoh_publisher: ZPublisher {
                 publisher,
                 matching_listener: Some(matching_listener),
+                cache_size,
             },
             dds_reader,
             priority,
@@ -390,6 +393,13 @@ impl RoutePublisher {
     pub fn is_unused(&self) -> bool {
         !self.is_serving_local_node() && !self.is_serving_remote_route()
     }
+}
+
+pub fn serialize_pub_cache<S>(zpub: &ZPublisher, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_u64(zpub.cache_size as u64)
 }
 
 fn serialize_priority<S>(p: &Priority, s: S) -> Result<S::Ok, S::Error>

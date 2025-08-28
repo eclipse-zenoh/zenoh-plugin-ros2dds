@@ -22,6 +22,7 @@ use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
+    pubsub::Subscriber,
     sample::{Locality, Sample},
     Wait,
 };
@@ -33,8 +34,7 @@ use crate::{
         serialize_entity_guid,
     },
     liveliness_mgt::new_ke_liveliness_sub,
-    qos::History,
-    qos::Qos,
+    qos::{History, Qos},
     qos_helpers::is_transient_local,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
     routes_mgr::Context,
@@ -42,7 +42,8 @@ use crate::{
 };
 
 enum ZSubscriber {
-    Subscriber(AdvancedSubscriber<()>),
+    Subscriber(Subscriber<()>),
+    AdvancedSubscriber(AdvancedSubscriber<()>),
 }
 
 // a route from Zenoh to DDS
@@ -185,7 +186,9 @@ impl RouteSubscriber {
                         .detect_late_publishers()
                         .max_samples(depth)
                 }
-                _other => HistoryConfig::default().detect_late_publishers(),
+                _other => HistoryConfig::default()
+                    .detect_late_publishers()
+                    .max_samples(1),
             };
             let sub = self
                 .context
@@ -198,13 +201,12 @@ impl RouteSubscriber {
                 .query_timeout(self.queries_timeout)
                 .await
                 .map_err(|e| format!("{self}: failed to create FetchingSubscriber: {e}",))?;
-            Some(ZSubscriber::Subscriber(sub))
+            Some(ZSubscriber::AdvancedSubscriber(sub))
         } else {
             let sub = self
                 .context
                 .zsession
                 .declare_subscriber(&self.zenoh_key_expr)
-                .advanced()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .await
@@ -245,6 +247,11 @@ impl RouteSubscriber {
         // The DDS Writer remains to be discovered by local ROS nodes
         match self.zenoh_subscriber.take() {
             Some(ZSubscriber::Subscriber(s)) => {
+                if let Err(e) = s.undeclare().wait() {
+                    tracing::debug!("Unable to undeclare subscriber: {:?}", e);
+                }
+            }
+            Some(ZSubscriber::AdvancedSubscriber(s)) => {
                 if let Err(e) = s.undeclare().wait() {
                     tracing::debug!("Unable to undeclare subscriber: {:?}", e);
                 }
