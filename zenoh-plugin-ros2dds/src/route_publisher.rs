@@ -50,7 +50,6 @@ use crate::{
 
 pub struct ZPublisher {
     publisher: Arc<AdvancedPublisher<'static>>,
-    matching_listener: Option<zenoh::matching::MatchingListener<()>>,
     cache_size: usize,
 }
 
@@ -111,12 +110,6 @@ pub struct RoutePublisher {
 impl Drop for RoutePublisher {
     fn drop(&mut self) {
         self.deactivate_dds_reader();
-        let matching_listener = self.zenoh_publisher.matching_listener.take();
-        if let Some(matching_listener) = matching_listener {
-            if let Err(e) = matching_listener.undeclare().wait() {
-                tracing::warn!("Unable to undeclare matching_listener: {e:?}");
-            }
-        }
     }
 }
 
@@ -228,49 +221,44 @@ impl RoutePublisher {
         // (copy/move all required args for the callback)
         let dds_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
-        let matching_listener = {
-            publisher
-                .matching_listener()
-                .callback({
-                    let dds_reader = dds_reader.clone();
-                    let ros2_name = ros2_name.clone();
-                    let ros2_type = ros2_type.clone();
-                    let zenoh_key_expr = zenoh_key_expr.clone();
-                    let route_id =
-                        format!("Route Publisher (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})");
-                    let context = context.clone();
-                    let reader_qos = reader_qos.clone();
-                    let type_info = type_info.clone();
-                    let publisher = publisher.clone();
+        publisher
+            .matching_listener()
+            .callback({
+                let dds_reader = dds_reader.clone();
+                let ros2_name = ros2_name.clone();
+                let ros2_type = ros2_type.clone();
+                let zenoh_key_expr = zenoh_key_expr.clone();
+                let route_id =
+                    format!("Route Publisher (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})");
+                let context = context.clone();
+                let reader_qos = reader_qos.clone();
+                let type_info = type_info.clone();
+                let publisher = publisher.clone();
 
-                    move |status| {
-                        tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
-                        if status.matching() {
-                            if let Err(e) = activate_dds_reader(
-                                &dds_reader,
-                                &ros2_name,
-                                &ros2_type,
-                                &route_id,
-                                &context,
-                                keyless,
-                                &reader_qos,
-                                &type_info,
-                                &publisher,
-                            ) {
-                                tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
-                            }
-                        } else {
-                            deactivate_dds_reader(
-                                &dds_reader,
-                                &route_id,
-                                &context.ros_discovery_mgr,
-                            )
+                move |status| {
+                    tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
+                    if status.matching() {
+                        if let Err(e) = activate_dds_reader(
+                            &dds_reader,
+                            &ros2_name,
+                            &ros2_type,
+                            &route_id,
+                            &context,
+                            keyless,
+                            &reader_qos,
+                            &type_info,
+                            &publisher,
+                        ) {
+                            tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
                         }
+                    } else {
+                        deactivate_dds_reader(&dds_reader, &route_id, &context.ros_discovery_mgr)
                     }
-                })
-                .await
-                .map_err(|e| format!("Failed to listen of matching status changes: {e}",))?
-        };
+                }
+            })
+            .background()
+            .await
+            .map_err(|e| format!("Failed to listen of matching status changes: {e}",))?;
 
         Ok(RoutePublisher {
             ros2_name,
@@ -279,7 +267,6 @@ impl RoutePublisher {
             context,
             zenoh_publisher: ZPublisher {
                 publisher,
-                matching_listener: Some(matching_listener),
                 cache_size,
             },
             dds_reader,
