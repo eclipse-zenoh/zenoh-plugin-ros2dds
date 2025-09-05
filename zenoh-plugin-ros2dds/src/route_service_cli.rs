@@ -68,8 +68,6 @@ pub struct RouteServiceCli {
     _zenoh_querier: Arc<Querier<'static>>,
     #[serde(serialize_with = "crate::config::serialize_duration_as_f32")]
     queries_timeout: Duration,
-    #[serde(skip)]
-    _matching_listener: zenoh::matching::MatchingListener<()>,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     req_reader: Arc<AtomicDDSEntity>,
@@ -133,7 +131,7 @@ impl RouteServiceCli {
         let rep_writer: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
         let req_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
-        let matching_listener = zenoh_querier
+        zenoh_querier
             .matching_listener()
             .callback({
                 let rep_writer = rep_writer.clone();
@@ -168,6 +166,7 @@ impl RouteServiceCli {
                         }
                 }
             })
+            .background()
             .await
             .map_err(|e| format!("Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): failed to listen of matching status changes: {e}",))?;
 
@@ -178,7 +177,6 @@ impl RouteServiceCli {
             context,
             _zenoh_querier: zenoh_querier,
             queries_timeout,
-            _matching_listener: matching_listener,
             rep_writer,
             req_reader,
             liveliness_token: None,
