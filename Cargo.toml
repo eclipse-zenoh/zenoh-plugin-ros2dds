@@ -20,7 +20,7 @@ authors = ["Julien Enoch <julien@enoch.fr>"]
 edition = "2021"
 homepage = "http://zenoh.io"
 license = "EPL-2.0 OR Apache-2.0"
-repository = "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds"
+repository = "https://github.com/DenisBiryukov91/zenoh-plugin-ros2dds"
 version = "1.5.1"
 
 [workspace.dependencies]
@@ -46,16 +46,16 @@ tracing = "0.1"
 zenoh = { version = "1.5.1", features = [
   "plugins",
   "unstable",
-] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
-zenoh-config = { version = "1.5.1", default-features = false , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+] , git = "https://github.com/DenisBiryukov91/zenoh.git" , branch = "dynamic-runtime" }
+zenoh-config = { version = "1.5.1", default-features = false , git = "https://github.com/DenisBiryukov91/zenoh.git" , branch = "dynamic-runtime" }
 zenoh-ext = { version = "1.5.1", features = [
   "unstable",
-] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+] , git = "https://github.com/DenisBiryukov91/zenoh.git" , branch = "dynamic-runtime" }
 zenoh-plugin-ros2dds = { version = "1.5.1", path = "zenoh-plugin-ros2dds/", default-features = false }
 zenoh-plugin-rest = { version = "1.5.1", default-features = false, features = [
   "static_plugin",
-] , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
-zenoh-plugin-trait = { version = "1.5.1", default-features = false , git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "main" }
+] , git = "https://github.com/DenisBiryukov91/zenoh.git" , branch = "dynamic-runtime" }
+zenoh-plugin-trait = { version = "1.5.1", default-features = false , git = "https://github.com/DenisBiryukov91/zenoh.git" , branch = "dynamic-runtime" }
 
 [profile.release]
 codegen-units = 1
