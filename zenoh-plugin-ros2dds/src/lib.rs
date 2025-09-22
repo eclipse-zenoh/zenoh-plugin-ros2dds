@@ -35,7 +35,7 @@ use zenoh::{
     bytes::{Encoding, ZBytes},
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
-        runtime::Runtime,
+        runtime::DynamicRuntime,
         zerror, Timed,
     },
     key_expr::{
@@ -154,7 +154,7 @@ pub struct ROS2Plugin;
 
 impl ZenohPlugin for ROS2Plugin {}
 impl Plugin for ROS2Plugin {
-    type StartArgs = Runtime;
+    type StartArgs = DynamicRuntime;
     type Instance = RunningPlugin;
 
     const PLUGIN_VERSION: &'static str = plugin_version!();
@@ -167,10 +167,10 @@ impl Plugin for ROS2Plugin {
         // But cannot be done twice in case of static link.
         zenoh::try_init_log_from_env();
 
-        let runtime_conf = runtime.config().lock();
+        let runtime_conf = runtime.get_config();
         let plugin_conf = runtime_conf
-            .plugin(name)
-            .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
+            .get_plugin_config(name)
+            .map_err(|_| zerror!("Plugin `{}`: missing config", name))?;
         let config: Config = serde_json::from_value(plugin_conf.clone())
             .map_err(|e| zerror!("Plugin `{}` configuration error: {}", name, e))?;
         WORK_THREAD_NUM.store(config.work_thread_num, Ordering::SeqCst);
@@ -249,7 +249,7 @@ fn create_cyclonedds_config(
     config
 }
 
-pub async fn run(runtime: Runtime, config: Config) {
+pub async fn run(runtime: DynamicRuntime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
