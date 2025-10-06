@@ -37,21 +37,55 @@ on:
         required: false
 
 jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      bump-deps-version: ${{ steps.version.outputs.bump-deps-version }}
+      bump-deps-pattern: ${{ steps.version.outputs.bump-deps-pattern }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all tags and branches
+
+      - id: version
+        name: Compute version
+        run: |
+          if [ -n "${{ inputs.version }}" ] && [ -n "${{ inputs.zenoh-version }}" ]; then
+            printf "version=%s\n" "${{ inputs.version }}" >> $GITHUB_OUTPUT
+            {
+              echo 'bump-deps-version<<EOF'
+              printf "%s\n%s\n" "${{inputs.version }}" "${{ inputs.zenoh-version }}"
+              echo EOF
+            } >> $GITHUB_OUTPUT
+            {
+              echo 'bump-deps-pattern<<EOF'
+              printf "^zenoh-plugin-ros2dds\n^zenoh(?!-plugin-ros2dds)[a-zA-Z0-9-_]*$\n"
+              echo EOF
+            } >> $GITHUB_OUTPUT
+          else
+            # Extract the version from the latest tag
+            version=$(git describe --tags)
+            printf "version=%s\n" "$version" >> $GITHUB_OUTPUT
+            printf "bump-deps-version=%s\n" "$version" >> $GITHUB_OUTPUT
+            printf "bump-deps-pattern=^zenoh-plugin-ros2dds$\n" >> $GITHUB_OUTPUT
+          fi
+
   tag:
     name: Branch, Bump & tag crates
+    needs: version
     uses: eclipse-zenoh/ci/.github/workflows/branch-bump-tag-crates.yml@main
     with:
       repo: ${{ github.repository }}
       live-run: ${{ inputs.live-run || false }}
-      version: ${{ inputs.version }}
+      version: ${{ needs.version.outputs.version }}
       branch: ${{ inputs.branch }}
       bump-deps-version: |
-        ${{ inputs.version }}
-        ${{ inputs.zenoh-version }}
+        ${{ needs.version.outputs.bump-deps-version }}
       bump-deps-pattern: |
-        ^zenoh-plugin-ros2dds$
-        ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
-      bump-deps-branch: ${{ inputs.zenoh-version && format('release/{0}', inputs.zenoh-version) || '' }}
+        ${{ needs.version.outputs.bump-deps-pattern }}
+      bump-deps-branch: ${{ needs.version.outputs.version  && format('release/{0}', needs.version.outputs.version) || '' }}
     secrets: inherit
 
   build-debian:
