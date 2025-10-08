@@ -117,19 +117,29 @@ jobs:
   cargo:
     needs: tag
     name: Publish Cargo crates
-    uses: eclipse-zenoh/ci/.github/workflows/release-crates-cargo.yml@main
-    with:
-      repo: ${{ github.repository }}
-      live-run: ${{ inputs.live-run || false }}
-      branch: ${{ needs.tag.outputs.branch }}
-      # - In dry-run mode, we need to publish eclipse-zenoh/zenoh before this
-      #   repository, in which case the version of zenoh dependecies are left as
-      #   is and thus point to the main branch of eclipse-zenoh/zenoh.
-      # - In live-run mode, we assume that eclipse-zenoh/zenoh is already
-      #   published as this workflow can't be responsible for publishing it
-      unpublished-deps-patterns: ${{ !(inputs.live-run || false) && 'zenoh.*' || '' }}
-      unpublished-deps-repos: ${{ !(inputs.live-run || false) && 'eclipse-zenoh/zenoh' || '' }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      # cyclors 0.2.6 does not compile with cmake 4
+      - name: Install cmake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.31.x'
+
+      - uses: eclipse-zenoh/ci/publish-crates-cargo@main
+        with:
+          repo: ${{ github.repository }}
+          live-run: ${{ inputs.live-run || false }}
+          branch: ${{ needs.tag.outputs.branch }}
+          # - In dry-run mode, we need to publish eclipse-zenoh/zenoh before this
+          #   repository, in which case the version of zenoh dependecies are left as
+          #   is and thus point to the main branch of eclipse-zenoh/zenoh.
+          # - In live-run mode, we assume that eclipse-zenoh/zenoh is already
+          #   published as this workflow can't be responsible for publishing it
+          unpublished-deps-patterns: ${{ !(inputs.live-run || false) && 'zenoh.*' || '' }}
+          unpublished-deps-repos: ${{ !(inputs.live-run || false) && 'eclipse-zenoh/zenoh' || '' }}
+          github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
+          crates-io-token: ${{ secrets.CRATES_IO_TOKEN }}
+          publication-test: true
 
   debian:
     name: Publish Debian packages
