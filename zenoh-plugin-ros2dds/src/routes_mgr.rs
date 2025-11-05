@@ -357,7 +357,6 @@ impl RoutesMgr {
                 {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
-                    tracing::debug!("{route} now serving remote routes {:?}", route.remote_routes);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / &zenoh_key_expr));
@@ -404,7 +403,6 @@ impl RoutesMgr {
                 {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
-                    tracing::debug!("{route} now serving remote routes {:?}", route.remote_routes);
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / &zenoh_key_expr));
