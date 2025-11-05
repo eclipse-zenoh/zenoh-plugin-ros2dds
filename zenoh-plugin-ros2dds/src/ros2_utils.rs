@@ -111,6 +111,19 @@ pub fn ros2_name_to_key_expr(ros2_name: &str, config: &Config) -> OwnedKeyExpr {
     }
 }
 
+/// Check if a Zenoh key expression belongs to this bridge's namespace.
+/// Returns true if:
+/// - namespace is "/" (default, accepts all)
+/// - key_expr starts with the configured namespace prefix
+pub fn is_in_namespace(key_expr: &keyexpr, config: &Config) -> bool {
+    if config.namespace == "/" {
+        true  // Default namespace accepts everything
+    } else {
+        // Check if key_expr starts with namespace prefix (without leading '/')
+        key_expr.as_str().starts_with(&config.namespace[1..])
+    }
+}
+
 /// Convert a Zenoh key expression to a ROS2 full interface name,
 /// removing "namespace" prefix if configured and present in the key expr
 pub fn key_expr_to_ros2_name(key_expr: &keyexpr, config: &Config) -> String {

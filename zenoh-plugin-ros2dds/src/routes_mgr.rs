@@ -34,7 +34,7 @@ use crate::{
     discovered_entities::DiscoveredEntities,
     events::{ROS2AnnouncementEvent, ROS2DiscoveryEvent},
     qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader},
-    ros2_utils::{key_expr_to_ros2_name, ros2_name_to_key_expr},
+    ros2_utils::{is_in_namespace, key_expr_to_ros2_name, ros2_name_to_key_expr},
     ros_discovery::RosDiscoveryInfoMgr,
     route_action_cli::RouteActionCli,
     route_action_srv::RouteActionSrv,
@@ -327,6 +327,16 @@ impl RoutesMgr {
                 keyless,
                 writer_qos,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Publisher {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 let mut qos = writer_qos.clone();
                 qos.ignore_local = Some(IgnoreLocal {
                     kind: cyclors::qos::IgnoreLocalKind::PARTICIPANT,
@@ -370,6 +380,16 @@ impl RoutesMgr {
                 keyless,
                 reader_qos,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Subscriber {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 let mut qos = reader_qos.clone();
                 qos.ignore_local = Some(IgnoreLocal {
                     kind: cyclors::qos::IgnoreLocalKind::PARTICIPANT,
@@ -411,6 +431,16 @@ impl RoutesMgr {
                 zenoh_key_expr,
                 ros2_type,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Service Server {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 // On remote Service Server route announcement, prepare a Service Client route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
@@ -446,6 +476,16 @@ impl RoutesMgr {
                 zenoh_key_expr,
                 ros2_type,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Service Client {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 // On remote Service Client route announcement, prepare a Service Server route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
@@ -481,6 +521,16 @@ impl RoutesMgr {
                 zenoh_key_expr,
                 ros2_type,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Action Server {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 // On remote Action Server route announcement, prepare a Action Client route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
@@ -515,6 +565,16 @@ impl RoutesMgr {
                 zenoh_key_expr,
                 ros2_type,
             } => {
+                // Only handle announcements from our namespace (unless using default "/")
+                if !is_in_namespace(&zenoh_key_expr, &self.context.config) {
+                    tracing::debug!(
+                        "Ignoring remote Action Client {} - not in namespace {}",
+                        zenoh_key_expr,
+                        self.context.config.namespace
+                    );
+                    return Ok(());
+                }
+
                 // On remote Action Client route announcement, prepare a Action Server route
                 // with a associated DDS Reader/Writer allowing local ROS2 Nodes to discover it
                 let route = self
