@@ -117,7 +117,7 @@ pub fn ros2_name_to_key_expr(ros2_name: &str, config: &Config) -> OwnedKeyExpr {
 /// - key_expr starts with the configured namespace prefix
 pub fn is_in_namespace(key_expr: &keyexpr, config: &Config) -> bool {
     if config.namespace == "/" {
-        true  // Default namespace accepts everything
+        true // Default namespace accepts everything
     } else {
         // Check if key_expr starts with namespace prefix (without leading '/')
         key_expr.as_str().starts_with(&config.namespace[1..])
