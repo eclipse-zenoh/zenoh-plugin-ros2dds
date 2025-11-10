@@ -352,9 +352,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_subscribers.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_subscribers.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
@@ -398,9 +396,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_publishers.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_publishers.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
@@ -436,9 +432,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_service_cli.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_service_cli.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
@@ -474,9 +468,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_service_srv.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_service_srv.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
@@ -511,9 +503,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_action_cli.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_action_cli.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
@@ -548,9 +538,7 @@ impl RoutesMgr {
                 // Convert zenoh key_expr to ROS2 name (same as when creating the route)
                 let ros2_name = key_expr_to_ros2_name(&zenoh_key_expr, &self.context.config);
 
-                if let Entry::Occupied(mut entry) =
-                    self.routes_action_srv.entry(ros2_name)
-                {
+                if let Entry::Occupied(mut entry) = self.routes_action_srv.entry(ros2_name) {
                     let route = entry.get_mut();
                     route.remove_remote_route(&zenoh_id, &zenoh_key_expr);
                     if route.is_unused() {
