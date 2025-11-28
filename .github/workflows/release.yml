@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for all tags and branches
+          fetch-depth: 0 # Fetch all history for all tags and branches
 
       - id: version
         name: Compute version
@@ -123,7 +123,7 @@ jobs:
       - name: Install cmake
         uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: '3.31.x'
+          cmake-version: "3.31.x"
 
       - uses: eclipse-zenoh/ci/publish-crates-cargo@main
         with:
@@ -135,7 +135,7 @@ jobs:
           #   is and thus point to the main branch of eclipse-zenoh/zenoh.
           # - In live-run mode, we assume that eclipse-zenoh/zenoh is already
           #   published as this workflow can't be responsible for publishing it
-          unpublished-deps-patterns: ${{ !(inputs.live-run || false) && 'zenoh.*' || '' }}
+          unpublished-deps-patterns: ${{ !(inputs.live-run || false) && '^zenoh-plugin-ros2dds$' || '' }}
           unpublished-deps-repos: ${{ !(inputs.live-run || false) && 'eclipse-zenoh/zenoh' || '' }}
           github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
           crates-io-token: ${{ secrets.CRATES_IO_TOKEN }}
