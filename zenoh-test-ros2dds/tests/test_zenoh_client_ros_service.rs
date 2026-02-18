@@ -23,16 +23,6 @@ use serde_derive::{Deserialize, Serialize};
 // The test service
 const TEST_SERVICE_Z2R: &str = "test_service_z2r";
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
-struct AddTwoIntsRequest {
-    a: i64,
-    b: i64,
-}
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
-struct AddTwoIntsReply {
-    sum: i64,
-}
-
 #[test]
 fn test_zenoh_client_ros_service() {
     let rt = tokio::runtime::Runtime::new().unwrap();
