@@ -23,14 +23,14 @@ use zenoh::Wait;
 // The test service
 const TEST_SERVICE_R2Z: &str = "test_service_r2z";
 
-#[cfg(test)]
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 struct AddTwoIntsRequest {
     a: i64,
     b: i64,
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 struct AddTwoIntsReply {
     sum: i64,
