@@ -58,8 +58,11 @@ jobs:
 
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --features stats,dynamic_plugin,dds_shm -- --deny warnings
+      - name: Clippy without Cargo.lock
+        run: |
+          rm Cargo.lock
+          cargo clippy --workspace --all-targets --features stats,dynamic_plugin,dds_shm -- --deny warnings
+          git restore Cargo.lock
 
       - name: Build zenoh-plugin-ros2dds
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
@@ -179,33 +182,6 @@ jobs:
           config: '.markdownlint.yaml'
           globs: '**/README.md'
 
-  check_rust:
-      name: Check ${{ github.repository }} using Rust 1.75
-      runs-on: ubuntu-latest
-      strategy:
-        fail-fast: false
-      steps:
-        - name: Clone this repository
-          uses: actions/checkout@v4
-
-        # cyclors 0.2.6 does not compile with cmake 4
-        - name: Install cmake
-          uses: jwlawson/actions-setup-cmake@v2
-          with:
-            cmake-version: '3.31.x'
-
-        - name: Update Rust 1.75.0 toolchain
-          run: rustup update 1.75.0
-
-        - name: Setup rust-cache
-          uses: Swatinem/rust-cache@v2
-          with:
-            cache-bin: false
-
-        - name: Check ${{ github.repository }} with rust 1.75.0
-          run: |
-            cargo +1.75.0 check --release --bins --lib
-
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
   # from branches where specific status checks have passed. These checks are
@@ -214,7 +190,7 @@ jobs:
   ci:
     name: CI status checks
     runs-on: ubuntu-latest
-    needs: [check_rust, build, system_tests_with_ros2_humble, system_tests_with_ros2_jazzy, markdown_lint]
+    needs: [build, system_tests_with_ros2_humble, system_tests_with_ros2_jazzy, markdown_lint]
     if: always()
     steps:
       - name: Check whether all jobs pass

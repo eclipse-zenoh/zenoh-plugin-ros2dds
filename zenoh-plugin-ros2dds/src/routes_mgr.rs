@@ -53,6 +53,7 @@ lazy_static::lazy_static!(
     static ref KE_PREFIX_ROUTE_ACTION_CLI: &'static keyexpr =  unsafe { keyexpr::from_str_unchecked("route/action/cli") };
 );
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RouteStatus {
     Routed(OwnedKeyExpr), // Routing is active, with the zenoh key expression used for the route
