@@ -468,7 +468,8 @@ impl ROS2PluginRuntime {
         // Create and start DiscoveryManager
         let (tx, discovery_rcv): (Sender<ROS2DiscoveryEvent>, Receiver<ROS2DiscoveryEvent>) =
             unbounded();
-        let mut discovery_mgr = DiscoveryMgr::create(self.participant, ros_discovery_mgr.clone());
+        let mut discovery_mgr =
+            DiscoveryMgr::create(self.config.clone(), self.participant, ros_discovery_mgr.clone());
         discovery_mgr.run(tx).await;
 
         // Create RoutesManager
@@ -666,6 +667,10 @@ impl ROS2PluginRuntime {
         if let Some(allowance) = &self.config.allowance {
             use ROS2DiscoveryEvent::*;
             match evt {
+                DiscoveredBareDdsMsgPub(iface) | UndiscoveredBareDdsMsgPub(iface) => {
+                    self.config.is_publisher_allowed(&iface.name)
+                        && self.config.is_bare_dds_publisher_enabled(&iface.name)
+                }
                 DiscoveredMsgPub(_, iface) | UndiscoveredMsgPub(_, iface) => {
                     allowance.is_publisher_allowed(&iface.name)
                 }
@@ -686,8 +691,13 @@ impl ROS2PluginRuntime {
                 }
             }
         } else {
-            // no allow/deny configured => allow all
-            true
+            match evt {
+                ROS2DiscoveryEvent::DiscoveredBareDdsMsgPub(iface)
+                | ROS2DiscoveryEvent::UndiscoveredBareDdsMsgPub(iface) => self
+                    .config
+                    .is_bare_dds_publisher_enabled(&iface.name),
+                _ => true,
+            }
         }
     }
 
