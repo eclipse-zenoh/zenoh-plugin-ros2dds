@@ -17,13 +17,30 @@ use std::fmt::Display;
 use cyclors::qos::Qos;
 use zenoh::key_expr::OwnedKeyExpr;
 
-use crate::node_info::*;
+use crate::{gid::Gid, node_info::*};
+
+#[derive(Clone, Debug)]
+pub struct BareDdsMsgPub {
+    pub name: String,
+    pub typ: String,
+    pub writer: Gid,
+    pub keyless: bool,
+    pub qos: Qos,
+}
+
+impl Display for BareDdsMsgPub {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Bare DDS Publisher {}: {}", self.name, self.typ)
+    }
+}
 
 /// A (local) discovery event of a ROS2 interface
 #[derive(Debug)]
 pub enum ROS2DiscoveryEvent {
     DiscoveredMsgPub(String, MsgPub),
     UndiscoveredMsgPub(String, MsgPub),
+    DiscoveredBareDdsMsgPub(BareDdsMsgPub),
+    UndiscoveredBareDdsMsgPub(BareDdsMsgPub),
     DiscoveredMsgSub(String, MsgSub),
     UndiscoveredMsgSub(String, MsgSub),
     DiscoveredServiceSrv(String, ServiceSrv),
@@ -41,12 +58,14 @@ impl std::fmt::Display for ROS2DiscoveryEvent {
         use ROS2DiscoveryEvent::*;
         match self {
             DiscoveredMsgPub(node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredBareDdsMsgPub(iface) => write!(f, "Discovered {iface}"),
             DiscoveredMsgSub(node, iface) => write!(f, "Node {node} declares {iface}"),
             DiscoveredServiceSrv(node, iface) => write!(f, "Node {node} declares {iface}"),
             DiscoveredServiceCli(node, iface) => write!(f, "Node {node} declares {iface}"),
             DiscoveredActionSrv(node, iface) => write!(f, "Node {node} declares {iface}"),
             DiscoveredActionCli(node, iface) => write!(f, "Node {node} declares {iface}"),
             UndiscoveredMsgPub(node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredBareDdsMsgPub(iface) => write!(f, "Undiscovered {iface}"),
             UndiscoveredMsgSub(node, iface) => write!(f, "Node {node} undeclares {iface}"),
             UndiscoveredServiceSrv(node, iface) => write!(f, "Node {node} undeclares {iface}"),
             UndiscoveredServiceCli(node, iface) => write!(f, "Node {node} undeclares {iface}"),

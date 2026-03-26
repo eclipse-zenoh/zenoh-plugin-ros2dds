@@ -27,11 +27,13 @@ use zenoh::{
 };
 
 use crate::{
+    config::Config,
     dds_discovery::*, discovered_entities::DiscoveredEntities, events::ROS2DiscoveryEvent,
     ros_discovery::*, ChannelEvent, ROS_DISCOVERY_INFO_POLL_INTERVAL_MS,
 };
 
 pub struct DiscoveryMgr {
+    pub config: Arc<Config>,
     pub participant: dds_entity_t,
     pub ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
     pub discovered_entities: Arc<RwLock<DiscoveredEntities>>,
@@ -39,10 +41,12 @@ pub struct DiscoveryMgr {
 
 impl DiscoveryMgr {
     pub fn create(
+        config: Arc<Config>,
         participant: dds_entity_t,
         ros_discovery_mgr: Arc<RosDiscoveryInfoMgr>,
     ) -> DiscoveryMgr {
         DiscoveryMgr {
+            config,
             participant,
             ros_discovery_mgr,
             discovered_entities: Arc::new(RwLock::new(Default::default())),
@@ -59,6 +63,7 @@ impl DiscoveryMgr {
 
         let ros_discovery_mgr = self.ros_discovery_mgr.clone();
         let discovered_entities = self.discovered_entities.clone();
+        let config = self.config.clone();
 
         task::spawn(async move {
             // Timer for periodic read of "ros_discovery_info" topic
@@ -86,16 +91,16 @@ impl DiscoveryMgr {
                                 }
                             },
                             DDSDiscoveryEvent::DiscoveredPublication{entity} => {
-                                let e = zwrite!(discovered_entities).add_writer(entity);
-                                if let Some(e) = e {
+                                let events = zwrite!(discovered_entities).add_writer(entity, &config);
+                                for e in events {
                                     if let Err(err) = evt_sender.try_send(e) {
                                         tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
                                 }
                             },
                             DDSDiscoveryEvent::UndiscoveredPublication{key} => {
-                                let e = zwrite!(discovered_entities).remove_writer(&key);
-                                if let Some(e) = e {
+                                let events = zwrite!(discovered_entities).remove_writer(&key);
+                                for e in events {
                                     if let Err(err) = evt_sender.try_send(e) {
                                         tracing::error!("Internal error: failed to send DDSDiscoveryEvent to main loop: {err}");
                                     }
