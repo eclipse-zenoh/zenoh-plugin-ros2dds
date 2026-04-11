@@ -76,6 +76,11 @@ pub struct RouteSubscriber {
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken>,
+    // the QoS for the DDS Writer created for this route.
+    // Stored to enable QoS-mismatch detection when a new entity is discovered
+    // for an already-existing route (issue #435 — silent DDS endpoint failure).
+    #[serde(skip)]
+    _writer_qos: Qos,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
@@ -138,6 +143,8 @@ impl RouteSubscriber {
         tracing::debug!(
             "Route Subscriber ({zenoh_key_expr} -> {ros2_name}): create Writer with {writer_qos:?}"
         );
+        // Capture writer_qos before moving it into create_dds_writer
+        let stored_writer_qos = writer_qos.clone();
         let dds_writer = create_dds_writer(
             context.participant,
             topic_name,
@@ -161,6 +168,7 @@ impl RouteSubscriber {
             queries_timeout,
             keyless,
             liveliness_token: None,
+            _writer_qos: stored_writer_qos,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
         })
@@ -310,6 +318,14 @@ impl RouteSubscriber {
     #[inline]
     pub fn is_unused(&self) -> bool {
         !self.is_serving_local_node() && !self.is_serving_remote_route()
+    }
+
+    /// Returns the QoS this route's DDS Writer was created with.
+    /// Used to detect QoS mismatches when a new entity is discovered for an
+    /// existing route (issue #435 — silent DDS endpoint matching failure).
+    #[inline]
+    pub fn writer_qos(&self) -> &Qos {
+        &self._writer_qos
     }
 }
 
