@@ -380,6 +380,14 @@ impl RoutePublisher {
     pub fn is_unused(&self) -> bool {
         !self.is_serving_local_node() && !self.is_serving_remote_route()
     }
+
+    /// Returns the QoS this route's DDS Reader was created with.
+    /// Used to detect QoS mismatches when a new entity is discovered for an
+    /// existing route (issue #435 — silent DDS endpoint matching failure).
+    #[inline]
+    pub fn reader_qos(&self) -> &Qos {
+        &self._reader_qos
+    }
 }
 
 pub fn serialize_pub_cache<S>(zpub: &ZPublisher, s: S) -> Result<S::Ok, S::Error>
