@@ -12,6 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use std::{
+    collections::{BTreeSet, HashSet},
     ffi::{CStr, CString},
     mem::MaybeUninit,
     sync::{atomic::AtomicI32, Arc},
@@ -22,7 +23,7 @@ use cyclors::{
     qos::{History, HistoryKind, Qos},
     *,
 };
-use serde::Serializer;
+use serde::{ser::SerializeSeq, Serializer};
 use tokio::task;
 
 use crate::{
@@ -30,6 +31,23 @@ use crate::{
     gid::Gid,
     vec_into_raw_parts,
 };
+
+/// Serialize a `HashSet<(Gid, String)>` as a deduplicated array of the node fullnames,
+/// dropping the participant GID. Keeps the admin-space JSON format unchanged after #702 fix.
+pub fn serialize_local_nodes<S>(
+    set: &HashSet<(Gid, String)>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let dedup: BTreeSet<&str> = set.iter().map(|(_, name)| name.as_str()).collect();
+    let mut seq = serializer.serialize_seq(Some(dedup.len()))?;
+    for name in &dedup {
+        seq.serialize_element(name)?;
+    }
+    seq.end()
+}
 
 // An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
 pub type AtomicDDSEntity = AtomicI32;

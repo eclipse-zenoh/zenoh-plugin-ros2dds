@@ -31,8 +31,9 @@ use zenoh_ext::{AdvancedSubscriber, AdvancedSubscriberBuilderExt, HistoryConfig}
 use crate::{
     dds_utils::{
         create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid,
-        serialize_entity_guid,
+        serialize_entity_guid, serialize_local_nodes,
     },
+    gid::Gid,
     liveliness_mgt::new_ke_liveliness_sub,
     qos::{History, Qos},
     qos_helpers::is_transient_local,
@@ -78,8 +79,10 @@ pub struct RouteSubscriber {
     liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
-    // the list of nodes served by this route
-    local_nodes: HashSet<String>,
+    // the list of nodes served by this route, keyed by (participant_gid, node_fullname) to
+    // disambiguate same-named nodes across restarts (#702).
+    #[serde(serialize_with = "serialize_local_nodes")]
+    local_nodes: HashSet<(Gid, String)>,
 }
 
 impl Drop for RouteSubscriber {
@@ -281,24 +284,31 @@ impl RouteSubscriber {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, entity_key: String, discovered_reader_qos: &Qos) {
-        self.local_nodes.insert(entity_key);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, activate the route
-        if self.local_nodes.len() == 1 {
+    pub async fn add_local_node(
+        &mut self,
+        node_key: (Gid, String),
+        discovered_reader_qos: &Qos,
+    ) {
+        // Only activate on the transition from 0 to 1 entries — re-inserting an existing key
+        // must NOT re-run announce_route (was a subtle bug, mirrored from RoutePublisher's fix).
+        if self.local_nodes.insert(node_key) && self.local_nodes.len() == 1 {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             if let Err(e) = self.announce_route(discovered_reader_qos).await {
                 tracing::error!("{self} activation failed: {e}");
             }
+        } else {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         }
     }
 
     #[inline]
-    pub fn remove_local_node(&mut self, entity_key: &str) {
-        self.local_nodes.remove(entity_key);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, deactivate the route
-        if self.local_nodes.is_empty() {
-            self.retire_route();
+    pub fn remove_local_node(&mut self, node_key: &(Gid, String)) {
+        if self.local_nodes.remove(node_key) {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            // if last local node removed, deactivate the route
+            if self.local_nodes.is_empty() {
+                self.retire_route();
+            }
         }
     }
 

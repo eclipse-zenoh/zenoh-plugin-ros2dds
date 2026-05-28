@@ -39,9 +39,10 @@ use crate::{
     dds_types::{DDSRawSample, TypeInfo},
     dds_utils::{
         create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-        get_instance_handle, is_cdr_little_endian, serialize_entity_guid, CDR_HEADER_BE,
-        CDR_HEADER_LE,
+        get_instance_handle, is_cdr_little_endian, serialize_entity_guid, serialize_local_nodes,
+        CDR_HEADER_BE, CDR_HEADER_LE,
     },
+    gid::Gid,
     liveliness_mgt::new_ke_liveliness_service_srv,
     ros2_utils::{
         is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
@@ -87,8 +88,9 @@ pub struct RouteServiceSrv {
     liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
-    // the list of nodes served by this route
-    local_nodes: HashSet<String>,
+    // the list of nodes served by this route, keyed by (participant_gid, node_fullname) — #702.
+    #[serde(serialize_with = "serialize_local_nodes")]
+    local_nodes: HashSet<(Gid, String)>,
 }
 
 impl Drop for RouteServiceSrv {
@@ -312,24 +314,25 @@ impl RouteServiceSrv {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String) {
-        self.local_nodes.insert(node);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, activate the route
-        if self.local_nodes.len() == 1 {
+    pub async fn add_local_node(&mut self, node_key: (Gid, String)) {
+        if self.local_nodes.insert(node_key) && self.local_nodes.len() == 1 {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             if let Err(e) = self.announce_route().await {
                 tracing::error!("{self} activation failed: {e}");
             }
+        } else {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         }
     }
 
     #[inline]
-    pub fn remove_local_node(&mut self, node: &str) {
-        self.local_nodes.remove(node);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, deactivate the route
-        if self.local_nodes.is_empty() {
-            self.retire_route();
+    pub fn remove_local_node(&mut self, node_key: &(Gid, String)) {
+        if self.local_nodes.remove(node_key) {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            // if last local node removed, deactivate the route
+            if self.local_nodes.is_empty() {
+                self.retire_route();
+            }
         }
     }
 
