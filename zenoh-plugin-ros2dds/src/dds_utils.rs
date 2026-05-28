@@ -137,7 +137,7 @@ pub unsafe fn create_topic(
     let cton = CString::new(topic_name.to_owned()).unwrap().into_raw();
     let ctyn = CString::new(type_name.to_owned()).unwrap().into_raw();
 
-    match type_info {
+    let topic = match type_info {
         None => cdds_create_blob_topic(dp, cton, ctyn, keyless),
         Some(type_info) => {
             let mut descriptor: *mut dds_topic_descriptor_t = std::ptr::null_mut();
@@ -157,7 +157,13 @@ pub unsafe fn create_topic(
             }
             topic
         }
-    }
+    };
+
+    // Reclaim the CStrings: cyclonedds copies them internally, so it is safe to free now.
+    drop(CString::from_raw(cton));
+    drop(CString::from_raw(ctyn));
+
+    topic
 }
 
 pub fn create_dds_writer(
@@ -175,6 +181,8 @@ pub fn create_dds_writer(
         let qos_native = qos.to_qos_native();
         let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
+        drop(CString::from_raw(cton));
+        drop(CString::from_raw(ctyn));
         if writer >= 0 {
             Ok(writer)
         } else {
