@@ -119,12 +119,6 @@ jobs:
     name: Publish Cargo crates
     runs-on: ubuntu-latest
     steps:
-      # cyclors 0.2.6 does not compile with cmake 4
-      - name: Install cmake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.31.x"
-
       - uses: eclipse-zenoh/ci/publish-crates-cargo@main
         with:
           repo: ${{ github.repository }}
