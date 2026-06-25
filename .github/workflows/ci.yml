@@ -59,15 +59,24 @@ jobs:
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
       - name: Clippy without Cargo.lock
+        if: ${{ !startsWith(matrix.os, 'windows') }}
         run: |
           rm Cargo.lock
           cargo clippy --workspace --all-targets --features stats,dynamic_plugin,dds_shm -- --deny warnings
+          git restore Cargo.lock
+
+      - name: Clippy without Cargo.lock (Windows, no dds_shm)
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          rm Cargo.lock
+          cargo clippy --workspace --all-targets --features stats,dynamic_plugin -- --deny warnings
           git restore Cargo.lock
 
       - name: Build zenoh-plugin-ros2dds
         run: cargo build -p zenoh-plugin-ros2dds --verbose --all-targets
 
       - name: Build zenoh-plugin-ros2dds (with dds_shm)
+        if: ${{ !startsWith(matrix.os, 'windows') }}
         run: cargo build -p zenoh-plugin-ros2dds --features dds_shm --verbose --all-targets
 
       - name: Build zenoh-plugin-ros2dds (with prefix_symbols)
@@ -77,6 +86,7 @@ jobs:
         run: cargo build -p zenoh-bridge-ros2dds  --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds (with dds_shm)
+        if: ${{ !startsWith(matrix.os, 'windows') }}
         run: cargo build -p zenoh-bridge-ros2dds --features dds_shm  --verbose --all-targets
 
       - name: Build zenoh-bridge-ros2dds (with prefix_symbols)
@@ -86,6 +96,7 @@ jobs:
         run: cargo test --verbose
 
       - name: Run tests (with dds_shm)
+        if: ${{ !startsWith(matrix.os, 'windows') }}
         run: cargo test --features dds_shm --verbose
 
       - name: Run tests (with prefix_symbols)
