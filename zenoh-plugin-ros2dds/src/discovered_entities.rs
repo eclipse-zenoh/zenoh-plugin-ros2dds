@@ -349,7 +349,7 @@ impl DiscoveredEntities {
                     );
                     events.push(e)
                 };
-            } else {
+            } else if !node.undiscovered_reader.contains(rgid) {
                 tracing::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Reader: {rgid}"
                 );
@@ -370,7 +370,7 @@ impl DiscoveredEntities {
                     );
                     events.push(e)
                 };
-            } else {
+            } else if !node.undiscovered_writer.contains(wgid) {
                 tracing::debug!(
                     "ROS Node {ros_node_info} declares a not yet discovered DDS Writer: {wgid}"
                 );
