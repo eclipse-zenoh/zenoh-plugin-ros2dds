@@ -1860,7 +1860,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "smallvec",
  "zeroize",
 ]
@@ -2354,9 +2354,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -3632,7 +3632,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.8.5",
+ "rand 0.8.6",
  "sha1",
  "thiserror 1.0.69",
  "utf-8",
@@ -3675,7 +3675,7 @@ dependencies = [
  "humantime",
  "lazy_static",
  "log",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "spin 0.10.0",
 ]
@@ -4521,7 +4521,7 @@ dependencies = [
  "once_cell",
  "petgraph",
  "phf",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rustc_version",
  "serde",
  "serde_json",
@@ -4642,7 +4642,7 @@ source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#55102d943b4
 dependencies = [
  "aes",
  "hmac",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "sha3",
  "zenoh-result",
@@ -4676,7 +4676,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hashbrown 0.16.1",
  "keyed-set",
- "rand 0.8.5",
+ "rand 0.8.6",
  "schemars 1.2.1",
  "serde",
  "token-cell",
@@ -4961,7 +4961,7 @@ version = "1.9.0"
 source = "git+https://github.com/eclipse-zenoh/zenoh.git?branch=main#55102d943b4d2263e17b350115055be764d11ea5"
 dependencies = [
  "const_format",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "uhlc",
  "zenoh-buffers",
@@ -5005,7 +5005,7 @@ dependencies = [
  "crossbeam-queue",
  "nix",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rlimit",
  "stabby",
  "static_assertions",
@@ -5073,7 +5073,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "lz4_flex",
- "rand 0.8.5",
+ "rand 0.8.6",
  "ringbuffer-spsc",
  "rsa",
  "serde",
