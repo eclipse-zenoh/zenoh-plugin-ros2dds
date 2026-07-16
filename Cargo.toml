@@ -51,7 +51,7 @@ zenoh-config = { version = "1.9.0", default-features = false, git = "https://git
 zenoh-ext = { version = "1.9.0", features = [
   "unstable",
 ], git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
-zenoh-plugin-ros2dds = { version = "1.9.0", path = "zenoh-plugin-ros2dds/", default-features = false }
+zenoh-plugin-ros2dds = { version = "1.9.0-13-gc828115", path = "zenoh-plugin-ros2dds/", default-features = false }
 zenoh-plugin-rest = { version = "1.9.0", default-features = false, features = [
   "static_plugin",
 ], git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
