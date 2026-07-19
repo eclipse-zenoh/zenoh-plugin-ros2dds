@@ -38,8 +38,9 @@ use crate::{
     dds_types::{DDSRawSample, TypeInfo},
     dds_utils::{
         create_dds_reader, delete_dds_entity, get_guid, serialize_atomic_entity_guid,
-        AtomicDDSEntity, DDS_ENTITY_NULL,
+        serialize_local_nodes, AtomicDDSEntity, DDS_ENTITY_NULL,
     },
+    gid::Gid,
     liveliness_mgt::new_ke_liveliness_pub,
     qos_helpers::*,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
@@ -103,8 +104,10 @@ pub struct RoutePublisher {
     liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
-    // the list of nodes served by this route
-    local_nodes: HashSet<String>,
+    // the list of nodes served by this route, keyed by (participant_gid, node_fullname) to
+    // disambiguate same-named nodes across restarts (#702).
+    #[serde(serialize_with = "serialize_local_nodes")]
+    local_nodes: HashSet<(Gid, String)>,
 }
 
 impl Drop for RoutePublisher {
@@ -348,8 +351,12 @@ impl RoutePublisher {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
-        if self.local_nodes.insert(node) {
+    pub async fn add_local_node(
+        &mut self,
+        node_key: (Gid, String),
+        discovered_writer_qos: &Qos,
+    ) {
+        if self.local_nodes.insert(node_key) {
             tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             // if 1st local node added, announce the route
             if self.local_nodes.len() == 1 {
@@ -361,8 +368,8 @@ impl RoutePublisher {
     }
 
     #[inline]
-    pub fn remove_local_node(&mut self, node: &str) {
-        if self.local_nodes.remove(node) {
+    pub fn remove_local_node(&mut self, node_key: &(Gid, String)) {
+        if self.local_nodes.remove(node_key) {
             tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             // if last local node removed, retire the route
             if self.local_nodes.is_empty() {

@@ -12,6 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use std::{
+    collections::{BTreeSet, HashSet},
     ffi::{CStr, CString},
     mem::MaybeUninit,
     sync::{atomic::AtomicI32, Arc},
@@ -22,7 +23,7 @@ use cyclors::{
     qos::{History, HistoryKind, Qos},
     *,
 };
-use serde::Serializer;
+use serde::{ser::SerializeSeq, Serializer};
 use tokio::task;
 
 use crate::{
@@ -30,6 +31,23 @@ use crate::{
     gid::Gid,
     vec_into_raw_parts,
 };
+
+/// Serialize a `HashSet<(Gid, String)>` as a deduplicated array of the node fullnames,
+/// dropping the participant GID. Keeps the admin-space JSON format unchanged after #702 fix.
+pub fn serialize_local_nodes<S>(
+    set: &HashSet<(Gid, String)>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let dedup: BTreeSet<&str> = set.iter().map(|(_, name)| name.as_str()).collect();
+    let mut seq = serializer.serialize_seq(Some(dedup.len()))?;
+    for name in &dedup {
+        seq.serialize_element(name)?;
+    }
+    seq.end()
+}
 
 // An atomic dds_entity_t (=i32), for safe concurrent creation/deletion of DDS entities
 pub type AtomicDDSEntity = AtomicI32;
@@ -137,7 +155,7 @@ pub unsafe fn create_topic(
     let cton = CString::new(topic_name.to_owned()).unwrap().into_raw();
     let ctyn = CString::new(type_name.to_owned()).unwrap().into_raw();
 
-    match type_info {
+    let topic = match type_info {
         None => cdds_create_blob_topic(dp, cton, ctyn, keyless),
         Some(type_info) => {
             let mut descriptor: *mut dds_topic_descriptor_t = std::ptr::null_mut();
@@ -157,7 +175,13 @@ pub unsafe fn create_topic(
             }
             topic
         }
-    }
+    };
+
+    // Reclaim the CStrings: cyclonedds copies them internally, so it is safe to free now.
+    drop(CString::from_raw(cton));
+    drop(CString::from_raw(ctyn));
+
+    topic
 }
 
 pub fn create_dds_writer(
@@ -175,6 +199,8 @@ pub fn create_dds_writer(
         let qos_native = qos.to_qos_native();
         let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
+        drop(CString::from_raw(cton));
+        drop(CString::from_raw(ctyn));
         if writer >= 0 {
             Ok(writer)
         } else {

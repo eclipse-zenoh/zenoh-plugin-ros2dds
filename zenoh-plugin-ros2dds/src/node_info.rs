@@ -362,6 +362,9 @@ pub struct NodeInfo {
     // The node unique id is: <participant_gid>/<namespace>/<name>
     #[serde(skip)]
     pub id: String,
+    // Participant GID that owns this node. Used to disambiguate same-named nodes across restarts (#702).
+    #[serde(skip)]
+    pub participant: Gid,
     #[serde(skip)]
     fullname: Range<usize>,
     #[serde(skip)]
@@ -447,6 +450,7 @@ impl NodeInfo {
 
         Ok(NodeInfo {
             id,
+            participant,
             fullname,
             namespace,
             name,
@@ -642,7 +646,7 @@ impl NodeInfo {
             Entry::Vacant(e) => match MsgPub::create(name.into(), typ, *writer) {
                 Ok(t) => {
                     e.insert(t.clone());
-                    Some(DiscoveredMsgPub(node_fullname, t))
+                    Some(DiscoveredMsgPub(self.participant, node_fullname, t))
                 }
                 Err(e) => {
                     tracing::error!(
@@ -661,7 +665,7 @@ impl NodeInfo {
                     );
                 } else if v.writers.insert(*writer) && v.writers.len() == 1 {
                     // Send DiscoveredMsgPub event only for the 1st discovered Writer
-                    result = Some(DiscoveredMsgPub(node_fullname, v.clone()));
+                    result = Some(DiscoveredMsgPub(self.participant, node_fullname, v.clone()));
                 }
                 result
             }
@@ -681,7 +685,7 @@ impl NodeInfo {
             Entry::Vacant(e) => match MsgSub::create(name.into(), typ, *reader) {
                 Ok(t) => {
                     e.insert(t.clone());
-                    Some(DiscoveredMsgSub(node_fullname, t))
+                    Some(DiscoveredMsgSub(self.participant, node_fullname, t))
                 }
                 Err(e) => {
                     tracing::error!(
@@ -700,7 +704,7 @@ impl NodeInfo {
                     );
                 } else if v.readers.insert(*reader) && v.readers.len() == 1 {
                     // Send DiscoveredMsgSub event only for the 1st discovered Reader
-                    result = Some(DiscoveredMsgSub(node_fullname, v.clone()));
+                    result = Some(DiscoveredMsgSub(self.participant, node_fullname, v.clone()));
                 }
                 result
             }
@@ -738,7 +742,7 @@ impl NodeInfo {
                     );
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredServiceSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.req_reader != *reader {
@@ -750,7 +754,7 @@ impl NodeInfo {
                     }
                     v.entities.req_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredServiceSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -789,7 +793,7 @@ impl NodeInfo {
                     );
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredServiceSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.rep_writer != *writer {
@@ -801,7 +805,7 @@ impl NodeInfo {
                     }
                     v.entities.rep_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredServiceSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -840,7 +844,7 @@ impl NodeInfo {
                     );
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredServiceCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.rep_reader != *reader {
@@ -852,7 +856,7 @@ impl NodeInfo {
                     }
                     v.entities.rep_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredServiceCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -891,7 +895,7 @@ impl NodeInfo {
                     );
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredServiceCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.req_writer != *writer {
@@ -903,7 +907,7 @@ impl NodeInfo {
                     }
                     v.entities.req_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredServiceCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredServiceCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -944,7 +948,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.send_goal.req_reader != *reader {
@@ -956,7 +960,7 @@ impl NodeInfo {
                     }
                     v.entities.send_goal.req_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -997,7 +1001,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.send_goal.rep_writer != *writer {
@@ -1009,7 +1013,7 @@ impl NodeInfo {
                     }
                     v.entities.send_goal.rep_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1052,7 +1056,7 @@ impl NodeInfo {
                     }
                     v.entities.cancel_goal.req_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1095,7 +1099,7 @@ impl NodeInfo {
                     }
                     v.entities.cancel_goal.rep_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1136,7 +1140,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.get_result.req_reader != *reader {
@@ -1148,7 +1152,7 @@ impl NodeInfo {
                     }
                     v.entities.get_result.req_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1189,7 +1193,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.get_result.rep_writer != *writer {
@@ -1201,7 +1205,7 @@ impl NodeInfo {
                     }
                     v.entities.get_result.rep_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1244,7 +1248,7 @@ impl NodeInfo {
                     }
                     v.entities.status_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1285,7 +1289,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.feedback_writer != *writer {
@@ -1297,7 +1301,7 @@ impl NodeInfo {
                     }
                     v.entities.feedback_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionSrv(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionSrv(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1338,7 +1342,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.send_goal.rep_reader != *reader {
@@ -1350,7 +1354,7 @@ impl NodeInfo {
                     }
                     v.entities.send_goal.rep_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1391,7 +1395,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.send_goal.req_writer != *writer {
@@ -1403,7 +1407,7 @@ impl NodeInfo {
                     }
                     v.entities.send_goal.req_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1446,7 +1450,7 @@ impl NodeInfo {
                     }
                     v.entities.cancel_goal.rep_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1489,7 +1493,7 @@ impl NodeInfo {
                     }
                     v.entities.cancel_goal.req_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1530,7 +1534,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.get_result.rep_reader != *reader {
@@ -1542,7 +1546,7 @@ impl NodeInfo {
                     }
                     v.entities.get_result.rep_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1583,7 +1587,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.get_result.req_writer != *writer {
@@ -1595,7 +1599,7 @@ impl NodeInfo {
                     }
                     v.entities.get_result.req_writer = *writer;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1638,7 +1642,7 @@ impl NodeInfo {
                     }
                     v.entities.status_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1679,7 +1683,7 @@ impl NodeInfo {
                     }
                     v.typ = typ;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname.clone(), v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname.clone(), v.clone()))
                     };
                 }
                 if v.entities.feedback_reader != *reader {
@@ -1691,7 +1695,7 @@ impl NodeInfo {
                     }
                     v.entities.feedback_reader = *reader;
                     if v.is_complete() {
-                        result = Some(DiscoveredActionCli(node_fullname, v.clone()))
+                        result = Some(DiscoveredActionCli(self.participant, node_fullname, v.clone()))
                     };
                 }
                 result
@@ -1706,22 +1710,22 @@ impl NodeInfo {
         let mut events = Vec::new();
 
         for (_, v) in self.msg_pub.drain() {
-            events.push(UndiscoveredMsgPub(node_fullname.clone(), v))
+            events.push(UndiscoveredMsgPub(self.participant, node_fullname.clone(), v))
         }
         for (_, v) in self.msg_sub.drain() {
-            events.push(UndiscoveredMsgSub(node_fullname.clone(), v))
+            events.push(UndiscoveredMsgSub(self.participant, node_fullname.clone(), v))
         }
         for (_, v) in self.service_srv.drain() {
-            events.push(UndiscoveredServiceSrv(node_fullname.clone(), v))
+            events.push(UndiscoveredServiceSrv(self.participant, node_fullname.clone(), v))
         }
         for (_, v) in self.service_cli.drain() {
-            events.push(UndiscoveredServiceCli(node_fullname.clone(), v))
+            events.push(UndiscoveredServiceCli(self.participant, node_fullname.clone(), v))
         }
         for (_, v) in self.action_srv.drain() {
-            events.push(UndiscoveredActionSrv(node_fullname.clone(), v))
+            events.push(UndiscoveredActionSrv(self.participant, node_fullname.clone(), v))
         }
         for (_, v) in self.action_cli.drain() {
-            events.push(UndiscoveredActionCli(node_fullname.clone(), v))
+            events.push(UndiscoveredActionCli(self.participant, node_fullname.clone(), v))
         }
         self.undiscovered_reader.resize(0, Gid::NOT_DISCOVERED);
         self.undiscovered_writer.resize(0, Gid::NOT_DISCOVERED);
@@ -1745,8 +1749,7 @@ impl NodeInfo {
             }
         }) {
             // Return undiscovery event for this Subscriber, since all its DDS Writer have been undiscovered
-            return Some(UndiscoveredMsgSub(
-                node_fullname,
+            return Some(UndiscoveredMsgSub(self.participant, node_fullname,
                 self.msg_sub.remove(&name).unwrap(),
             ));
         }
@@ -1755,8 +1758,7 @@ impl NodeInfo {
             .iter()
             .find(|(_, v)| v.entities.req_reader == *reader)
         {
-            return Some(UndiscoveredServiceSrv(
-                node_fullname,
+            return Some(UndiscoveredServiceSrv(self.participant, node_fullname,
                 self.service_srv.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1765,8 +1767,7 @@ impl NodeInfo {
             .iter()
             .find(|(_, v)| v.entities.rep_reader == *reader)
         {
-            return Some(UndiscoveredServiceCli(
-                node_fullname,
+            return Some(UndiscoveredServiceCli(self.participant, node_fullname,
                 self.service_cli.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1775,8 +1776,7 @@ impl NodeInfo {
                 || v.entities.cancel_goal.req_reader == *reader
                 || v.entities.get_result.req_reader == *reader
         }) {
-            return Some(UndiscoveredActionSrv(
-                node_fullname,
+            return Some(UndiscoveredActionSrv(self.participant, node_fullname,
                 self.action_srv.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1787,8 +1787,7 @@ impl NodeInfo {
                 || v.entities.status_reader == *reader
                 || v.entities.feedback_reader == *reader
         }) {
-            return Some(UndiscoveredActionCli(
-                node_fullname,
+            return Some(UndiscoveredActionCli(self.participant, node_fullname,
                 self.action_cli.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1812,8 +1811,7 @@ impl NodeInfo {
             }
         }) {
             // Return undiscovery event for this Publisher, since all its DDS Writer have been undiscovered
-            return Some(UndiscoveredMsgPub(
-                node_fullname,
+            return Some(UndiscoveredMsgPub(self.participant, node_fullname,
                 self.msg_pub.remove(&name).unwrap(),
             ));
         }
@@ -1822,8 +1820,7 @@ impl NodeInfo {
             .iter()
             .find(|(_, v)| v.entities.rep_writer == *writer)
         {
-            return Some(UndiscoveredServiceSrv(
-                node_fullname,
+            return Some(UndiscoveredServiceSrv(self.participant, node_fullname,
                 self.service_srv.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1832,8 +1829,7 @@ impl NodeInfo {
             .iter()
             .find(|(_, v)| v.entities.req_writer == *writer)
         {
-            return Some(UndiscoveredServiceCli(
-                node_fullname,
+            return Some(UndiscoveredServiceCli(self.participant, node_fullname,
                 self.service_cli.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1844,8 +1840,7 @@ impl NodeInfo {
                 || v.entities.status_writer == *writer
                 || v.entities.feedback_writer == *writer
         }) {
-            return Some(UndiscoveredActionSrv(
-                node_fullname,
+            return Some(UndiscoveredActionSrv(self.participant, node_fullname,
                 self.action_srv.remove(&name.clone()).unwrap(),
             ));
         }
@@ -1854,8 +1849,7 @@ impl NodeInfo {
                 || v.entities.cancel_goal.req_writer == *writer
                 || v.entities.get_result.req_writer == *writer
         }) {
-            return Some(UndiscoveredActionCli(
-                node_fullname,
+            return Some(UndiscoveredActionCli(self.participant, node_fullname,
                 self.action_cli.remove(&name.clone()).unwrap(),
             ));
         }

@@ -17,41 +17,42 @@ use std::fmt::Display;
 use cyclors::qos::Qos;
 use zenoh::key_expr::OwnedKeyExpr;
 
-use crate::node_info::*;
+use crate::{gid::Gid, node_info::*};
 
-/// A (local) discovery event of a ROS2 interface
+/// A (local) discovery event of a ROS2 interface.
+/// First Gid is the participant GID owning the node — used to disambiguate same-named nodes across restarts (#702).
 #[derive(Debug)]
 pub enum ROS2DiscoveryEvent {
-    DiscoveredMsgPub(String, MsgPub),
-    UndiscoveredMsgPub(String, MsgPub),
-    DiscoveredMsgSub(String, MsgSub),
-    UndiscoveredMsgSub(String, MsgSub),
-    DiscoveredServiceSrv(String, ServiceSrv),
-    UndiscoveredServiceSrv(String, ServiceSrv),
-    DiscoveredServiceCli(String, ServiceCli),
-    UndiscoveredServiceCli(String, ServiceCli),
-    DiscoveredActionSrv(String, ActionSrv),
-    UndiscoveredActionSrv(String, ActionSrv),
-    DiscoveredActionCli(String, ActionCli),
-    UndiscoveredActionCli(String, ActionCli),
+    DiscoveredMsgPub(Gid, String, MsgPub),
+    UndiscoveredMsgPub(Gid, String, MsgPub),
+    DiscoveredMsgSub(Gid, String, MsgSub),
+    UndiscoveredMsgSub(Gid, String, MsgSub),
+    DiscoveredServiceSrv(Gid, String, ServiceSrv),
+    UndiscoveredServiceSrv(Gid, String, ServiceSrv),
+    DiscoveredServiceCli(Gid, String, ServiceCli),
+    UndiscoveredServiceCli(Gid, String, ServiceCli),
+    DiscoveredActionSrv(Gid, String, ActionSrv),
+    UndiscoveredActionSrv(Gid, String, ActionSrv),
+    DiscoveredActionCli(Gid, String, ActionCli),
+    UndiscoveredActionCli(Gid, String, ActionCli),
 }
 
 impl std::fmt::Display for ROS2DiscoveryEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ROS2DiscoveryEvent::*;
         match self {
-            DiscoveredMsgPub(node, iface) => write!(f, "Node {node} declares {iface}"),
-            DiscoveredMsgSub(node, iface) => write!(f, "Node {node} declares {iface}"),
-            DiscoveredServiceSrv(node, iface) => write!(f, "Node {node} declares {iface}"),
-            DiscoveredServiceCli(node, iface) => write!(f, "Node {node} declares {iface}"),
-            DiscoveredActionSrv(node, iface) => write!(f, "Node {node} declares {iface}"),
-            DiscoveredActionCli(node, iface) => write!(f, "Node {node} declares {iface}"),
-            UndiscoveredMsgPub(node, iface) => write!(f, "Node {node} undeclares {iface}"),
-            UndiscoveredMsgSub(node, iface) => write!(f, "Node {node} undeclares {iface}"),
-            UndiscoveredServiceSrv(node, iface) => write!(f, "Node {node} undeclares {iface}"),
-            UndiscoveredServiceCli(node, iface) => write!(f, "Node {node} undeclares {iface}"),
-            UndiscoveredActionSrv(node, iface) => write!(f, "Node {node} undeclares {iface}"),
-            UndiscoveredActionCli(node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            DiscoveredMsgPub(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredMsgSub(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredServiceSrv(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredServiceCli(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredActionSrv(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            DiscoveredActionCli(_, node, iface) => write!(f, "Node {node} declares {iface}"),
+            UndiscoveredMsgPub(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredMsgSub(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredServiceSrv(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredServiceCli(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredActionSrv(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
+            UndiscoveredActionCli(_, node, iface) => write!(f, "Node {node} undeclares {iface}"),
         }
     }
 }
