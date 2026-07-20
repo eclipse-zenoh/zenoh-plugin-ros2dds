@@ -126,6 +126,17 @@ pub fn key_expr_to_ros2_name(key_expr: &keyexpr, config: &Config) -> String {
     }
 }
 
+/// Convert a DDS message topic name to a ROS2 message name.
+/// Returns `None` for non-message topics and action helper topics.
+pub fn dds_message_topic_to_ros2_name(dds_topic: &str) -> Option<String> {
+    let ros2_name = dds_topic.strip_prefix("rt").map(str::to_string)?;
+    if is_message_for_action(&ros2_name) {
+        None
+    } else {
+        Some(ros2_name)
+    }
+}
+
 /// Convert DDS Topic type to ROS2 Message type
 pub fn dds_type_to_ros2_message_type(dds_topic: &str) -> String {
     let result = dds_topic.replace("::dds_::", "::").replace("::", "/");
