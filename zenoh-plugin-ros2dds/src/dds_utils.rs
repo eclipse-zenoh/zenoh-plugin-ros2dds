@@ -12,10 +12,10 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     ffi::{CStr, CString},
     mem::MaybeUninit,
-    sync::{atomic::AtomicI32, Arc},
+    sync::{atomic::AtomicI32, Arc, Mutex, OnceLock},
     time::Duration,
 };
 
@@ -53,6 +53,49 @@ where
 pub type AtomicDDSEntity = AtomicI32;
 
 pub const DDS_ENTITY_NULL: dds_entity_t = 0;
+
+type ListenerArgDropper = unsafe fn(usize);
+
+struct DdsEndpointResources {
+    topic: dds_entity_t,
+    listener_arg: Option<(usize, ListenerArgDropper)>,
+}
+
+fn endpoint_resources() -> &'static Mutex<HashMap<dds_entity_t, DdsEndpointResources>> {
+    static RESOURCES: OnceLock<Mutex<HashMap<dds_entity_t, DdsEndpointResources>>> =
+        OnceLock::new();
+    RESOURCES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn register_dds_endpoint(
+    endpoint: dds_entity_t,
+    topic: dds_entity_t,
+    listener_arg: Option<(usize, ListenerArgDropper)>,
+) {
+    let old = endpoint_resources()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(
+            endpoint,
+            DdsEndpointResources {
+                topic,
+                listener_arg,
+            },
+        );
+    if let Some(old) = old {
+        tracing::error!(
+            "DDS endpoint handle {endpoint} was reused before its resources were released"
+        );
+        // A live endpoint may still reference this callback. Preserve it rather
+        // than risking a use-after-free in this impossible-with-valid-handles
+        // fallback path.
+        let _ = old;
+    }
+}
+
+unsafe fn drop_listener_arg<F>(arg: usize) {
+    drop(Box::from_raw(arg as *mut F));
+}
 pub const CDR_HEADER_LE: [u8; 4] = [0, 1, 0, 0];
 pub const CDR_HEADER_BE: [u8; 4] = [0, 0, 0, 0];
 
@@ -94,6 +137,35 @@ pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
             e => Err(format!("Error deleting DDS entity - retcode={e}")),
         }
     }
+}
+
+/// Delete a Reader/Writer created by [`create_dds_reader`] or
+/// [`create_dds_writer`] and release the Topic and listener callback owned by
+/// that endpoint.
+pub fn delete_dds_endpoint(entity: dds_entity_t) -> Result<(), String> {
+    let resources = endpoint_resources()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .remove(&entity);
+
+    let Some(resources) = resources else {
+        tracing::warn!("DDS endpoint {entity} has no registered resources");
+        return delete_dds_entity(entity);
+    };
+
+    if let Err(e) = delete_dds_entity(entity) {
+        endpoint_resources()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(entity, resources);
+        return Err(e);
+    }
+
+    let topic_result = delete_dds_entity(resources.topic);
+    if let Some((arg, dropper)) = resources.listener_arg {
+        unsafe { dropper(arg) };
+    }
+    topic_result.map_err(|e| format!("Error deleting Topic for DDS endpoint {entity}: {e}"))
 }
 
 pub fn get_guid(entity: &dds_entity_t) -> Result<Gid, String> {
@@ -196,14 +268,30 @@ pub fn create_dds_writer(
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
+        if t <= 0 {
+            drop(CString::from_raw(cton));
+            drop(CString::from_raw(ctyn));
+            return Err(format!(
+                "Error creating DDS Topic: {}",
+                if t < 0 {
+                    CStr::from_ptr(dds_strretcode(-t))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
+                } else {
+                    "null DDS entity"
+                }
+            ));
+        }
         let qos_native = qos.to_qos_native();
         let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
         drop(CString::from_raw(cton));
         drop(CString::from_raw(ctyn));
-        if writer >= 0 {
+        if writer > 0 {
+            register_dds_endpoint(writer, t, None);
             Ok(writer)
         } else {
+            let _ = delete_dds_entity(t);
             Err(format!(
                 "Error creating DDS Writer: {}",
                 CStr::from_ptr(dds_strretcode(-writer))
@@ -308,17 +396,31 @@ where
 {
     unsafe {
         let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
+        if t <= 0 {
+            return Err(format!(
+                "Error creating DDS Topic: {}",
+                if t < 0 {
+                    CStr::from_ptr(dds_strretcode(-t))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
+                } else {
+                    "null DDS entity"
+                }
+            ));
+        }
         match read_period {
             None => {
                 // Use a Listener to route data as soon as it arrives
-                let arg = Box::new(callback);
-                let sub_listener =
-                    dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
+                let arg = Box::into_raw(Box::new(callback));
+                let sub_listener = dds_create_listener(arg as *mut std::os::raw::c_void);
                 dds_lset_data_available(sub_listener, Some(listener_to_callback::<F>));
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, sub_listener);
                 Qos::delete_qos_native(qos_native);
-                if reader >= 0 {
+                // CycloneDDS copies the listener into the Reader.
+                dds_delete_listener(sub_listener);
+                if reader > 0 {
+                    register_dds_endpoint(reader, t, Some((arg as usize, drop_listener_arg::<F>)));
                     let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
                         tracing::error!(
@@ -330,6 +432,8 @@ where
                     }
                     Ok(reader)
                 } else {
+                    drop(Box::from_raw(arg));
+                    let _ = delete_dds_entity(t);
                     Err(format!(
                         "Error creating DDS Reader: {}",
                         CStr::from_ptr(dds_strretcode(-reader))
@@ -346,6 +450,21 @@ where
                 });
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
+                Qos::delete_qos_native(qos_native);
+                if reader <= 0 {
+                    let _ = delete_dds_entity(t);
+                    return Err(format!(
+                        "Error creating DDS Reader: {}",
+                        if reader < 0 {
+                            CStr::from_ptr(dds_strretcode(-reader))
+                                .to_str()
+                                .unwrap_or("unrecoverable DDS retcode")
+                        } else {
+                            "null DDS entity"
+                        }
+                    ));
+                }
+                register_dds_endpoint(reader, t, None);
                 task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been

@@ -30,7 +30,7 @@ use zenoh_ext::{AdvancedSubscriber, AdvancedSubscriberBuilderExt, HistoryConfig}
 
 use crate::{
     dds_utils::{
-        create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_entity, get_guid,
+        create_dds_writer, ddsrt_iov_len_from_usize, delete_dds_endpoint, get_guid,
         serialize_entity_guid, serialize_local_nodes,
     },
     gid::Gid,
@@ -41,6 +41,14 @@ use crate::{
     routes_mgr::Context,
     serialize_option_as_bool, vec_into_raw_parts, LOG_PAYLOAD,
 };
+
+const DDS_WRITER_CREATION_RETRY_DELAYS: [Duration; 5] = [
+    Duration::from_millis(100),
+    Duration::from_millis(250),
+    Duration::from_millis(500),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+];
 
 enum ZSubscriber {
     Subscriber(Subscriber<()>),
@@ -94,7 +102,7 @@ impl Drop for RouteSubscriber {
         }
 
         tracing::debug!("{self}: delete Writer");
-        if let Err(e) = delete_dds_entity(self.dds_writer) {
+        if let Err(e) = delete_dds_endpoint(self.dds_writer) {
             tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
     }
@@ -141,17 +149,24 @@ impl RouteSubscriber {
         tracing::debug!(
             "Route Subscriber ({zenoh_key_expr} -> {ros2_name}): create Writer with {writer_qos:?}"
         );
-        let dds_writer = create_dds_writer(
+        let dds_writer = create_dds_writer_with_retry(
             context.participant,
             topic_name,
             type_name,
             keyless,
             writer_qos,
-        )?;
+            &format!("Route Subscriber (Zenoh:{zenoh_key_expr} -> ROS:{ros2_name})"),
+        )
+        .await?;
         // add writer's GID in ros_discovery_info message
-        context
-            .ros_discovery_mgr
-            .add_dds_writer(get_guid(&dds_writer)?);
+        let writer_gid = match get_guid(&dds_writer) {
+            Ok(gid) => gid,
+            Err(e) => {
+                let _ = delete_dds_endpoint(dds_writer);
+                return Err(e);
+            }
+        };
+        context.ros_discovery_mgr.add_dds_writer(writer_gid);
 
         Ok(RouteSubscriber {
             ros2_name,
@@ -284,11 +299,7 @@ impl RouteSubscriber {
     }
 
     #[inline]
-    pub async fn add_local_node(
-        &mut self,
-        node_key: (Gid, String),
-        discovered_reader_qos: &Qos,
-    ) {
+    pub async fn add_local_node(&mut self, node_key: (Gid, String), discovered_reader_qos: &Qos) {
         // Only activate on the transition from 0 to 1 entries — re-inserting an existing key
         // must NOT re-run announce_route (was a subtle bug, mirrored from RoutePublisher's fix).
         if self.local_nodes.insert(node_key) && self.local_nodes.len() == 1 {
@@ -320,6 +331,38 @@ impl RouteSubscriber {
     #[inline]
     pub fn is_unused(&self) -> bool {
         !self.is_serving_local_node() && !self.is_serving_remote_route()
+    }
+}
+
+async fn create_dds_writer_with_retry(
+    participant: dds_entity_t,
+    topic_name: String,
+    type_name: String,
+    keyless: bool,
+    writer_qos: Qos,
+    route_id: &str,
+) -> Result<dds_entity_t, String> {
+    let mut failures = 0usize;
+
+    loop {
+        match create_dds_writer(
+            participant,
+            topic_name.clone(),
+            type_name.clone(),
+            keyless,
+            writer_qos.clone(),
+        ) {
+            Ok(writer) => return Ok(writer),
+            Err(e) if failures < DDS_WRITER_CREATION_RETRY_DELAYS.len() => {
+                let delay = DDS_WRITER_CREATION_RETRY_DELAYS[failures];
+                failures += 1;
+                tracing::warn!(
+                    "{route_id}: failed to create DDS Writer: {e}; retrying in {delay:?}"
+                );
+                tokio::time::sleep(delay).await;
+            }
+            Err(e) => return Err(e),
+        }
     }
 }
 

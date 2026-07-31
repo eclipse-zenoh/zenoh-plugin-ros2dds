@@ -38,7 +38,7 @@ use zenoh::{
 use crate::{
     dds_types::{DDSRawSample, TypeInfo},
     dds_utils::{
-        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_endpoint, get_guid,
         get_instance_handle, is_cdr_little_endian, serialize_entity_guid, serialize_local_nodes,
         CDR_HEADER_BE, CDR_HEADER_LE,
     },
@@ -106,10 +106,10 @@ impl Drop for RouteServiceSrv {
             Err(e) => tracing::warn!("{self}: {e}"),
         }
 
-        if let Err(e) = delete_dds_entity(self.req_writer) {
+        if let Err(e) = delete_dds_endpoint(self.req_writer) {
             tracing::warn!("{}: error deleting DDS Writer:  {}", self, e);
         }
-        if let Err(e) = delete_dds_entity(self.rep_reader) {
+        if let Err(e) = delete_dds_endpoint(self.rep_reader) {
             tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
     }
@@ -157,13 +157,25 @@ impl RouteServiceSrv {
             qos.clone(),
         )?;
         // add writer's GID in ros_discovery_info message
-        context
-            .ros_discovery_mgr
-            .add_dds_writer(get_guid(&req_writer)?);
+        let req_writer_gid = match get_guid(&req_writer) {
+            Ok(gid) => gid,
+            Err(e) => {
+                let _ = delete_dds_endpoint(req_writer);
+                return Err(e);
+            }
+        };
+        context.ros_discovery_mgr.add_dds_writer(req_writer_gid);
 
         // client_guid used in requests; use dds_instance_handle of writer as rmw_cyclonedds here:
         // https://github.com/ros2/rmw_cyclonedds/blob/2263814fab142ac19dd3395971fb1f358d22a653/rmw_cyclonedds_cpp/src/rmw_node.cpp#L4848
-        let client_guid = get_instance_handle(req_writer)?;
+        let client_guid = match get_instance_handle(req_writer) {
+            Ok(guid) => guid,
+            Err(e) => {
+                context.ros_discovery_mgr.remove_dds_writer(req_writer_gid);
+                let _ = delete_dds_endpoint(req_writer);
+                return Err(e);
+            }
+        };
 
         tracing::debug!(
             "{route_id}: (local client_guid={client_guid:02x?})  id='{client_id_str}' => USER_DATA={:?}",
@@ -177,7 +189,7 @@ impl RouteServiceSrv {
         // create DDS Reader to receive replies and route them to Zenoh
         let rep_topic_name = format!("rr{ros2_name}Reply");
         let rep_type_name = ros2_service_type_to_reply_dds_type(&ros2_type);
-        let rep_reader = create_dds_reader(
+        let rep_reader = match create_dds_reader(
             context.participant,
             rep_topic_name,
             rep_type_name,
@@ -197,11 +209,25 @@ impl RouteServiceSrv {
                     );
                 }
             },
-        )?;
+        ) {
+            Ok(reader) => reader,
+            Err(e) => {
+                context.ros_discovery_mgr.remove_dds_writer(req_writer_gid);
+                let _ = delete_dds_endpoint(req_writer);
+                return Err(e);
+            }
+        };
         // add reader's GID in ros_discovery_info message
-        context
-            .ros_discovery_mgr
-            .add_dds_reader(get_guid(&rep_reader)?);
+        let rep_reader_gid = match get_guid(&rep_reader) {
+            Ok(gid) => gid,
+            Err(e) => {
+                let _ = delete_dds_endpoint(rep_reader);
+                context.ros_discovery_mgr.remove_dds_writer(req_writer_gid);
+                let _ = delete_dds_endpoint(req_writer);
+                return Err(e);
+            }
+        };
+        context.ros_discovery_mgr.add_dds_reader(rep_reader_gid);
 
         Ok(RouteServiceSrv {
             ros2_name,
