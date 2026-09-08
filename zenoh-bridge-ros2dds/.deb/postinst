@@ -20,14 +20,15 @@ set -e
 
 case "$1" in
     configure)
-        if ! command -v systemctl &> /dev/null
-        then
-            echo "WARNING: 'systemctl' not found - cannot install zenoh-bridge-ros2dds as a service."
-            exit 0
-        fi
+	SYSTEMCTL_CMD=$(command -v systemctl)
+	if [ -z "$SYSTEMCTL_CMD" ]; then
+		echo "WARNING: 'systemctl' not found - cannot install zenoh-bridge-ros2dds as a service."
+		exit 0
+	fi
+	echo "Found $SYSTEMCTL_CMD"
         id -u zenoh-bridge-ros2dds &> /dev/null || useradd -r -s /bin/false zenoh-bridge-ros2dds
-        systemctl daemon-reload
-        systemctl disable zenoh-bridge-ros2dds
+        "$SYSTEMCTL_CMD" daemon-reload
+        "$SYSTEMCTL_CMD" disable zenoh-bridge-ros2dds
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
