@@ -30,6 +30,7 @@ use zenoh::{
     internal::buffers::{Buffer, ZBuf, ZSlice},
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
+    matching::MatchingListener,
     query::{Querier, Reply},
     sample::Locality,
     Wait,
@@ -66,6 +67,10 @@ pub struct RouteServiceCli {
     context: Context,
     #[serde(skip)]
     _zenoh_querier: Arc<Querier<'static>>,
+    // Keep the listener scoped to the route instead of detaching it in the
+    // background, where it can survive route removal.
+    #[serde(skip)]
+    matching_listener: Option<MatchingListener<()>>,
     #[serde(serialize_with = "crate::config::serialize_duration_as_f32")]
     queries_timeout: Duration,
     // the local DDS Reader receiving client's requests and routing them to Zenoh
@@ -85,6 +90,7 @@ pub struct RouteServiceCli {
 
 impl Drop for RouteServiceCli {
     fn drop(&mut self) {
+        self.matching_listener.take();
         self.deactivate();
     }
 }
@@ -131,7 +137,7 @@ impl RouteServiceCli {
         let rep_writer: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
         let req_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
-        zenoh_querier
+        let matching_listener = zenoh_querier
             .matching_listener()
             .callback({
                 let rep_writer = rep_writer.clone();
@@ -166,7 +172,6 @@ impl RouteServiceCli {
                         }
                 }
             })
-            .background()
             .await
             .map_err(|e| format!("Route Service Client (ROS:{ros2_name} <-> Zenoh:{zenoh_key_expr}): failed to listen of matching status changes: {e}",))?;
 
@@ -176,6 +181,7 @@ impl RouteServiceCli {
             zenoh_key_expr,
             context,
             _zenoh_querier: zenoh_querier,
+            matching_listener: Some(matching_listener),
             queries_timeout,
             rep_writer,
             req_reader,
