@@ -33,7 +33,7 @@ use crate::{
     config::Config,
     discovered_entities::DiscoveredEntities,
     events::{ROS2AnnouncementEvent, ROS2DiscoveryEvent},
-    qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader},
+    qos_helpers::{adapt_reader_qos_for_writer, adapt_writer_qos_for_reader, qos_is_compatible, qos_summary},
     ros2_utils::{key_expr_to_ros2_name, ros2_name_to_key_expr},
     ros_discovery::RosDiscoveryInfoMgr,
     route_action_cli::RouteActionCli,
@@ -588,7 +588,22 @@ impl RoutesMgr {
 
                 Ok(entry.insert(route))
             }
-            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Occupied(entry) => {
+                // Route already exists: check that the incoming QoS is compatible with
+                // the QoS the route's DDS Reader was created with. A mismatch causes DDS
+                // to silently refuse endpoint matching — no error is surfaced to the caller
+                // (issue #435). Log a WARN so the failure is observable.
+                let route = entry.into_mut();
+                if !qos_is_compatible(route.reader_qos(), &reader_qos) {
+                    tracing::warn!(
+                        "{route} QoS mismatch: route was created with {} but incoming entity \
+                         has {}. DDS endpoint matching may silently fail.",
+                        qos_summary(route.reader_qos()),
+                        qos_summary(&reader_qos),
+                    );
+                }
+                Ok(route)
+            }
         }
     }
 
@@ -625,7 +640,19 @@ impl RoutesMgr {
 
                 Ok(entry.insert(route))
             }
-            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Occupied(entry) => {
+                // Route already exists: check QoS compatibility (issue #435 — silent failure).
+                let route = entry.into_mut();
+                if !qos_is_compatible(route.writer_qos(), &writer_qos) {
+                    tracing::warn!(
+                        "{route} QoS mismatch: route was created with {} but incoming entity \
+                         has {}. DDS endpoint matching may silently fail.",
+                        qos_summary(route.writer_qos()),
+                        qos_summary(&writer_qos),
+                    );
+                }
+                Ok(route)
+            }
         }
     }
 
