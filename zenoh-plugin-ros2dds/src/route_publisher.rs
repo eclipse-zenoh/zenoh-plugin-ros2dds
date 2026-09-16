@@ -28,6 +28,7 @@ use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
+    matching::MatchingListener,
     qos::{CongestionControl, Priority, Reliability},
     sample::Locality,
     Wait,
@@ -81,6 +82,10 @@ pub struct RoutePublisher {
         serialize_with = "serialize_pub_cache"
     )]
     zenoh_publisher: ZPublisher,
+    // Keep the listener scoped to the route. A background listener outlives
+    // this object and can recreate a DDS Reader after the route is removed.
+    #[serde(skip)]
+    matching_listener: Option<MatchingListener<()>>,
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh message coming from DDS)
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     dds_reader: Arc<AtomicDDSEntity>,
@@ -109,6 +114,9 @@ pub struct RoutePublisher {
 
 impl Drop for RoutePublisher {
     fn drop(&mut self) {
+        // Stop matching callbacks before deleting the DDS entity and dropping
+        // the publisher captured by the callback.
+        self.matching_listener.take();
         self.deactivate_dds_reader();
     }
 }
@@ -221,7 +229,7 @@ impl RoutePublisher {
         // (copy/move all required args for the callback)
         let dds_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
-        publisher
+        let matching_listener = publisher
             .matching_listener()
             .callback({
                 let dds_reader = dds_reader.clone();
@@ -256,7 +264,6 @@ impl RoutePublisher {
                     }
                 }
             })
-            .background()
             .await
             .map_err(|e| format!("Failed to listen of matching status changes: {e}",))?;
 
@@ -269,6 +276,7 @@ impl RoutePublisher {
                 publisher,
                 cache_size,
             },
+            matching_listener: Some(matching_listener),
             dds_reader,
             priority,
             _type_info: type_info.clone(),
