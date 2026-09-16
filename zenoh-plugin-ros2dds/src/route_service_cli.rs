@@ -38,9 +38,11 @@ use zenoh::{
 use crate::{
     dds_types::{DDSRawSample, TypeInfo},
     dds_utils::{
-        create_dds_reader, create_dds_writer, dds_write, delete_dds_entity, get_guid,
-        is_cdr_little_endian, serialize_atomic_entity_guid, AtomicDDSEntity, DDS_ENTITY_NULL,
+        create_dds_reader, create_dds_writer, dds_write, delete_dds_endpoint, get_guid,
+        is_cdr_little_endian, serialize_atomic_entity_guid, serialize_local_nodes, AtomicDDSEntity,
+        DDS_ENTITY_NULL,
     },
+    gid::Gid,
     liveliness_mgt::new_ke_liveliness_service_cli,
     ros2_utils::{
         is_service_for_action, new_service_id, ros2_service_type_to_reply_dds_type,
@@ -50,6 +52,15 @@ use crate::{
     routes_mgr::Context,
     LOG_PAYLOAD,
 };
+
+const DDS_SERVICE_ACTIVATION_RETRY_DELAYS: [Duration; 6] = [
+    Duration::from_millis(100),
+    Duration::from_millis(250),
+    Duration::from_millis(500),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(5),
+];
 
 // a route for a Service Client exposed in Zenoh as a Queryier
 #[allow(clippy::upper_case_acronyms)]
@@ -74,17 +85,23 @@ pub struct RouteServiceCli {
     // the local DDS Writer sending replies to the client
     #[serde(serialize_with = "serialize_atomic_entity_guid")]
     rep_writer: Arc<AtomicDDSEntity>,
+    // Whether the Zenoh querier currently has a matching remote server. Kept
+    // on the route so Drop can cancel an in-flight activation task.
+    #[serde(skip)]
+    matching_servers: Arc<AtomicBool>,
     // a liveliness token associated to this route, for announcement to other plugins
     #[serde(skip)]
     liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
-    // the list of nodes served by this route
-    local_nodes: HashSet<String>,
+    // the list of nodes served by this route, keyed by (participant_gid, node_fullname) — #702.
+    #[serde(serialize_with = "serialize_local_nodes")]
+    local_nodes: HashSet<(Gid, String)>,
 }
 
 impl Drop for RouteServiceCli {
     fn drop(&mut self) {
+        self.matching_servers.store(false, Ordering::Release);
         self.deactivate();
     }
 }
@@ -124,46 +141,57 @@ impl RouteServiceCli {
                 .map_err(|e| format!("Failed create Querier for key {zenoh_key_expr}: {e}",))?,
         );
 
-        let route_id = format!("Route Service Client (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr}");
+        let route_id = format!("Route Service Client (ROS:{ros2_name} -> Zenoh:{zenoh_key_expr})");
 
         // activate/deactivate DDS Reader/Writer on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)
         let rep_writer: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
         let req_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
+        let matching_servers = Arc::new(AtomicBool::new(false));
+        let activation_in_progress = Arc::new(AtomicBool::new(false));
 
         zenoh_querier
             .matching_listener()
             .callback({
                 let rep_writer = rep_writer.clone();
                 let req_reader = req_reader.clone();
+                let matching_servers = matching_servers.clone();
+                let activation_in_progress = activation_in_progress.clone();
                 let ros2_name = ros2_name.clone();
                 let ros2_type = ros2_type.clone();
                 let context = context.clone();
                 let zquerier = zenoh_querier.clone();
 
                 move |status| {
-                        tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
-                        if status.matching() {
-                            if let Err(e) = activate(
-                                &rep_writer,
-                                &req_reader,
-                                &ros2_name,
-                                &ros2_type,
-                                &route_id,
-                                &context,
-                                &type_info,
-                                &zquerier,
-                            ) {
-                                tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
-                            }
-                        } else {
-                            deactivate(
-                                &rep_writer,
-                                &req_reader,
-                                &route_id,
-                                &context.ros_discovery_mgr,
-                            )
+                    tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
+                    if status.matching() {
+                        matching_servers.store(true, Ordering::Release);
+                        if activation_in_progress
+                            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                            .is_ok()
+                        {
+                            spawn_activation(
+                                rep_writer.clone(),
+                                req_reader.clone(),
+                                matching_servers.clone(),
+                                activation_in_progress.clone(),
+                                ros2_name.clone(),
+                                ros2_type.clone(),
+                                route_id.clone(),
+                                context.clone(),
+                                type_info.clone(),
+                                zquerier.clone(),
+                            );
                         }
+                    } else {
+                        matching_servers.store(false, Ordering::Release);
+                        deactivate(
+                            &rep_writer,
+                            &req_reader,
+                            &route_id,
+                            &context.ros_discovery_mgr,
+                        )
+                    }
                 }
             })
             .background()
@@ -179,6 +207,7 @@ impl RouteServiceCli {
             queries_timeout,
             rep_writer,
             req_reader,
+            matching_servers,
             liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
@@ -253,24 +282,25 @@ impl RouteServiceCli {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String) {
-        self.local_nodes.insert(node);
-        tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, announce the route
-        if self.local_nodes.len() == 1 {
+    pub async fn add_local_node(&mut self, node_key: (Gid, String)) {
+        if self.local_nodes.insert(node_key) && self.local_nodes.len() == 1 {
+            tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
             if let Err(e) = self.announce_route().await {
                 tracing::error!("{self}: announcement failed: {e}");
             }
+        } else {
+            tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
         }
     }
 
     #[inline]
-    pub fn remove_local_node(&mut self, node: &str) {
-        self.local_nodes.remove(node);
-        tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, retire the route
-        if self.local_nodes.is_empty() {
-            self.retire_route();
+    pub fn remove_local_node(&mut self, node_key: &(Gid, String)) {
+        if self.local_nodes.remove(node_key) {
+            tracing::debug!("{self}: now serving local nodes {:?}", self.local_nodes);
+            // if last local node removed, retire the route
+            if self.local_nodes.is_empty() {
+                self.retire_route();
+            }
         }
     }
 
@@ -283,6 +313,84 @@ impl RouteServiceCli {
     pub fn is_unused(&self) -> bool {
         !self.is_serving_local_node() && !self.is_serving_remote_route()
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn spawn_activation(
+    rep_writer: Arc<AtomicDDSEntity>,
+    req_reader: Arc<AtomicDDSEntity>,
+    matching_servers: Arc<AtomicBool>,
+    activation_in_progress: Arc<AtomicBool>,
+    ros2_name: String,
+    ros2_type: String,
+    route_id: String,
+    context: Context,
+    type_info: Option<Arc<TypeInfo>>,
+    zenoh_querier: Arc<Querier<'static>>,
+) {
+    tokio::spawn(async move {
+        let mut failures = 0usize;
+
+        while matching_servers.load(Ordering::Acquire)
+            && (rep_writer.load(Ordering::Acquire) == DDS_ENTITY_NULL
+                || req_reader.load(Ordering::Acquire) == DDS_ENTITY_NULL)
+        {
+            match activate(
+                &rep_writer,
+                &req_reader,
+                &ros2_name,
+                &ros2_type,
+                &route_id,
+                &context,
+                &type_info,
+                &zenoh_querier,
+            ) {
+                Ok(()) => {
+                    if !matching_servers.load(Ordering::Acquire) {
+                        deactivate(
+                            &rep_writer,
+                            &req_reader,
+                            &route_id,
+                            &context.ros_discovery_mgr,
+                        );
+                    }
+                    break;
+                }
+                Err(e) => {
+                    let delay = DDS_SERVICE_ACTIVATION_RETRY_DELAYS
+                        [failures.min(DDS_SERVICE_ACTIVATION_RETRY_DELAYS.len() - 1)];
+                    failures = failures.saturating_add(1);
+                    tracing::error!(
+                        "{route_id}: failed to activate DDS endpoints: {e}; retrying in {delay:?}"
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+            }
+        }
+
+        activation_in_progress.store(false, Ordering::Release);
+
+        if matching_servers.load(Ordering::Acquire)
+            && (rep_writer.load(Ordering::Acquire) == DDS_ENTITY_NULL
+                || req_reader.load(Ordering::Acquire) == DDS_ENTITY_NULL)
+            && activation_in_progress
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+        {
+            spawn_activation(
+                rep_writer,
+                req_reader,
+                matching_servers,
+                activation_in_progress,
+                ros2_name,
+                ros2_type,
+                route_id,
+                context,
+                type_info,
+                zenoh_querier,
+            );
+        }
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -320,27 +428,20 @@ fn activate(
         true,
         qos.clone(),
     )?;
-    let old = rep_writer.swap(dds_writer, Ordering::Relaxed);
-    if old != DDS_ENTITY_NULL {
-        tracing::warn!(
-            "{route_id}: on activation their was already a DDS Reply Writer - overwrite it"
-        );
-        if let Err(e) = delete_dds_entity(old) {
-            tracing::warn!("{route_id}: failed to delete overwritten DDS Reply Writer: {e}");
+    let writer_gid = match get_guid(&dds_writer) {
+        Ok(gid) => gid,
+        Err(e) => {
+            let _ = delete_dds_endpoint(dds_writer);
+            return Err(e);
         }
-    }
-
-    // add writer's GID in ros_discovery_info message
-    context
-        .ros_discovery_mgr
-        .add_dds_writer(get_guid(&dds_writer)?);
+    };
 
     // create DDS Reader to receive requests and route them to Zenoh
     let req_topic_name = format!("rq{}Request", ros2_name);
     let req_type_name = ros2_service_type_to_request_dds_type(ros2_type);
     let zquerier = zenoh_querier.clone();
     let route_id2 = route_id.to_owned();
-    let dds_reader = create_dds_reader(
+    let dds_reader = match create_dds_reader(
         context.participant,
         req_topic_name,
         req_type_name,
@@ -351,21 +452,50 @@ fn activate(
         move |sample| {
             route_dds_request_to_zenoh(&route_id2, sample, &zquerier, dds_writer);
         },
-    )?;
-    let old = req_reader.swap(dds_reader, Ordering::Relaxed);
+    ) {
+        Ok(reader) => reader,
+        Err(e) => {
+            let _ = delete_dds_endpoint(dds_writer);
+            return Err(e);
+        }
+    };
+    let reader_gid = match get_guid(&dds_reader) {
+        Ok(gid) => gid,
+        Err(e) => {
+            let _ = delete_dds_endpoint(dds_reader);
+            let _ = delete_dds_endpoint(dds_writer);
+            return Err(e);
+        }
+    };
+
+    context.ros_discovery_mgr.add_dds_writer(writer_gid);
+    context.ros_discovery_mgr.add_dds_reader(reader_gid);
+
+    let old = rep_writer.swap(dds_writer, Ordering::AcqRel);
+    if old != DDS_ENTITY_NULL {
+        tracing::warn!(
+            "{route_id}: on activation their was already a DDS Reply Writer - overwrite it"
+        );
+        if let Ok(gid) = get_guid(&old) {
+            context.ros_discovery_mgr.remove_dds_writer(gid);
+        }
+        if let Err(e) = delete_dds_endpoint(old) {
+            tracing::warn!("{route_id}: failed to delete overwritten DDS Reply Writer: {e}");
+        }
+    }
+
+    let old = req_reader.swap(dds_reader, Ordering::AcqRel);
     if old != DDS_ENTITY_NULL {
         tracing::warn!(
             "{route_id}: on activation their was already a DDS Request Reader - overwrite it"
         );
-        if let Err(e) = delete_dds_entity(old) {
+        if let Ok(gid) = get_guid(&old) {
+            context.ros_discovery_mgr.remove_dds_reader(gid);
+        }
+        if let Err(e) = delete_dds_endpoint(old) {
             tracing::warn!("{route_id}: failed to delete overwritten DDS Request Reader: {e}");
         }
     }
-
-    // add reader's GID in ros_discovery_info message
-    context
-        .ros_discovery_mgr
-        .add_dds_reader(get_guid(&dds_reader)?);
 
     Ok(())
 }
@@ -377,25 +507,25 @@ fn deactivate(
     ros_discovery_mgr: &Arc<RosDiscoveryInfoMgr>,
 ) {
     tracing::debug!("{route_id}: Deactivate");
-    let req_reader = req_reader.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
+    let req_reader = req_reader.swap(DDS_ENTITY_NULL, Ordering::AcqRel);
     if req_reader != DDS_ENTITY_NULL {
         // remove reader's GID from ros_discovery_info message
         match get_guid(&req_reader) {
             Ok(gid) => ros_discovery_mgr.remove_dds_reader(gid),
             Err(e) => tracing::warn!("{route_id}: {e}"),
         }
-        if let Err(e) = delete_dds_entity(req_reader) {
+        if let Err(e) = delete_dds_endpoint(req_reader) {
             tracing::warn!("{route_id}: error deleting DDS Reader: {e}");
         }
     }
-    let rep_writer = rep_writer.swap(DDS_ENTITY_NULL, Ordering::Relaxed);
+    let rep_writer = rep_writer.swap(DDS_ENTITY_NULL, Ordering::AcqRel);
     if rep_writer != DDS_ENTITY_NULL {
         // remove writer's GID from ros_discovery_info message
         match get_guid(&rep_writer) {
             Ok(gid) => ros_discovery_mgr.remove_dds_writer(gid),
             Err(e) => tracing::warn!("{route_id}: {e}"),
         }
-        if let Err(e) = delete_dds_entity(rep_writer) {
+        if let Err(e) = delete_dds_endpoint(rep_writer) {
             tracing::warn!("{route_id}: error deleting DDS Writer: {e}");
         }
     }
