@@ -39,6 +39,46 @@ pub fn is_transient_local(qos: &Qos) -> bool {
         .is_some_and(|durability| durability.kind == DurabilityKind::TRANSIENT_LOCAL)
 }
 
+/// Returns true if `incoming` QoS is compatible with the `existing` route QoS.
+///
+/// Per the DDS specification (§7.1.3):
+/// - Reliability: BEST_EFFORT writer can match a BEST_EFFORT reader;
+///   RELIABLE writer can match any reader; BEST_EFFORT writer cannot
+///   match a RELIABLE reader. In the bridge context both sides must agree.
+/// - Durability: VOLATILE does not deliver historical data; TRANSIENT_LOCAL does.
+///   If the route was created as TRANSIENT_LOCAL but the new entity is VOLATILE
+///   (or vice versa) the DDS endpoint matching will silently fail.
+///
+/// Callers that detect incompatibility should log a WARN so the failure is
+/// observable (D-VGC134-5 silent-failure class — convert silent drop to log
+/// entry). Route teardown/recreation is left to future work.
+pub fn qos_is_compatible(existing: &Qos, incoming: &Qos) -> bool {
+    // Check Reliability compatibility.
+    let existing_reliable = is_reliable(existing);
+    let incoming_reliable = is_reliable(incoming);
+    if existing_reliable != incoming_reliable {
+        return false;
+    }
+    // Check Durability (TRANSIENT_LOCAL vs. VOLATILE) compatibility.
+    let existing_transient = is_transient_local(existing);
+    let incoming_transient = is_transient_local(incoming);
+    if existing_transient != incoming_transient {
+        return false;
+    }
+    true
+}
+
+/// Returns a human-readable summary of Reliability + Durability for log output.
+pub fn qos_summary(qos: &Qos) -> String {
+    let rel = if is_reliable(qos) { "RELIABLE" } else { "BEST_EFFORT" };
+    let dur = if is_transient_local(qos) {
+        "TRANSIENT_LOCAL"
+    } else {
+        "VOLATILE"
+    };
+    format!("{rel}/{dur}")
+}
+
 // Copy and adapt Writer's QoS for creation of a matching Reader
 pub fn adapt_writer_qos_for_reader(qos: &Qos) -> Qos {
     let mut reader_qos = qos.clone();
