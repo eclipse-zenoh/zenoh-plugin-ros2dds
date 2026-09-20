@@ -210,6 +210,8 @@ The `"ros2dds"` part of this same configuration file can also be used in the con
 
 The command line arguments overwrite the equivalent keys configured in a configuration file.
 
+For DDS applications that publish plain ROS-compatible DDS topics without contributing to the ROS graph, the bridge can optionally expose selected message topics to Zenoh via the `bare_dds_publishers` config. This setting is an allowlist of ROS-style topic names such as `/low_state`; it does not match raw DDS names like `rt/low_state`, and normal publisher allow/deny rules still apply.
+
 ## Connectivity configurations
 
 ### DDS communications

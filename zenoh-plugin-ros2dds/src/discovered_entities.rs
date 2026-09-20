@@ -13,7 +13,7 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{self, Debug},
 };
 
@@ -27,10 +27,12 @@ use zenoh::{
 };
 
 use crate::{
+    config::Config,
     dds_discovery::{DdsEntity, DdsParticipant},
-    events::ROS2DiscoveryEvent,
+    events::{BareDdsMsgPub, ROS2DiscoveryEvent},
     gid::Gid,
     node_info::*,
+    ros2_utils::{dds_message_topic_to_ros2_name, dds_type_to_ros2_message_type},
     ros_discovery::{NodeEntitiesInfo, ParticipantEntitiesInfo},
 };
 
@@ -46,6 +48,7 @@ pub struct DiscoveredEntities {
     participants: HashMap<Gid, DdsParticipant>,
     writers: HashMap<Gid, DdsEntity>,
     readers: HashMap<Gid, DdsEntity>,
+    bare_dds_writers: HashSet<Gid>,
     ros_participant_info: HashMap<Gid, ParticipantEntitiesInfo>,
     nodes_info: HashMap<Gid, HashMap<String, NodeInfo>>,
     admin_space: HashMap<OwnedKeyExpr, EntityRef>,
@@ -68,6 +71,7 @@ impl Debug for DiscoveredEntities {
             "readers: {:?}",
             self.readers.keys().collect::<Vec<&Gid>>()
         )?;
+        writeln!(f, "bare_dds_writers: {:?}", self.bare_dds_writers)?;
         writeln!(f, "ros_participant_info: {:?}", self.ros_participant_info)?;
         writeln!(f, "nodes_info: {:?}", self.nodes_info)?;
         writeln!(
@@ -119,7 +123,7 @@ impl DiscoveredEntities {
     }
 
     #[inline]
-    pub fn add_writer(&mut self, writer: DdsEntity) -> Option<ROS2DiscoveryEvent> {
+    pub fn add_writer(&mut self, writer: DdsEntity, config: &Config) -> Vec<ROS2DiscoveryEvent> {
         // insert in admin space
         self.admin_space.insert(
             keformat!(
@@ -133,7 +137,7 @@ impl DiscoveredEntities {
         );
 
         // Check if this Writer is present in some NodeInfo.undiscovered_writer list
-        let mut event: Option<ROS2DiscoveryEvent> = None;
+        let mut events = Vec::new();
         for nodes_map in self.nodes_info.values_mut() {
             for node in nodes_map.values_mut() {
                 if let Some(i) = node
@@ -143,18 +147,27 @@ impl DiscoveredEntities {
                 {
                     // update the NodeInfo with this Writer's info
                     node.undiscovered_writer.remove(i);
-                    event = node.update_with_writer(&writer);
+                    if let Some(event) = node.update_with_writer(&writer) {
+                        events.push(event);
+                    }
                     break;
                 }
             }
-            if event.is_some() {
+            if !events.is_empty() {
                 break;
+            }
+        }
+
+        if events.is_empty() {
+            if let Some(bare_msg_pub) = self.make_bare_dds_msg_pub(&writer, config) {
+                self.bare_dds_writers.insert(writer.key);
+                events.push(ROS2DiscoveryEvent::DiscoveredBareDdsMsgPub(bare_msg_pub));
             }
         }
 
         // insert in Writers list
         self.writers.insert(writer.key, writer);
-        event
+        events
     }
 
     #[inline]
@@ -163,7 +176,8 @@ impl DiscoveredEntities {
     }
 
     #[inline]
-    pub fn remove_writer(&mut self, gid: &Gid) -> Option<ROS2DiscoveryEvent> {
+    pub fn remove_writer(&mut self, gid: &Gid) -> Vec<ROS2DiscoveryEvent> {
+        let mut events = Vec::new();
         if let Some(writer) = self.writers.remove(gid) {
             self.admin_space.remove(
                 &keformat!(
@@ -175,17 +189,36 @@ impl DiscoveredEntities {
                 .unwrap(),
             );
 
+            if self.bare_dds_writers.remove(gid) {
+                events.push(ROS2DiscoveryEvent::UndiscoveredBareDdsMsgPub(
+                    BareDdsMsgPub {
+                        name: dds_message_topic_to_ros2_name(&writer.topic_name)
+                            .unwrap_or_else(|| writer.topic_name[2..].to_string()),
+                        typ: dds_type_to_ros2_message_type(&writer.type_name),
+                        writer: writer.key,
+                        keyless: writer.keyless,
+                        qos: writer.qos.clone(),
+                    },
+                ));
+            }
+
             // Remove the Writer from any NodeInfo that might use it, possibly leading to a UndiscoveredX event
             for nodes_map in self.nodes_info.values_mut() {
                 for node in nodes_map.values_mut() {
                     if let Some(e) = node.remove_writer(gid) {
-                        // A Reader can be used by only 1 Node, no need to go on with loops
-                        return Some(e);
+                        events.push(e);
+                        break;
                     }
+                }
+                if events
+                    .iter()
+                    .any(|event| matches!(event, ROS2DiscoveryEvent::UndiscoveredMsgPub(_, _)))
+                {
+                    break;
                 }
             }
         }
-        None
+        events
     }
 
     #[inline]
@@ -378,6 +411,21 @@ impl DiscoveredEntities {
             }
         }
         events
+    }
+
+    fn make_bare_dds_msg_pub(&self, writer: &DdsEntity, config: &Config) -> Option<BareDdsMsgPub> {
+        let name = dds_message_topic_to_ros2_name(&writer.topic_name)?;
+        if !config.is_bare_dds_publisher_enabled(&name) || !config.is_publisher_allowed(&name) {
+            return None;
+        }
+
+        Some(BareDdsMsgPub {
+            name,
+            typ: dds_type_to_ros2_message_type(&writer.type_name),
+            writer: writer.key,
+            keyless: writer.keyless,
+            qos: writer.qos.clone(),
+        })
     }
 
     fn get_entity_json_value(
