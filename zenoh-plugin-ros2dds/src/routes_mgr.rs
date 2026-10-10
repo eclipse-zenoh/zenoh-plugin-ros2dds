@@ -168,6 +168,19 @@ impl RoutesMgr {
                 }
             }
 
+            DiscoveredBareDdsMsgPub(iface) => {
+                let route = self
+                    .get_or_create_route_publisher(
+                        iface.name,
+                        iface.typ,
+                        iface.keyless,
+                        adapt_writer_qos_for_reader(&iface.qos),
+                        true,
+                    )
+                    .await?;
+                route.add_local_bare_publisher(iface.writer, &iface.qos).await;
+            }
+
             UndiscoveredMsgPub(node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_publishers.entry(iface.name.clone())
                 {
@@ -176,6 +189,21 @@ impl RoutesMgr {
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / iface.name_as_keyexpr()));
+                        let route = entry.remove();
+                        tracing::info!("{route} removed");
+                    }
+                }
+            }
+
+            UndiscoveredBareDdsMsgPub(iface) => {
+                if let Entry::Occupied(mut entry) = self.routes_publishers.entry(iface.name.clone())
+                {
+                    let route = entry.get_mut();
+                    route.remove_local_bare_publisher(&iface.writer);
+                    if route.is_unused() {
+                        let iface_ke = unsafe { keyexpr::from_str_unchecked(&iface.name[1..]) };
+                        self.admin_space
+                            .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / iface_ke));
                         let route = entry.remove();
                         tracing::info!("{route} removed");
                     }

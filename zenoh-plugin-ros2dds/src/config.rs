@@ -54,6 +54,12 @@ pub struct Config {
     pub allowance: Option<Allowance>,
     #[serde(
         default,
+        deserialize_with = "deserialize_vec_regex",
+        serialize_with = "serialize_vec_regex"
+    )]
+    pub bare_dds_publishers: Vec<Regex>,
+    #[serde(
+        default,
         deserialize_with = "deserialize_vec_regex_f32",
         serialize_with = "serialize_vec_regex_f32"
     )]
@@ -83,6 +89,19 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn is_publisher_allowed(&self, ros2_name: &str) -> bool {
+        self.allowance
+            .as_ref()
+            .map(|allowance| allowance.is_publisher_allowed(ros2_name))
+            .unwrap_or(true)
+    }
+
+    pub fn is_bare_dds_publisher_enabled(&self, ros2_name: &str) -> bool {
+        self.bare_dds_publishers
+            .iter()
+            .any(|regex| regex.is_match(ros2_name))
+    }
+
     pub fn get_pub_max_frequencies(&self, ros2_name: &str) -> Option<f32> {
         for (re, freq) in &self.pub_max_frequencies {
             if re.is_match(ros2_name) {
@@ -661,6 +680,31 @@ where
     }
 }
 
+fn deserialize_vec_regex<'de, D>(deserializer: D) -> Result<Vec<Regex>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let strs: Vec<String> = Deserialize::deserialize(deserializer).unwrap();
+    let mut result: Vec<Regex> = Vec::with_capacity(strs.len());
+    for s in strs {
+        let regex = Regex::new(&s)
+            .map_err(|e| de::Error::custom(format!("Invalid regex '{s}': {e}")))?;
+        result.push(regex);
+    }
+    Ok(result)
+}
+
+fn serialize_vec_regex<S>(v: &Vec<Regex>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(v.len()))?;
+    for r in v {
+        seq.serialize_element(r.as_str())?;
+    }
+    seq.end()
+}
+
 fn serialize_vec_regex_f32<S>(v: &Vec<(Regex, f32)>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -900,6 +944,18 @@ mod tests {
 
         assert_eq!(__path__, Some(vec![String::from("/example/path")]));
         assert_eq!(__required__, None);
+    }
+
+    #[test]
+    fn test_bare_dds_publishers() {
+        let config = serde_json::from_str::<Config>(
+            r#"{"bare_dds_publishers": ["/low_state", ".*/telemetry"]}"#,
+        )
+        .unwrap();
+
+        assert!(config.is_bare_dds_publisher_enabled("/low_state"));
+        assert!(config.is_bare_dds_publisher_enabled("/robot/telemetry"));
+        assert!(!config.is_bare_dds_publisher_enabled("/image_left_raw"));
     }
 
     #[test]
