@@ -135,7 +135,7 @@ impl RoutesMgr {
     ) -> Result<(), String> {
         use ROS2DiscoveryEvent::*;
         match event {
-            DiscoveredMsgPub(node, iface) => {
+            DiscoveredMsgPub(participant, node, iface) => {
                 // Pick 1 discovered Writer amongst the possibly multiple ones listed in MsgPub
                 let entity = {
                     let entities = zread!(self.context.discovered_entities);
@@ -157,7 +157,7 @@ impl RoutesMgr {
                                 true,
                             )
                             .await?;
-                        route.add_local_node(node, &entity.qos).await;
+                        route.add_local_node((participant, node), &entity.qos).await;
                     }
                     None => {
                         return Err(format!(
@@ -168,11 +168,11 @@ impl RoutesMgr {
                 }
             }
 
-            UndiscoveredMsgPub(node, iface) => {
+            UndiscoveredMsgPub(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_publishers.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_PUBLISHER / iface.name_as_keyexpr()));
@@ -182,7 +182,7 @@ impl RoutesMgr {
                 }
             }
 
-            DiscoveredMsgSub(node, iface) => {
+            DiscoveredMsgSub(participant, node, iface) => {
                 // Pick 1 discovered Reader amongst the possibly multiple ones listed in MsgSub
                 let entity = {
                     let entities = zread!(self.context.discovered_entities);
@@ -204,7 +204,7 @@ impl RoutesMgr {
                                 true,
                             )
                             .await?;
-                        route.add_local_node(node, &entity.qos).await;
+                        route.add_local_node((participant, node), &entity.qos).await;
                     }
                     None => {
                         return Err(format!(
@@ -215,12 +215,12 @@ impl RoutesMgr {
                 }
             }
 
-            UndiscoveredMsgSub(node, iface) => {
+            UndiscoveredMsgSub(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_subscribers.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SUBSCRIBER / iface.name_as_keyexpr()));
@@ -229,19 +229,19 @@ impl RoutesMgr {
                     }
                 }
             }
-            DiscoveredServiceSrv(node, iface) => {
+            DiscoveredServiceSrv(participant, node, iface) => {
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_service_srv(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node).await;
+                route.add_local_node((participant, node)).await;
             }
-            UndiscoveredServiceSrv(node, iface) => {
+            UndiscoveredServiceSrv(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_service_srv.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_SRV / iface.name_as_keyexpr()));
@@ -250,19 +250,19 @@ impl RoutesMgr {
                     }
                 }
             }
-            DiscoveredServiceCli(node, iface) => {
+            DiscoveredServiceCli(participant, node, iface) => {
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_service_cli(iface.name, iface.typ, true)
                     .await?;
-                route.add_local_node(node).await;
+                route.add_local_node((participant, node)).await;
             }
-            UndiscoveredServiceCli(node, iface) => {
+            UndiscoveredServiceCli(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) =
                     self.routes_service_cli.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_SERVICE_CLI / iface.name_as_keyexpr()));
@@ -271,18 +271,18 @@ impl RoutesMgr {
                     }
                 }
             }
-            DiscoveredActionSrv(node, iface) => {
+            DiscoveredActionSrv(participant, node, iface) => {
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_action_srv(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node).await;
+                route.add_local_node((participant, node)).await;
             }
-            UndiscoveredActionSrv(node, iface) => {
+            UndiscoveredActionSrv(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_srv.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_SRV / iface.name_as_keyexpr()));
@@ -291,18 +291,18 @@ impl RoutesMgr {
                     }
                 }
             }
-            DiscoveredActionCli(node, iface) => {
+            DiscoveredActionCli(participant, node, iface) => {
                 // Get route (create it if not yet exists)
                 let route = self
                     .get_or_create_route_action_cli(iface.name, iface.typ)
                     .await?;
-                route.add_local_node(node).await;
+                route.add_local_node((participant, node)).await;
             }
-            UndiscoveredActionCli(node, iface) => {
+            UndiscoveredActionCli(participant, node, iface) => {
                 if let Entry::Occupied(mut entry) = self.routes_action_cli.entry(iface.name.clone())
                 {
                     let route = entry.get_mut();
-                    route.remove_local_node(&node);
+                    route.remove_local_node(&(participant, node));
                     if route.is_unused() {
                         self.admin_space
                             .remove(&(*KE_PREFIX_ROUTE_ACTION_CLI / iface.name_as_keyexpr()));
