@@ -92,6 +92,13 @@
       // },
 
       ////
+      //// bare_dds_publishers: Allowlist of bare DDS message publishers that should be exposed to Zenoh
+      ////                      even if they do not appear in `ros_discovery_info` as ROS 2 publishers.
+      ////                      Matching uses ROS-style topic names such as "/low_state", not raw DDS topic names
+      ////                      such as "rt/low_state". Existing publisher allow/deny rules still apply.
+      // bare_dds_publishers: ["/low_state", ".*/telemetry"],
+
+      ////
       //// pub_max_frequencies: Specify a list of maximum frequency of publications routing over zenoh for a set of Publishers.
       ////                      The strings must have the format "<regex>=<float>":
       ////                      - "regex" is a regular expression matching a Publisher interface name
