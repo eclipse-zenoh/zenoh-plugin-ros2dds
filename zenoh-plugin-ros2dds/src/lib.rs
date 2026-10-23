@@ -414,13 +414,21 @@ enum AdminRef {
 
 impl ROS2PluginRuntime {
     async fn run(&mut self) {
-        // Subscribe to all liveliness info from other ROS2 plugins
-        let ke_liveliness_all = keformat!(
-            ke_liveliness_all::formatter(),
-            zenoh_id = "*",
-            remaining = "**"
-        )
-        .unwrap();
+        // Subscribe to liveliness info from other ROS2 plugins.
+        // If a namespace is configured, only subscribe to announcements matching this namespace
+        // to avoid receiving (and creating routes for) announcements from other namespaces.
+        let ke_liveliness_all = if self.config.namespace != "/" {
+            let ns_prefix = &self.config.namespace[1..]; // strip leading '/'
+            OwnedKeyExpr::try_from(format!("@/*/@ros2_lv/*/{}§$*/**", ns_prefix))
+                .expect("Failed to build namespace-scoped liveliness key expression")
+        } else {
+            keformat!(
+                ke_liveliness_all::formatter(),
+                zenoh_id = "*",
+                remaining = "**"
+            )
+            .unwrap()
+        };
         let liveliness_subscriber = self
             .zsession
             .liveliness()
