@@ -119,9 +119,11 @@ pub fn key_expr_to_ros2_name(key_expr: &keyexpr, config: &Config) -> String {
     if config.namespace == "/" {
         format!("/{key_expr}")
     } else {
+        // the namespace prefix shall be followed by a '/' to be removed
+        // (e.g. "robot10/chatter" is not in namespace "/robot1")
         match key_expr.as_str().strip_prefix(&config.namespace[1..]) {
-            Some(s) => s.to_string(),
-            None => format!("/{key_expr}"),
+            Some(s) if s.starts_with('/') => s.to_string(),
+            _ => format!("/{key_expr}"),
         }
     }
 }
@@ -535,5 +537,29 @@ mod tests {
             ),
             "example_interfaces/action/Fibonacci"
         );
+    }
+
+    #[test]
+    fn test_key_expr_to_ros2_name() {
+        use zenoh::key_expr::keyexpr;
+
+        use crate::{config::Config, ros2_utils::*};
+
+        let config = serde_json::from_str::<Config>(r#"{"namespace": "/"}"#).unwrap();
+        let ke = keyexpr::new("robot1/chatter").unwrap();
+        assert_eq!(key_expr_to_ros2_name(ke, &config), "/robot1/chatter");
+
+        let config = serde_json::from_str::<Config>(r#"{"namespace": "/robot1"}"#).unwrap();
+        // namespace prefix is removed
+        let ke = keyexpr::new("robot1/chatter").unwrap();
+        assert_eq!(key_expr_to_ros2_name(ke, &config), "/chatter");
+        // key expr not in namespace is kept as is
+        let ke = keyexpr::new("robot2/chatter").unwrap();
+        assert_eq!(key_expr_to_ros2_name(ke, &config), "/robot2/chatter");
+        // key expr starting with namespace, but not on a chunk boundary, is kept as is
+        let ke = keyexpr::new("robot10/chatter").unwrap();
+        assert_eq!(key_expr_to_ros2_name(ke, &config), "/robot10/chatter");
+        let ke = keyexpr::new("robot1_ns/chatter").unwrap();
+        assert_eq!(key_expr_to_ros2_name(ke, &config), "/robot1_ns/chatter");
     }
 }
