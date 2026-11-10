@@ -20,8 +20,9 @@ use zenoh::{
 };
 
 use crate::{
-    liveliness_mgt::new_ke_liveliness_action_srv, ros2_utils::*, route_publisher::RoutePublisher,
-    route_service_srv::RouteServiceSrv, routes_mgr::Context,
+    dds_utils::serialize_local_nodes, gid::Gid, liveliness_mgt::new_ke_liveliness_action_srv,
+    ros2_utils::*, route_publisher::RoutePublisher, route_service_srv::RouteServiceSrv,
+    routes_mgr::Context,
 };
 
 #[derive(Serialize)]
@@ -55,8 +56,9 @@ pub struct RouteActionSrv {
     liveliness_token: Option<LivelinessToken>,
     // the list of remote routes served by this route ("<zenoh_id>:<zenoh_key_expr>"")
     remote_routes: HashSet<String>,
-    // the list of nodes served by this route
-    local_nodes: HashSet<String>,
+    // the list of nodes served by this route, keyed by (participant_gid, node_fullname) — #702.
+    #[serde(serialize_with = "serialize_local_nodes")]
+    local_nodes: HashSet<(Gid, String)>,
 }
 
 impl fmt::Display for RouteActionSrv {
@@ -232,40 +234,41 @@ impl RouteActionSrv {
     }
 
     #[inline]
-    pub async fn add_local_node(&mut self, node: String) {
+    pub async fn add_local_node(&mut self, node_key: (Gid, String)) {
         futures::join!(
-            self.route_send_goal.add_local_node(node.clone()),
-            self.route_cancel_goal.add_local_node(node.clone()),
-            self.route_get_result.add_local_node(node.clone()),
+            self.route_send_goal.add_local_node(node_key.clone()),
+            self.route_cancel_goal.add_local_node(node_key.clone()),
+            self.route_get_result.add_local_node(node_key.clone()),
             self.route_feedback
-                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_FEEDBACK),
+                .add_local_node(node_key.clone(), &QOS_DEFAULT_ACTION_FEEDBACK),
             self.route_status
-                .add_local_node(node.clone(), &QOS_DEFAULT_ACTION_STATUS),
+                .add_local_node(node_key.clone(), &QOS_DEFAULT_ACTION_STATUS),
         );
 
-        self.local_nodes.insert(node);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if 1st local node added, activate the route
-        if self.local_nodes.len() == 1 {
+        if self.local_nodes.insert(node_key) && self.local_nodes.len() == 1 {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
             if let Err(e) = self.announce_route().await {
                 tracing::error!("{self} activation failed: {e}");
             }
+        } else {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
         }
     }
 
     #[inline]
-    pub fn remove_local_node(&mut self, node: &str) {
-        self.route_send_goal.remove_local_node(node);
-        self.route_cancel_goal.remove_local_node(node);
-        self.route_get_result.remove_local_node(node);
-        self.route_feedback.remove_local_node(node);
-        self.route_status.remove_local_node(node);
+    pub fn remove_local_node(&mut self, node_key: &(Gid, String)) {
+        self.route_send_goal.remove_local_node(node_key);
+        self.route_cancel_goal.remove_local_node(node_key);
+        self.route_get_result.remove_local_node(node_key);
+        self.route_feedback.remove_local_node(node_key);
+        self.route_status.remove_local_node(node_key);
 
-        self.local_nodes.remove(node);
-        tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-        // if last local node removed, deactivate the route
-        if self.local_nodes.is_empty() {
-            self.retire_route();
+        if self.local_nodes.remove(node_key) {
+            tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
+            // if last local node removed, deactivate the route
+            if self.local_nodes.is_empty() {
+                self.retire_route();
+            }
         }
     }
 
