@@ -219,6 +219,11 @@ impl RoutePublisher {
 
         // activate/deactivate DDS Reader on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)
+        // The listener runs in background until the publisher is undeclared, so it must
+        // not keep the publisher alive: it holds a Weak reference. Otherwise the publisher
+        // and its listener outlive this route, and when the route is re-created (e.g. the
+        // ROS Publisher restarts) the stale listener creates an extra DDS Reader on the
+        // next matching change, and each sample is routed once per stale listener (#700).
         let dds_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
         publisher
@@ -233,11 +238,15 @@ impl RoutePublisher {
                 let context = context.clone();
                 let reader_qos = reader_qos.clone();
                 let type_info = type_info.clone();
-                let publisher = publisher.clone();
+                let publisher = Arc::downgrade(&publisher);
 
                 move |status| {
                     tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
                     if status.matching() {
+                        let Some(publisher) = publisher.upgrade() else {
+                            tracing::debug!("{route_id}: route dropped, ignore MatchingStatus");
+                            return;
+                        };
                         if let Err(e) = activate_dds_reader(
                             &dds_reader,
                             &ros2_name,

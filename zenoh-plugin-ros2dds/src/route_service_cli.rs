@@ -128,6 +128,9 @@ impl RouteServiceCli {
 
         // activate/deactivate DDS Reader/Writer on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)
+        // The listener runs in background until the querier is undeclared, so it holds a
+        // Weak reference to it: otherwise the querier and its listener outlive this route
+        // and re-create DDS entities after the route is re-created (#700).
         let rep_writer: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
         let req_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
 
@@ -139,11 +142,15 @@ impl RouteServiceCli {
                 let ros2_name = ros2_name.clone();
                 let ros2_type = ros2_type.clone();
                 let context = context.clone();
-                let zquerier = zenoh_querier.clone();
+                let zquerier = Arc::downgrade(&zenoh_querier);
 
                 move |status| {
                         tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
                         if status.matching() {
+                            let Some(zquerier) = zquerier.upgrade() else {
+                                tracing::debug!("{route_id}: route dropped, ignore MatchingStatus");
+                                return;
+                            };
                             if let Err(e) = activate(
                                 &rep_writer,
                                 &req_reader,
