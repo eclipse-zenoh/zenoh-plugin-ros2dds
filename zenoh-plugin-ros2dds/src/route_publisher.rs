@@ -40,6 +40,7 @@ use crate::{
         create_dds_reader, delete_dds_entity, get_guid, serialize_atomic_entity_guid,
         AtomicDDSEntity, DDS_ENTITY_NULL,
     },
+    gid::Gid,
     liveliness_mgt::new_ke_liveliness_pub,
     qos_helpers::*,
     ros2_utils::{is_message_for_action, ros2_message_type_to_dds_type},
@@ -105,6 +106,8 @@ pub struct RoutePublisher {
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
+    // the list of local bare DDS Writers served by this route
+    bare_dds_publishers: HashSet<Gid>,
 }
 
 impl Drop for RoutePublisher {
@@ -277,6 +280,7 @@ impl RoutePublisher {
             liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
+            bare_dds_publishers: HashSet::new(),
         })
     }
 
@@ -348,11 +352,16 @@ impl RoutePublisher {
     }
 
     #[inline]
+    fn local_source_count(&self) -> usize {
+        self.local_nodes.len() + self.bare_dds_publishers.len()
+    }
+
+    #[inline]
     pub async fn add_local_node(&mut self, node: String, discovered_writer_qos: &Qos) {
         if self.local_nodes.insert(node) {
             tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-            // if 1st local node added, announce the route
-            if self.local_nodes.len() == 1 {
+            // if 1st local source added, announce the route
+            if self.local_source_count() == 1 {
                 if let Err(e) = self.announce_route(discovered_writer_qos).await {
                     tracing::error!("{self} announcement failed: {e}");
                 }
@@ -364,8 +373,8 @@ impl RoutePublisher {
     pub fn remove_local_node(&mut self, node: &str) {
         if self.local_nodes.remove(node) {
             tracing::debug!("{self} now serving local nodes {:?}", self.local_nodes);
-            // if last local node removed, retire the route
-            if self.local_nodes.is_empty() {
+            // if last local source removed, retire the route
+            if self.local_source_count() == 0 {
                 self.retire_route();
             }
         }
@@ -373,7 +382,39 @@ impl RoutePublisher {
 
     #[inline]
     pub fn is_serving_local_node(&self) -> bool {
-        !self.local_nodes.is_empty()
+        self.local_source_count() > 0
+    }
+
+    #[inline]
+    pub async fn add_local_bare_publisher(
+        &mut self,
+        writer: Gid,
+        discovered_writer_qos: &Qos,
+    ) {
+        if self.bare_dds_publishers.insert(writer) {
+            tracing::debug!(
+                "{self} now serving bare DDS publishers {:?}",
+                self.bare_dds_publishers
+            );
+            if self.local_source_count() == 1 {
+                if let Err(e) = self.announce_route(discovered_writer_qos).await {
+                    tracing::error!("{self} announcement failed: {e}");
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn remove_local_bare_publisher(&mut self, writer: &Gid) {
+        if self.bare_dds_publishers.remove(writer) {
+            tracing::debug!(
+                "{self} now serving bare DDS publishers {:?}",
+                self.bare_dds_publishers
+            );
+            if self.local_source_count() == 0 {
+                self.retire_route();
+            }
+        }
     }
 
     #[inline]
