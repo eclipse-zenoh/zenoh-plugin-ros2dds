@@ -17,7 +17,7 @@ use std::{
     fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Weak,
     },
     time::Duration,
 };
@@ -81,10 +81,18 @@ pub struct RouteServiceCli {
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
+    // true until this route is dropped. Shared with the matching listener, which
+    // must not leave DDS entities behind once the route is gone.
+    #[serde(skip)]
+    alive: Arc<AtomicBool>,
 }
 
 impl Drop for RouteServiceCli {
     fn drop(&mut self) {
+        // Cleared before the DDS entities are deleted: a matching callback that
+        // activates concurrently either has its entities deleted here, or sees the
+        // flag and deletes them itself.
+        self.alive.store(false, Ordering::SeqCst);
         self.deactivate();
     }
 }
@@ -128,11 +136,14 @@ impl RouteServiceCli {
 
         // activate/deactivate DDS Reader/Writer on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)
-        // The listener runs in background until the querier is undeclared, so it holds a
-        // Weak reference to it: otherwise the querier and its listener outlive this route
-        // and re-create DDS entities after the route is re-created (#700).
+        // The listener runs in background until the querier is undeclared, so it and the
+        // request Reader's callback (which is never freed) hold a Weak reference to it:
+        // otherwise the querier and its listener outlive this route and re-create DDS
+        // entities after the route is re-created (#700). The `alive` flag covers a
+        // callback in progress while the route is dropped.
         let rep_writer: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
         let req_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
+        let alive = Arc::new(AtomicBool::new(true));
 
         zenoh_querier
             .matching_listener()
@@ -143,14 +154,15 @@ impl RouteServiceCli {
                 let ros2_type = ros2_type.clone();
                 let context = context.clone();
                 let zquerier = Arc::downgrade(&zenoh_querier);
+                let alive = alive.clone();
 
                 move |status| {
                         tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
+                        if !alive.load(Ordering::SeqCst) {
+                            tracing::debug!("{route_id}: route dropped, ignore MatchingStatus");
+                            return;
+                        }
                         if status.matching() {
-                            let Some(zquerier) = zquerier.upgrade() else {
-                                tracing::debug!("{route_id}: route dropped, ignore MatchingStatus");
-                                return;
-                            };
                             if let Err(e) = activate(
                                 &rep_writer,
                                 &req_reader,
@@ -162,6 +174,15 @@ impl RouteServiceCli {
                                 &zquerier,
                             ) {
                                 tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
+                            }
+                            if !alive.load(Ordering::SeqCst) {
+                                // the route was dropped during the activation
+                                deactivate(
+                                    &rep_writer,
+                                    &req_reader,
+                                    &route_id,
+                                    &context.ros_discovery_mgr,
+                                )
                             }
                         } else {
                             deactivate(
@@ -189,6 +210,7 @@ impl RouteServiceCli {
             liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
+            alive,
         })
     }
 
@@ -301,7 +323,7 @@ fn activate(
     route_id: &str,
     context: &Context,
     type_info: &Option<Arc<TypeInfo>>,
-    zenoh_querier: &Arc<Querier<'static>>,
+    zenoh_querier: &Weak<Querier<'static>>,
 ) -> Result<(), String> {
     tracing::debug!("{route_id}: activate");
     // Default Service QoS
@@ -356,7 +378,9 @@ fn activate(
         qos,
         None,
         move |sample| {
-            route_dds_request_to_zenoh(&route_id2, sample, &zquerier, dds_writer);
+            if let Some(zquerier) = zquerier.upgrade() {
+                route_dds_request_to_zenoh(&route_id2, sample, &zquerier, dds_writer);
+            }
         },
     )?;
     let old = req_reader.swap(dds_reader, Ordering::Relaxed);
