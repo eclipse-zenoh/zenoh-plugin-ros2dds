@@ -16,7 +16,10 @@ use std::{
     collections::HashSet,
     fmt,
     ops::Deref,
-    sync::{atomic::Ordering, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
     time::Duration,
 };
 
@@ -105,10 +108,18 @@ pub struct RoutePublisher {
     remote_routes: HashSet<String>,
     // the list of nodes served by this route
     local_nodes: HashSet<String>,
+    // true until this route is dropped. Shared with the matching listener, which
+    // must not leave a DDS Reader behind once the route is gone.
+    #[serde(skip)]
+    alive: Arc<AtomicBool>,
 }
 
 impl Drop for RoutePublisher {
     fn drop(&mut self) {
+        // Cleared before the Reader is deleted: a matching callback that activates a
+        // Reader concurrently either has it deleted here, or sees the flag and deletes
+        // it itself.
+        self.alive.store(false, Ordering::SeqCst);
         self.deactivate_dds_reader();
     }
 }
@@ -219,7 +230,18 @@ impl RoutePublisher {
 
         // activate/deactivate DDS Reader on detection/undetection of matching Subscribers
         // (copy/move all required args for the callback)
+        // The listener runs in background until the publisher is undeclared, so neither
+        // it nor the DDS Reader's callback may keep the publisher alive: both hold a Weak
+        // reference (the Reader's callback is never freed when it is installed as a DDS
+        // listener, so a strong reference there would never be released). Otherwise the
+        // publisher and its listener outlive this route, and when the route is re-created
+        // (e.g. the ROS Publisher restarts) the stale listener creates an extra DDS Reader
+        // on the next matching change, and each sample is routed once per stale listener
+        // (#700). The `alive` flag covers the time the publisher is still referenced
+        // after the route is dropped (a callback in progress, or a periodic Reader task
+        // that has not woken up yet).
         let dds_reader: Arc<AtomicDDSEntity> = Arc::new(DDS_ENTITY_NULL.into());
+        let alive = Arc::new(AtomicBool::new(true));
 
         publisher
             .matching_listener()
@@ -233,10 +255,15 @@ impl RoutePublisher {
                 let context = context.clone();
                 let reader_qos = reader_qos.clone();
                 let type_info = type_info.clone();
-                let publisher = publisher.clone();
+                let publisher = Arc::downgrade(&publisher);
+                let alive = alive.clone();
 
                 move |status| {
                     tracing::debug!("{route_id} MatchingStatus changed: {status:?}");
+                    if !alive.load(Ordering::SeqCst) {
+                        tracing::debug!("{route_id}: route dropped, ignore MatchingStatus");
+                        return;
+                    }
                     if status.matching() {
                         if let Err(e) = activate_dds_reader(
                             &dds_reader,
@@ -250,6 +277,14 @@ impl RoutePublisher {
                             &publisher,
                         ) {
                             tracing::error!("{route_id}: failed to activate DDS Reader: {e}");
+                        }
+                        if !alive.load(Ordering::SeqCst) {
+                            // the route was dropped during the activation
+                            deactivate_dds_reader(
+                                &dds_reader,
+                                &route_id,
+                                &context.ros_discovery_mgr,
+                            )
                         }
                     } else {
                         deactivate_dds_reader(&dds_reader, &route_id, &context.ros_discovery_mgr)
@@ -277,6 +312,7 @@ impl RoutePublisher {
             liveliness_token: None,
             remote_routes: HashSet::new(),
             local_nodes: HashSet::new(),
+            alive,
         })
     }
 
@@ -413,7 +449,7 @@ fn activate_dds_reader(
     keyless: bool,
     reader_qos: &Qos,
     type_info: &Option<Arc<TypeInfo>>,
-    publisher: &Arc<AdvancedPublisher<'static>>,
+    publisher: &Weak<AdvancedPublisher<'static>>,
 ) -> Result<(), String> {
     tracing::debug!("{route_id}: create Reader with {reader_qos:?}");
     let topic_name: String = format!("rt{}", ros2_name);
@@ -433,7 +469,9 @@ fn activate_dds_reader(
             let route_id = route_id.to_string();
             let publisher = publisher.clone();
             move |sample: &DDSRawSample| {
-                route_dds_message_to_zenoh(sample, &publisher, &route_id);
+                if let Some(publisher) = publisher.upgrade() {
+                    route_dds_message_to_zenoh(sample, &publisher, &route_id);
+                }
             }
         },
     )?;
